@@ -9,12 +9,13 @@
  * - 智能广告拦截
  * - 支持策略组自动切换
  */
-
 function main(config) {
   // 初始化配置
+
   if (!config.proxies || !config['proxy-groups']) {
     return config;
   }
+
 
   // 持久化保存策略组选择与 fake-ip 缓存
   config.profile = {
@@ -22,21 +23,115 @@ function main(config) {
     'store-selected': true,
     'store-fake-ip': true
   };
-
-  // 精简 DNS：优先本地解析国内，兜底公共 DoH 提升境外域名解析稳定性
+  // 第四阶段：在保守前提下增强 DNS 稳定性与国内外分流解析质量
   config.dns = {
     enable: true,
     listen: '0.0.0.0:1053',
     ipv6: false,
+    'prefer-h3': true,
+    'respect-rules': true,
+    'use-hosts': true,
     'enhanced-mode': 'fake-ip',
     'fake-ip-range': '198.18.0.1/16',
-    nameserver: ['223.5.5.5', '119.29.29.29'],
+    'fake-ip-filter': [
+      '*.lan',
+      '*.local',
+      '*.localdomain',
+      '*.home.arpa',
+      'localhost.ptlogin2.qq.com',
+      'msftconnecttest.com',
+      'msftncsi.com',
+      'time.windows.com',
+      'time.apple.com',
+      'pool.ntp.org',
+      'ntp.*.com',
+      'ntp.*.cn',
+      'stun.*.*',
+      'stun.*.*.*',
+      'stun.*',
+      'turn.*',
+      'turn.*.*',
+      'relay.*',
+      'cable.auth.com',
+      '*.srv.nintendo.net',
+      '*.stun.playstation.net',
+      'xbox.*.microsoft.com',
+      '*.xboxlive.com',
+      '*.battle.net',
+      '*.battlenet.com.cn',
+      '*.wotgame.cn',
+      '*.wggames.cn',
+      '*.wowsgame.cn',
+      '*.wargaming.net',
+      'router.asus.com',
+      'routerlogin.net',
+      'www.routerlogin.com',
+      'tplogin.cn',
+      'tplinkwifi.net',
+      'miwifi.com',
+      'mediatek.com',
+      'plex.direct'
+    ],
+    nameserver: [
+      'https://dns.alidns.com/dns-query',
+      'https://doh.pub/dns-query',
+      '223.5.5.5',
+      '119.29.29.29'
+    ],
+    'default-nameserver': ['223.5.5.5', '119.29.29.29'],
+    'proxy-server-nameserver': [
+      'https://dns.alidns.com/dns-query',
+      'https://doh.pub/dns-query',
+      'https://dns.cloudflare.com/dns-query',
+      'https://dns.google/dns-query'
+    ],
+    'nameserver-policy': {
+      'geosite:cn': ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'],
+      'geosite:private': ['223.5.5.5', '119.29.29.29'],
+      'geosite:geolocation-!cn': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'geosite:telegram': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'geosite:twitter': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'geosite:facebook': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+
+      'geosite:instagram': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'geosite:whatsapp': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:x.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:twitter.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:t.co': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:twimg.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+
+      'domain:facebook.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+
+      'domain:fb.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:meta.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:fbsbx.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:fbcdn.net': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:tfbnw.net': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:instagram.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:instagr.am': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:ig.me': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:igcdn.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:cdnig.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:cdninstagram.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:threads.net': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:threadsdotnet.com': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
+      'domain:whatsapp.net': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query']
+
+    },
+
     'fallback-filter': {
       geoip: true,
-      'geoip-code': 'CN'
+      'geoip-code': 'CN',
+      ipcidr: ['240.0.0.0/4'],
+      domain: ['+.google.com', '+.youtube.com', '+.twitter.com', '+.x.com', '+.telegram.org', '+.t.me']
     },
-    fallback: ['https://dns.google/dns-query', 'https://cloudflare-dns.com/dns-query']
+    fallback: [
+      'https://dns.cloudflare.com/dns-query',
+      'https://dns.google/dns-query'
+    ]
+
   };
+
 
   // 提取所有节点
 
@@ -116,44 +211,117 @@ function main(config) {
     '🇳🇱 荷兰节点': [],
     '🌍 其他节点': []
   };
-
-  // 节点关键词映射
+  // 3B：增强地区识别，兼容脏命名/缩写/机场前缀后缀
   const keywordMap = {
-    '🇭🇰 香港节点': ['香港', 'HK', 'Hong Kong', 'HongKong', 'hongkong', '🇭🇰', 'Hongkong'],
-    '🇹🇼 台湾节点': ['台湾', 'TW', 'Taiwan', 'taiwan', '🇹🇼', 'Taipei'],
-    '🇯🇵 日本节点': ['日本', 'JP', 'Japan', 'japan', '🇯🇵', 'Tokyo', 'Osaka'],
-    '🇸🇬 新加坡节点': ['新加坡', 'SG', 'Singapore', 'singapore', '🇸🇬'],
-    '🇺🇸 美国节点': ['美国', 'US', 'USA', 'United States', 'America', 'america', '🇺🇸', 'Los Angeles', 'San Jose', 'Seattle', 'Chicago', 'New York'],
-    '🇰🇷 韩国节点': ['韩国', 'KR', 'Korea', 'korea', '🇰🇷', 'Seoul'],
-    '🇬🇧 英国节点': ['英国', 'GB', 'UK', 'Britain', 'United Kingdom', 'britain', '🇬🇧', 'London'],
-    '🇩🇪 德国节点': ['德国', 'DE', 'Germany', 'germany', '🇩🇪', 'Frankfurt', 'Berlin'],
-    '🇫🇷 法国节点': ['法国', 'FR', 'France', 'france', '🇫🇷', 'Paris'],
-    '🇨🇦 加拿大节点': ['加拿大', 'CA', 'Canada', 'canada', '🇨🇦', 'Toronto', 'Vancouver'],
-    '🇲🇴 澳门节点': ['澳门', 'MO', 'Macao', 'Macao SAR', 'Macau', 'macau', 'macao', '🇲🇴'],
-    '🇦🇺 澳大利亚节点': ['澳大利亚', 'AU', 'Australia', 'australia', '🇦🇺', 'Sydney'],
-    '🇮🇳 印度节点': ['印度', 'IN', 'India', 'india', '🇮🇳', 'Mumbai'],
-
-    '🇷🇺 俄罗斯节点': ['俄罗斯', 'RU', 'Russia', 'russia', '🇷🇺', 'Moscow'],
-    '🇧🇷 巴西节点': ['巴西', 'BR', 'Brazil', 'brazil', '🇧🇷'],
-    '🇦🇷 阿根廷节点': ['阿根廷', 'AR', 'Argentina', 'argentina', '🇦🇷'],
-    '🇹🇷 土耳其节点': ['土耳其', 'TR', 'Turkey', 'turkey', '🇹🇷', 'Istanbul'],
-    '🇳🇱 荷兰节点': ['荷兰', 'NL', 'Netherlands', 'netherlands', '🇳🇱', 'Amsterdam']
+    '🇭🇰 香港节点': ['香港', 'hk', 'hong kong', 'hongkong', 'hkg'],
+    '🇹🇼 台湾节点': ['台湾', 'tw', 'taiwan', 'taipei', 'taichung', 'kaohsiung'],
+    '🇯🇵 日本节点': ['日本', 'jp', 'japan', 'tokyo', 'osaka', 'nagoya', 'saitama'],
+    '🇸🇬 新加坡节点': ['新加坡', 'sg', 'singapore', 'sgp'],
+    '🇺🇸 美国节点': ['美国', 'us', 'usa', 'united states', 'america', 'los angeles', 'san jose', 'seattle', 'chicago', 'new york', 'silicon valley', 'las vegas', 'phoenix', 'dallas'],
+    '🇰🇷 韩国节点': ['韩国', 'kr', 'korea', 'seoul', 'busan'],
+    '🇬🇧 英国节点': ['英国', 'gb', 'uk', 'britain', 'united kingdom', 'london', 'manchester'],
+    '🇩🇪 德国节点': ['德国', 'de', 'germany', 'frankfurt', 'berlin', 'munich'],
+    '🇫🇷 法国节点': ['法国', 'fr', 'france', 'paris', 'marseille'],
+    '🇨🇦 加拿大节点': ['加拿大', 'ca', 'canada', 'toronto', 'vancouver', 'montreal'],
+    '🇲🇴 澳门节点': ['澳门', 'mo', 'macao', 'macau', 'macao sar'],
+    '🇦🇺 澳大利亚节点': ['澳大利亚', 'au', 'australia', 'sydney', 'melbourne', 'brisbane', 'perth'],
+    '🇮🇳 印度节点': ['印度', 'in', 'india', 'mumbai', 'delhi', 'bangalore', 'chennai'],
+    '🇷🇺 俄罗斯节点': ['俄罗斯', 'ru', 'russia', 'moscow', 'saint petersburg'],
+    '🇧🇷 巴西节点': ['巴西', 'br', 'brazil', 'sao paulo', 'rio'],
+    '🇦🇷 阿根廷节点': ['阿根廷', 'ar', 'argentina', 'buenos aires'],
+    '🇹🇷 土耳其节点': ['土耳其', 'tr', 'turkey', 'istanbul', 'ankara'],
+    '🇳🇱 荷兰节点': ['荷兰', 'nl', 'netherlands', 'amsterdam', 'rotterdam']
   };
+
+  const regionPriority = [
+    '🇭🇰 香港节点',
+    '🇹🇼 台湾节点',
+    '🇯🇵 日本节点',
+    '🇸🇬 新加坡节点',
+    '🇺🇸 美国节点',
+    '🇰🇷 韩国节点',
+    '🇬🇧 英国节点',
+    '🇩🇪 德国节点',
+    '🇫🇷 法国节点',
+    '🇨🇦 加拿大节点',
+    '🇲🇴 澳门节点',
+    '🇦🇺 澳大利亚节点',
+    '🇮🇳 印度节点',
+    '🇷🇺 俄罗斯节点',
+    '🇧🇷 巴西节点',
+    '🇦🇷 阿根廷节点',
+    '🇹🇷 土耳其节点',
+    '🇳🇱 荷兰节点'
+  ];
+
+  function normalizeProxyName(name) {
+    return String(name || '')
+      .toLowerCase()
+      .replace(/[\u{1F1E6}-\u{1F1FF}]/gu, ' ')
+      .replace(/[\u2600-\u27BF]/gu, ' ')
+      .replace(/[|｜¦•·・,，;；:：/\\_+-–—()[]{}<>【】「」『』]/g, ' ')
+      .replace(/\b(vip|svip|倍率|x\d+|iepl|iplc|bgp|cn2|gia|game|games|gaming|stream|media|unlock|nf|奈飞|netflix|disney|hbo|max|prime|chatgpt|gpt|ai|home|residential|station|server|node|premium|traffic|test|testing|expire|plan|used)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  function hasWholeWord(text, word) {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`, 'i').test(text);
+  }
+
+  function matchRegionByName(name) {
+    const normalized = normalizeProxyName(name);
+    if (!normalized) return null;
+
+    const compact = normalized.replace(/\s+/g, '');
+
+    for (const groupName of regionPriority) {
+      const keywords = keywordMap[groupName] || [];
+      for (const keyword of keywords) {
+        const lowerKeyword = keyword.toLowerCase();
+        if (/^[a-z]{2,3}$/.test(lowerKeyword)) {
+          if (hasWholeWord(normalized, lowerKeyword)) {
+            return groupName;
+          }
+          continue;
+        }
+
+        if (normalized.includes(lowerKeyword) || compact.includes(lowerKeyword.replace(/\s+/g, ''))) {
+          return groupName;
+        }
+      }
+    }
+
+    // 二次回收：识别常见中转/专线/家宽/原生标签附近的地区词
+    const recoveryPatterns = [
+      ['🇭🇰 香港节点', /(香港|hong\s?kong|hongkong|\bhk\b|\bhkg\b)/i],
+      ['🇹🇼 台湾节点', /(台湾|taiwan|taipei|taichung|kaohsiung|\btw\b)/i],
+      ['🇯🇵 日本节点', /(日本|japan|tokyo|osaka|nagoya|\bjp\b)/i],
+      ['🇸🇬 新加坡节点', /(新加坡|singapore|\bsg\b|\bsgp\b)/i],
+      ['🇺🇸 美国节点', /(美国|united states|america|los angeles|san jose|new york|\bus\b|\busa\b)/i],
+      ['🇰🇷 韩国节点', /(韩国|korea|seoul|busan|\bkr\b)/i]
+    ];
+
+    for (const [groupName, pattern] of recoveryPatterns) {
+      if (pattern.test(normalized)) {
+        return groupName;
+      }
+    }
+
+    return null;
+  }
 
   // 对节点进行分类
   for (const proxy of proxies) {
-    let matched = false;
-    for (const [groupName, keywords] of Object.entries(keywordMap)) {
-      if (keywords.some(keyword => proxy.name.includes(keyword))) {
-        nodeGroups[groupName].push(proxy.name);
-        matched = true;
-        break;
-      }
-    }
-    if (!matched) {
+    const matchedGroup = matchRegionByName(proxy.name);
+    if (matchedGroup) {
+      nodeGroups[matchedGroup].push(proxy.name);
+    } else {
       nodeGroups['🌍 其他节点'].push(proxy.name);
     }
   }
+
+
 
   // 过滤掉空的分组
   const validGroups = Object.entries(nodeGroups)
@@ -165,6 +333,10 @@ function main(config) {
   const existingGroupMap = Object.fromEntries(existingGroups.map(g => [g.name, g]));
 
   function preserveGroup(group) {
+    if (group.type !== 'select') {
+      return group;
+    }
+
     const oldGroup = existingGroupMap[group.name];
     if (!oldGroup || !Array.isArray(oldGroup.proxies) || !Array.isArray(group.proxies)) {
       return group;
@@ -178,7 +350,7 @@ function main(config) {
     };
   }
   const testUrl = 'http://www.gstatic.com/generate_204';
-  const testInterval = 600;
+  const testInterval = 300;
 
   const testTolerance = 50;
   const testLazy = true;
@@ -237,26 +409,39 @@ function main(config) {
     '🇰🇷 韩国节点',
     '🌍 其他节点'
   ].filter(name => validGroups.includes(name));
-  const aiFallbackProxies = [
-    ...['🇹🇼 台湾节点', '🇺🇸 美国节点'].filter(name => validGroups.includes(name)),
-    ...flattenGroupNodes(aiFallbackGroupOrder.filter(name => !['🇹🇼 台湾节点', '🇺🇸 美国节点'].includes(name)))
-  ];
+  const aiFallbackProxies = flattenGroupNodes(aiFallbackGroupOrder);
+  const regionPresets = {
+    metaPreferred: [
+      '🇭🇰 香港节点',
+      '🇹🇼 台湾节点',
+      '🇯🇵 日本节点',
+      '🇸🇬 新加坡节点',
+      '🇰🇷 韩国节点',
+      '🇺🇸 美国节点'
+    ].filter(name => validGroups.includes(name)),
+    socialPreferred: [
+      '🇭🇰 香港节点',
+      '🇹🇼 台湾节点',
+      '🇯🇵 日本节点',
+      '🇸🇬 新加坡节点',
+      '🇰🇷 韩国节点',
+      '🇺🇸 美国节点'
+    ].filter(name => validGroups.includes(name)),
+    tiktokPreferred: [
+      '🇭🇰 香港节点',
+      '🇹🇼 台湾节点'
+    ].filter(name => validGroups.includes(name))
+  };
 
-  const metaFallbackGroups = [
-    '🇭🇰 香港节点',
-    '🇹🇼 台湾节点',
-    '🇺🇸 美国节点',
-    '🇯🇵 日本节点',
-    '🇸🇬 新加坡节点',
-    '🇰🇷 韩国节点',
-    '🌍 其他节点'
-  ].filter(name => validGroups.includes(name));
-  const metaFallbackProxies = [
-    ...['🇭🇰 香港节点', '🇹🇼 台湾节点'].filter(name => validGroups.includes(name)),
-    ...flattenGroupNodes(metaFallbackGroups.filter(name => !['🇭🇰 香港节点', '🇹🇼 台湾节点'].includes(name)))
-  ];
+  const metaAppProxies = flattenGroupNodes(regionPresets.metaPreferred);
+  const facebookAppProxies = flattenGroupNodes(regionPresets.socialPreferred);
+  const twitterAppProxies = flattenGroupNodes(regionPresets.socialPreferred);
+  const instagramAppProxies = flattenGroupNodes(regionPresets.socialPreferred);
+  const threadsAppProxies = flattenGroupNodes(regionPresets.socialPreferred);
+  const tiktokAppProxies = flattenGroupNodes(regionPresets.tiktokPreferred);
 
   const aiSelectProxies = [
+
     '国外AI故障转移',
     '节点选择',
     '自动选择',
@@ -267,14 +452,15 @@ function main(config) {
     '🇰🇷 韩国节点',
     '🌍 其他节点'
   ].filter(name => ['国外AI故障转移', '节点选择', '自动选择'].includes(name) || validGroups.includes(name));
-
-
-  const hkTwFallbackProxies = [
+  const hkTwFallbackGroupOrder = [
     '🇭🇰 香港节点',
     '🇹🇼 台湾节点'
   ].filter(name => validGroups.includes(name));
+  const hkTwFallbackProxies = hkTwFallbackGroupOrder;
+
 
   const netflixSelectProxies = [
+
     '节点选择',
     '自动选择',
     '🇭🇰 香港节点',
@@ -301,65 +487,15 @@ function main(config) {
     '🇸🇬 新加坡节点',
     '🇺🇸 美国节点'
   ].filter(name => ['节点选择', '自动选择'].includes(name) || validGroups.includes(name));
-  const facebookSelectProxies = [
-    'Meta故障转移',
-    '港台故障转移',
-    '节点选择',
-    '自动选择',
-    '🇭🇰 香港节点',
-    '🇹🇼 台湾节点',
-    '🇺🇸 美国节点'
-  ].filter(name => ['Meta故障转移', '港台故障转移', '节点选择', '自动选择'].includes(name) || validGroups.includes(name));
-
-  const twitterAutoTestProxies = [
-
-    '🇭🇰 香港节点',
-    '🇹🇼 台湾节点',
-    '🇺🇸 美国节点',
-    '🇯🇵 日本节点'
-  ].filter(name => validGroups.includes(name));
-
-  const twitterSelectProxies = [
-    'Twitter自动测速',
-    '港台故障转移',
-    '节点选择',
-    '自动选择',
-    '🇭🇰 香港节点',
-    '🇹🇼 台湾节点',
-    '🇺🇸 美国节点',
-    '🇯🇵 日本节点'
-  ].filter(name => ['Twitter自动测速', '港台故障转移', '节点选择', '自动选择'].includes(name) || validGroups.includes(name));
-  const instagramSelectProxies = [
-    'Meta故障转移',
-    '港台故障转移',
-    '节点选择',
-    '自动选择',
-    '🇭🇰 香港节点',
-    '🇹🇼 台湾节点',
-    '🇺🇸 美国节点'
-  ].filter(name => ['Meta故障转移', '港台故障转移', '节点选择', '自动选择'].includes(name) || validGroups.includes(name));
-  const threadsSelectProxies = [
-    'Meta故障转移',
-    '港台故障转移',
-    '节点选择',
-    '自动选择',
-    '🇭🇰 香港节点',
-    '🇹🇼 台湾节点',
-    '🇺🇸 美国节点'
-  ].filter(name => ['Meta故障转移', '港台故障转移', '节点选择', '自动选择'].includes(name) || validGroups.includes(name));
 
 
 
-  const tiktokSelectProxies = [
-    '港台故障转移',
-    '节点选择',
-    '自动选择',
-    '🇭🇰 香港节点',
-    '🇹🇼 台湾节点',
-    '🇯🇵 日本节点',
-    '🇸🇬 新加坡节点',
-    '🇺🇸 美国节点'
-  ].filter(name => ['港台故障转移', '节点选择', '自动选择'].includes(name) || validGroups.includes(name));
+
+
+  // TikTok 使用专属 url-test，不再保留 select 备用数组
+
+
+
 
 
   const niconicoFallbackGroupOrder = [
@@ -369,10 +505,7 @@ function main(config) {
     '🇹🇼 台湾节点',
     '🇸🇬 新加坡节点'
   ].filter(name => validGroups.includes(name));
-  const niconicoFallbackProxies = [
-    ...['🇯🇵 日本节点', '🇰🇷 韩国节点'].filter(name => validGroups.includes(name)),
-    ...flattenGroupNodes(niconicoFallbackGroupOrder.filter(name => !['🇯🇵 日本节点', '🇰🇷 韩国节点'].includes(name)))
-  ];
+  const niconicoFallbackProxies = niconicoFallbackGroupOrder;
 
   const niconicoSelectProxies = [
     '日韩故障转移',
@@ -384,7 +517,6 @@ function main(config) {
     '🇹🇼 台湾节点',
     '🇸🇬 新加坡节点'
   ].filter(name => ['日韩故障转移', '节点选择', '自动选择'].includes(name) || validGroups.includes(name));
-
   const googleSelectProxies = [
     '港台故障转移',
     '节点选择',
@@ -394,8 +526,21 @@ function main(config) {
     '🇺🇸 美国节点',
     '🇯🇵 日本节点'
   ].filter(name => ['港台故障转移', '节点选择', '自动选择'].includes(name) || validGroups.includes(name));
+  const microsoftSelectProxies = [
+    '全球直连',
+    '节点选择',
+    '自动选择',
+    '🇭🇰 香港节点',
+    '🇹🇼 台湾节点',
+    '🇺🇸 美国节点',
+    '🇯🇵 日本节点'
+  ].filter(name => ['全球直连', '节点选择', '自动选择'].includes(name) || validGroups.includes(name));
+  const whatsappSelectProxies = [];
+
+
 
   const steamSelectProxies = [
+
     '节点选择',
     '自动选择',
     '全球直连',
@@ -440,7 +585,6 @@ function main(config) {
   ];
 
   // 构建策略组
-
   const newProxyGroups = [
     // 主选择器
     {
@@ -461,7 +605,7 @@ function main(config) {
       proxies: allProxyNames
     },
 
-    // 故障转移组
+    // 故障转移 / 自动测速组
     {
       name: '港台故障转移',
       type: 'fallback',
@@ -471,7 +615,6 @@ function main(config) {
       tolerance: testTolerance,
       lazy: testLazy,
       proxies: hkTwFallbackProxies.length > 0 ? hkTwFallbackProxies : ['自动选择']
-
     },
     {
       name: 'YouTube故障转移',
@@ -481,7 +624,7 @@ function main(config) {
       interval: testInterval,
       tolerance: testTolerance,
       lazy: testLazy,
-      proxies: youtubeFallbackProxies.length > 0 ? youtubeFallbackProxies : ['节点选择']
+      proxies: youtubeFallbackProxies.length > 0 ? youtubeFallbackProxies : ['自动选择']
     },
     {
       name: '日韩故障转移',
@@ -491,9 +634,8 @@ function main(config) {
       interval: testInterval,
       tolerance: testTolerance,
       lazy: testLazy,
-      proxies: niconicoFallbackProxies.length > 0 ? niconicoFallbackProxies : ['节点选择']
+      proxies: niconicoFallbackProxies.length > 0 ? niconicoFallbackProxies : ['自动选择']
     },
-
     {
       name: '国外AI故障转移',
       type: 'fallback',
@@ -502,28 +644,11 @@ function main(config) {
       interval: testInterval,
       tolerance: testTolerance,
       lazy: testLazy,
-      proxies: aiFallbackProxies.length > 0 ? aiFallbackProxies : ['节点选择']
+      proxies: aiFallbackProxies.length > 0 ? aiFallbackProxies : ['自动选择']
     },
-    {
-      name: 'Meta故障转移',
-      type: 'fallback',
-      icon: 'https://api.iconify.design/logos:meta-icon.svg',
-      url: testUrl,
-      interval: testInterval,
-      tolerance: testTolerance,
-      lazy: testLazy,
-      proxies: metaFallbackProxies.length > 0 ? metaFallbackProxies : ['港台故障转移', '节点选择']
-    },
-    {
-      name: 'Twitter自动测速',
-      type: 'url-test',
-      icon: 'https://api.iconify.design/simple-icons:x.svg',
-      url: testUrl,
-      interval: testInterval,
-      tolerance: testTolerance,
-      lazy: testLazy,
-      proxies: twitterAutoTestProxies.length > 0 ? flattenGroupNodes(twitterAutoTestProxies) : ['节点选择']
-    },
+    // Meta故障转移组已移除，四个 Meta 主组直接使用专属 url-test
+    // Twitter自动测速组已移除，Twitter 主组直接使用专属 url-test
+
 
     // 策略组
     {
@@ -552,39 +677,76 @@ function main(config) {
     },
     {
       name: 'WhatsApp',
-      type: 'select',
+      type: 'url-test',
       icon: 'https://icons.duckduckgo.com/ip3/whatsapp.com.ico',
-      proxies: ['港台故障转移', '节点选择', '自动选择', ...allProxyNames]
+      url: 'https://www.whatsapp.com',
+      interval: 180,
+      tolerance: 30,
+      lazy: testLazy,
+      proxies: metaAppProxies.length > 0 ? metaAppProxies : ['自动选择']
+    },
+
+    {
+      name: 'Google',
+      type: 'select',
+      icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Google_Search.png',
+      proxies: [...googleSelectProxies, ...allProxyNames]
     },
     {
       name: 'Facebook',
-      type: 'select',
+      type: 'url-test',
       icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Facebook.png',
-      proxies: [...facebookSelectProxies, ...allProxyNames]
+      url: 'https://www.facebook.com',
+      interval: 180,
+      tolerance: 30,
+      lazy: testLazy,
+      proxies: facebookAppProxies.length > 0 ? facebookAppProxies : ['自动选择']
     },
+ 
     {
       name: 'Twitter',
-      type: 'select',
-      icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Twitter.png',
-      proxies: [...twitterSelectProxies, ...allProxyNames]
+      type: 'url-test',
+      icon: 'https://api.iconify.design/simple-icons:x.svg',
+      url: 'https://x.com',
+      interval: 180,
+      tolerance: 30,
+      lazy: testLazy,
+      proxies: twitterAppProxies.length > 0 ? twitterAppProxies : ['自动选择']
     },
+ 
     {
       name: 'Instagram',
-      type: 'select',
+      type: 'url-test',
       icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Instagram.png',
-      proxies: [...instagramSelectProxies, ...allProxyNames]
+      url: 'https://www.instagram.com',
+      interval: 180,
+      tolerance: 30,
+      lazy: testLazy,
+      proxies: instagramAppProxies.length > 0 ? instagramAppProxies : ['自动选择']
     },
+ 
     {
       name: 'Threads',
-      type: 'select',
+      type: 'url-test',
       icon: 'https://icons.duckduckgo.com/ip3/threads.net.ico',
-      proxies: [...threadsSelectProxies, ...allProxyNames]
+      url: 'https://www.threads.net',
+      interval: 180,
+      tolerance: 30,
+      lazy: testLazy,
+      proxies: threadsAppProxies.length > 0 ? threadsAppProxies : ['自动选择']
     },
+ 
+ 
+ 
     {
       name: 'TikTok',
-      type: 'select',
+      type: 'url-test',
       icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/TikTok.png',
-      proxies: [...tiktokSelectProxies, ...allProxyNames]
+      url: 'https://www.tiktok.com',
+      interval: 180,
+      tolerance: 30,
+      lazy: testLazy,
+      proxies: tiktokAppProxies.length > 0 ? tiktokAppProxies : ['自动选择']
     },
     {
       name: 'Niconico',
@@ -592,6 +754,7 @@ function main(config) {
       icon: 'https://api.iconify.design/simple-icons:niconico.svg',
       proxies: [...niconicoSelectProxies, ...allProxyNames]
     },
+
     {
       name: 'Steam',
       type: 'select',
@@ -610,42 +773,33 @@ function main(config) {
       icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Streaming.png',
       proxies: [...intlLiveSelectProxies, ...allProxyNames]
     },
-
+    {
+      name: 'Microsoft',
+      type: 'select',
+      icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Microsoft.png',
+      proxies: [...microsoftSelectProxies, ...allProxyNames]
+    },
+    {
+      name: '谷歌商店',
+      type: 'select',
+      icon: 'https://api.iconify.design/logos:google-play-icon.svg',
+      proxies: ['自动选择', ...googleSelectProxies.filter(p => p !== '自动选择'), ...allProxyNames.filter(p => p !== '自动选择')]
+    },
     {
       name: '国外AI',
       type: 'select',
       icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/ChatGPT.png',
       proxies: [...aiSelectProxies, ...allProxyNames]
     },
-    {
-      name: 'Microsoft',
-      type: 'select',
-      icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Microsoft.png',
-      proxies: ['全球直连', '节点选择', '自动选择', ...allProxyNames]
-    },
-    {
-      name: 'Google',
-
-      type: 'select',
-      icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Google_Search.png',
-
-      proxies: [...googleSelectProxies, ...allProxyNames]
-    },
-    {
-      name: '谷歌商店',
-
-      type: 'select',
-      icon: 'https://api.iconify.design/logos:google-play-icon.svg',
-      proxies: ['自动选择', ...googleSelectProxies.filter(p => p !== '自动选择'), ...allProxyNames.filter(p => p !== '自动选择')]
-    },
 
     {
       name: '国内服务',
-
       type: 'select',
       icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/China.png',
-      proxies: ['全球直连', '节点选择', '自动选择', ...allProxyNames]
+      proxies: ['全球直连', '节点选择', '自动选择']
     },
+
+
     {
       name: '广告拦截',
 
@@ -715,51 +869,94 @@ function main(config) {
     'DOMAIN-SUFFIX,googleadservices.com,广告拦截',
     'DOMAIN-SUFFIX,googlesyndication.com,广告拦截',
     'DOMAIN-SUFFIX,google-analytics.com,广告拦截',
-
-    // 国外 AI
+    // 国外AI
     'DOMAIN-SUFFIX,openai.com,国外AI',
-    'DOMAIN-SUFFIX,ai.com,国外AI',
     'DOMAIN-SUFFIX,chatgpt.com,国外AI',
-    'DOMAIN-KEYWORD,openai,国外AI',
-    'DOMAIN-SUFFIX,claude.ai,国外AI',
+    'DOMAIN-SUFFIX,oaistatic.com,国外AI',
+    'DOMAIN-SUFFIX,oaiusercontent.com,国外AI',
+    'DOMAIN-SUFFIX,openaiapi-site.azureedge.net,国外AI',
+    'DOMAIN-SUFFIX,identrust.com,国外AI',
+    'DOMAIN-SUFFIX,ai.com,国外AI',
     'DOMAIN-SUFFIX,anthropic.com,国外AI',
-    'DOMAIN-SUFFIX,gemini.google.com,国外AI',
-    'DOMAIN-SUFFIX,generativelanguage.googleapis.com,国外AI',
+    'DOMAIN-SUFFIX,claude.ai,国外AI',
+    'DOMAIN-SUFFIX,claudeusercontent.com,国外AI',
     'DOMAIN-SUFFIX,perplexity.ai,国外AI',
+    'DOMAIN-SUFFIX,perplexity.com,国外AI',
     'DOMAIN-SUFFIX,poe.com,国外AI',
-    'DOMAIN-SUFFIX,x.ai,国外AI',
+    'DOMAIN-SUFFIX,poecdn.net,国外AI',
+    'DOMAIN-SUFFIX,gemini.google.com,国外AI',
+    'DOMAIN-SUFFIX,makersuite.google.com,国外AI',
+    'DOMAIN-SUFFIX,deepmind.google,国外AI',
+    'DOMAIN-SUFFIX,bard.google.com,国外AI',
+    'DOMAIN-SUFFIX,notebooklm.google.com,国外AI',
+    'DOMAIN-SUFFIX,notebooklm.google,国外AI',
+    'DOMAIN-SUFFIX,api.anthropic.com,国外AI',
+    'DOMAIN-SUFFIX,console.anthropic.com,国外AI',
+    'DOMAIN-SUFFIX,consumer-api.openai.com,国外AI',
+    'DOMAIN-SUFFIX,auth.openai.com,国外AI',
+    'DOMAIN-SUFFIX,chat.openai.com,国外AI',
+    'DOMAIN-SUFFIX,cdn.oaistatic.com,国外AI',
+    'DOMAIN-SUFFIX,platform.openai.com,国外AI',
+    'DOMAIN-SUFFIX,files.openai.com,国外AI',
+    'DOMAIN-SUFFIX,slabs.com,国外AI',
+    'DOMAIN-SUFFIX,linear.app,国外AI',
+    'DOMAIN-SUFFIX,cursor.sh,国外AI',
+    'DOMAIN-SUFFIX,cursor.com,国外AI',
     'DOMAIN-SUFFIX,copilot.microsoft.com,国外AI',
-    'DOMAIN-SUFFIX,bing.com,国外AI',
-    'DOMAIN-SUFFIX,edgeservices.bing.com,国外AI',
-    'DOMAIN-KEYWORD,claude,国外AI',
+    'DOMAIN-SUFFIX,sydney.bing.com,国外AI',
+    'DOMAIN-SUFFIX,bingapis.com,国外AI',
+    'DOMAIN-SUFFIX,huggingface.co,国外AI',
+    'DOMAIN-SUFFIX,hf.co,国外AI',
+    'DOMAIN-SUFFIX,replicate.com,国外AI',
+    'DOMAIN-SUFFIX,stability.ai,国外AI',
+    'DOMAIN-SUFFIX,character.ai,国外AI',
+    'DOMAIN-SUFFIX,inference.ai.azure.com,国外AI',
+    'DOMAIN-SUFFIX,grok.com,国外AI',
+    'DOMAIN-SUFFIX,x.ai,国外AI',
+
+    'DOMAIN-KEYWORD,openai,国外AI',
+    'DOMAIN-KEYWORD,chatgpt,国外AI',
     'DOMAIN-KEYWORD,anthropic,国外AI',
-    'DOMAIN-KEYWORD,gemini,国外AI',
+    'DOMAIN-KEYWORD,claude,国外AI',
     'DOMAIN-KEYWORD,perplexity,国外AI',
     'DOMAIN-KEYWORD,poe,国外AI',
+    'DOMAIN-KEYWORD,gemini,国外AI',
+    'DOMAIN-KEYWORD,makersuite,国外AI',
+    'DOMAIN-KEYWORD,notebooklm,国外AI',
     'DOMAIN-KEYWORD,copilot,国外AI',
-    'DOMAIN-KEYWORD,bing,国外AI',
-
+    'DOMAIN-KEYWORD,huggingface,国外AI',
     // YouTube
     'DOMAIN-SUFFIX,youtube.com,YouTube',
-    'DOMAIN-SUFFIX,googlevideo.com,YouTube',
-    'DOMAIN-SUFFIX,ytimg.com,YouTube',
     'DOMAIN-SUFFIX,youtu.be,YouTube',
+    'DOMAIN-SUFFIX,youtubei.googleapis.com,YouTube',
+    'DOMAIN-SUFFIX,ytimg.com,YouTube',
+    'DOMAIN-SUFFIX,ggpht.com,YouTube',
+    'DOMAIN-SUFFIX,googlevideo.com,YouTube',
+    'DOMAIN-SUFFIX,yt3.ggpht.com,YouTube',
+    'DOMAIN-SUFFIX,yt4.ggpht.com,YouTube',
     'DOMAIN-KEYWORD,youtube,YouTube',
+    'DOMAIN-KEYWORD,ytimg,YouTube',
 
     // Netflix
     'DOMAIN-SUFFIX,netflix.com,Netflix',
+    'DOMAIN-SUFFIX,netflix.net,Netflix',
     'DOMAIN-SUFFIX,nflxext.com,Netflix',
     'DOMAIN-SUFFIX,nflximg.net,Netflix',
+    'DOMAIN-SUFFIX,nflximg.com,Netflix',
     'DOMAIN-SUFFIX,nflxso.net,Netflix',
     'DOMAIN-SUFFIX,nflxvideo.net,Netflix',
+    'DOMAIN-SUFFIX,nflxsearch.net,Netflix',
+    'DOMAIN-SUFFIX,nflxcard.com,Netflix',
+    'DOMAIN-SUFFIX,nflxmonica.com,Netflix',
     'DOMAIN-KEYWORD,netflix,Netflix',
-
     // Spotify
     'DOMAIN-SUFFIX,spotify.com,Spotify',
     'DOMAIN-SUFFIX,spotifycdn.com,Spotify',
     'DOMAIN-SUFFIX,scdn.co,Spotify',
+    'DOMAIN-SUFFIX,spoti.fi,Spotify',
+    'DOMAIN-SUFFIX,spotifycdn.net,Spotify',
+    'DOMAIN-SUFFIX,audio-fa.scdn.co,Spotify',
     'DOMAIN-KEYWORD,spotify,Spotify',
-
     // Telegram
     'DOMAIN-SUFFIX,t.me,Telegram',
     'DOMAIN-SUFFIX,tdesktop.com,Telegram',
@@ -767,40 +964,70 @@ function main(config) {
     'DOMAIN-SUFFIX,telegram.org,Telegram',
     'DOMAIN-SUFFIX,telegra.ph,Telegram',
     'DOMAIN-SUFFIX,telesco.pe,Telegram',
+    'DOMAIN-SUFFIX,telegram-cdn.org,Telegram',
+    'DOMAIN-SUFFIX,telegram.dog,Telegram',
+    'DOMAIN-SUFFIX,tg.dev,Telegram',
+    'DOMAIN-SUFFIX,tx.me,Telegram',
+    'DOMAIN-SUFFIX,tgstat.ru,Telegram',
     'DOMAIN-KEYWORD,telegram,Telegram',
+
+    'IP-CIDR,91.105.192.0/23,Telegram,no-resolve',
     'IP-CIDR,91.108.4.0/22,Telegram,no-resolve',
     'IP-CIDR,91.108.8.0/22,Telegram,no-resolve',
     'IP-CIDR,91.108.12.0/22,Telegram,no-resolve',
     'IP-CIDR,91.108.16.0/22,Telegram,no-resolve',
     'IP-CIDR,91.108.56.0/22,Telegram,no-resolve',
+    'IP-CIDR,109.239.140.0/24,Telegram,no-resolve',
     'IP-CIDR,149.154.160.0/20,Telegram,no-resolve',
-
+    'IP-CIDR,185.76.151.0/24,Telegram,no-resolve',
     // WhatsApp
     'DOMAIN-SUFFIX,whatsapp.com,WhatsApp',
     'DOMAIN-SUFFIX,whatsapp.net,WhatsApp',
     'DOMAIN-KEYWORD,whatsapp,WhatsApp',
-
     // Facebook
     'DOMAIN-SUFFIX,facebook.com,Facebook',
+    'DOMAIN-SUFFIX,facebook.net,Facebook',
     'DOMAIN-SUFFIX,fbcdn.net,Facebook',
+    'DOMAIN-SUFFIX,fbsbx.com,Facebook',
+    'DOMAIN-SUFFIX,messenger.com,Facebook',
     'DOMAIN-SUFFIX,fb.com,Facebook',
+    'DOMAIN-SUFFIX,meta.com,Facebook',
+    'DOMAIN-SUFFIX,tfbnw.net,Facebook',
     'DOMAIN-KEYWORD,facebook,Facebook',
+    'DOMAIN-KEYWORD,messenger,Facebook',
+
 
     // Twitter
+
     'DOMAIN-SUFFIX,twitter.com,Twitter',
     'DOMAIN-SUFFIX,twimg.com,Twitter',
     'DOMAIN-SUFFIX,t.co,Twitter',
     'DOMAIN-SUFFIX,x.com,Twitter',
+    'DOMAIN-SUFFIX,abs.twimg.com,Twitter',
+    'DOMAIN-SUFFIX,video.twimg.com,Twitter',
+    'DOMAIN-SUFFIX,pbs.twimg.com,Twitter',
+    'DOMAIN-SUFFIX,api.x.com,Twitter',
+    'DOMAIN-SUFFIX,twitterapi.com,Twitter',
     'DOMAIN-KEYWORD,twitter,Twitter',
-
     // Instagram
     'DOMAIN-SUFFIX,instagram.com,Instagram',
     'DOMAIN-SUFFIX,cdninstagram.com,Instagram',
+    'DOMAIN-SUFFIX,instagram.fna.fbcdn.net,Instagram',
+    'DOMAIN-SUFFIX,i.instagram.com,Instagram',
+    'DOMAIN-SUFFIX,ig.me,Instagram',
+    'DOMAIN-SUFFIX,igcdn.com,Instagram',
+    'DOMAIN-SUFFIX,cdnig.com,Instagram',
+    'DOMAIN-SUFFIX,instagr.am,Instagram',
     'DOMAIN-KEYWORD,instagram,Instagram',
 
     // Threads
     'DOMAIN-SUFFIX,threads.net,Threads',
+    'DOMAIN-SUFFIX,threads.com,Threads',
+    'DOMAIN-SUFFIX,threadsdotnet.com,Threads',
     'DOMAIN-KEYWORD,threads,Threads',
+
+
+
 
     // TikTok
     'DOMAIN-SUFFIX,tiktok.com,TikTok',
@@ -815,9 +1042,10 @@ function main(config) {
     'DOMAIN-SUFFIX,nicovideo.jp,Niconico',
     'DOMAIN-SUFFIX,nimg.jp,Niconico',
     'DOMAIN-SUFFIX,smilevideo.jp,Niconico',
+    'DOMAIN-SUFFIX,live.nicovideo.jp,Niconico',
+    'DOMAIN-SUFFIX,secure-dcdn.cdn.nimg.jp,Niconico',
     'DOMAIN-KEYWORD,niconico,Niconico',
     'DOMAIN-KEYWORD,nicovideo,Niconico',
-
     // Steam
     'DOMAIN-SUFFIX,steamcommunity.com,Steam',
     'DOMAIN-SUFFIX,steampowered.com,Steam',
@@ -827,268 +1055,116 @@ function main(config) {
     'DOMAIN-SUFFIX,steam-chat.com,Steam',
     'DOMAIN-SUFFIX,steamgames.com,Steam',
     'DOMAIN-SUFFIX,valvesoftware.com,Steam',
+    'DOMAIN-SUFFIX,steamusercontent.com,Steam',
     'DOMAIN-KEYWORD,steam,Steam',
-
-    // 日韩生态
-    'DOMAIN-SUFFIX,mildom.com,日韩生态',
-    'DOMAIN-SUFFIX,nicolive.jp,日韩生态',
-    'DOMAIN-SUFFIX,ameba.jp,日韩生态',
-    'DOMAIN-SUFFIX,note.com,日韩生态',
-    'DOMAIN-SUFFIX,tapple.me,日韩生态',
-    'DOMAIN-SUFFIX,abema.tv,日韩生态',
-    'DOMAIN-SUFFIX,dmm.com,日韩生态',
-    'DOMAIN-SUFFIX,dmm.co.jp,日韩生态',
-    'DOMAIN-SUFFIX,fc2.com,日韩生态',
-    'DOMAIN-SUFFIX,line.me,日韩生态',
-    'DOMAIN-SUFFIX,mercari.com,日韩生态',
-    'DOMAIN-SUFFIX,mercari.jp,日韩生态',
-    'DOMAIN-SUFFIX,rakuten.co.jp,日韩生态',
-    'DOMAIN-SUFFIX,yahoo.co.jp,日韩生态',
-    'DOMAIN-SUFFIX,animate.co.jp,日韩生态',
-    'DOMAIN-SUFFIX,bookwalker.jp,日韩生态',
-    'DOMAIN-SUFFIX,dlsite.com,日韩生态',
-    'DOMAIN-SUFFIX,skeb.jp,日韩生态',
-    'DOMAIN-SUFFIX,booth.pm,日韩生态',
-    'DOMAIN-SUFFIX,pixiv.net,日韩生态',
-    'DOMAIN-SUFFIX,pximg.net,日韩生态',
-    'DOMAIN-SUFFIX,fanbox.cc,日韩生态',
-    'DOMAIN-SUFFIX,afreecatv.com,日韩生态',
-    'DOMAIN-SUFFIX,pandalive.co.kr,日韩生态',
-    'DOMAIN-SUFFIX,lemon8-app.com,日韩生态',
-    'DOMAIN-SUFFIX,lemon8cdn.com,日韩生态',
-    'DOMAIN-SUFFIX,band.us,日韩生态',
-    'DOMAIN-SUFFIX,weverse.io,日韩生态',
-    'DOMAIN-SUFFIX,weverseapi.io,日韩生态',
-    'DOMAIN-SUFFIX,weverseassets.io,日韩生态',
-    'DOMAIN-SUFFIX,naver.com,日韩生态',
-    'DOMAIN-SUFFIX,naver.jp,日韩生态',
-    'DOMAIN-SUFFIX,naver.net,日韩生态',
-    'DOMAIN-SUFFIX,daum.net,日韩生态',
-    'DOMAIN-SUFFIX,kakao.com,日韩生态',
-    'DOMAIN-SUFFIX,kakaocdn.net,日韩生态',
-    'DOMAIN-SUFFIX,coupang.com,日韩生态',
-    'DOMAIN-SUFFIX,coupangcdn.com,日韩生态',
-    'DOMAIN-SUFFIX,melon.com,日韩生态',
-    'DOMAIN-SUFFIX,genie.co.kr,日韩生态',
-    'DOMAIN-SUFFIX,namu.wiki,日韩生态',
-    'DOMAIN-KEYWORD,nicolive,日韩生态',
-    'DOMAIN-KEYWORD,ameba,日韩生态',
-    'DOMAIN-KEYWORD,note,日韩生态',
-    'DOMAIN-KEYWORD,tapple,日韩生态',
-    'DOMAIN-KEYWORD,abema,日韩生态',
-    'DOMAIN-KEYWORD,mercari,日韩生态',
-    'DOMAIN-KEYWORD,rakuten,日韩生态',
-    'DOMAIN-KEYWORD,bookwalker,日韩生态',
-    'DOMAIN-KEYWORD,dlsite,日韩生态',
-    'DOMAIN-KEYWORD,skeb,日韩生态',
-    'DOMAIN-KEYWORD,booth,日韩生态',
-    'DOMAIN-KEYWORD,pixiv,日韩生态',
-    'DOMAIN-KEYWORD,pximg,日韩生态',
-    'DOMAIN-KEYWORD,fanbox,日韩生态',
-    'DOMAIN-KEYWORD,afreeca,日韩生态',
-    'DOMAIN-KEYWORD,pandalive,日韩生态',
-    'DOMAIN-KEYWORD,lemon8,日韩生态',
-    'DOMAIN-KEYWORD,band,日韩生态',
-    'DOMAIN-KEYWORD,weverse,日韩生态',
-    'DOMAIN-KEYWORD,naver,日韩生态',
-    'DOMAIN-KEYWORD,daum,日韩生态',
-    'DOMAIN-KEYWORD,kakao,日韩生态',
-    'DOMAIN-KEYWORD,coupang,日韩生态',
-    'DOMAIN-KEYWORD,melon,日韩生态',
-    'DOMAIN-KEYWORD,genie,日韩生态',
-    'DOMAIN-KEYWORD,namu,日韩生态',
-
-    // SOOP 直连
-    'DOMAIN-SUFFIX,sooplive.com,全球直连',
-    'DOMAIN-KEYWORD,soop,全球直连',
-
-    // 国际直播
-    'DOMAIN-SUFFIX,twitch.tv,国际直播',
-    'DOMAIN-SUFFIX,twitchcdn.net,国际直播',
-    'DOMAIN-SUFFIX,ttvnw.net,国际直播',
-    'DOMAIN-SUFFIX,17.live,国际直播',
-    'DOMAIN-SUFFIX,bigo.tv,国际直播',
-    'DOMAIN-KEYWORD,twitch,国际直播',
-    'DOMAIN-KEYWORD,17live,国际直播',
-    'DOMAIN-KEYWORD,bigo,国际直播',
+    // Niconico
+    'DOMAIN-SUFFIX,nicovideo.jp,Niconico',
+    'DOMAIN-SUFFIX,nimg.jp,Niconico',
+    'DOMAIN-SUFFIX,smilevideo.jp,Niconico',
+    'DOMAIN-KEYWORD,niconico,Niconico',
+    // Microsoft
+    'DOMAIN-SUFFIX,microsoft.com,Microsoft',
+    'DOMAIN-SUFFIX,live.com,Microsoft',
+    'DOMAIN-SUFFIX,outlook.com,Microsoft',
+    'DOMAIN-SUFFIX,office.com,Microsoft',
+    'DOMAIN-KEYWORD,microsoft,Microsoft',
+    'DOMAIN-KEYWORD,office,Microsoft',
 
     // 谷歌商店
     'DOMAIN-SUFFIX,play.google.com,谷歌商店',
     'DOMAIN-SUFFIX,play.googleapis.com,谷歌商店',
-    'DOMAIN-SUFFIX,android.clients.google.com,谷歌商店',
     'DOMAIN-SUFFIX,play-fe.googleapis.com,谷歌商店',
-    'DOMAIN-SUFFIX,play-pa.googleapis.com,谷歌商店',
-    'DOMAIN-SUFFIX,play-lh.googleusercontent.com,谷歌商店',
+    'DOMAIN-SUFFIX,android.clients.google.com,谷歌商店',
+    'DOMAIN-SUFFIX,android.googleapis.com,谷歌商店',
     'DOMAIN-SUFFIX,gvt1.com,谷歌商店',
     'DOMAIN-SUFFIX,gvt2.com,谷歌商店',
     'DOMAIN-SUFFIX,gvt3.com,谷歌商店',
-    'DOMAIN-SUFFIX,ggpht.com,谷歌商店',
+    'DOMAIN-KEYWORD,googleplay,谷歌商店',
 
-    // Google
-    'DOMAIN-SUFFIX,google.com,Google',
-    'DOMAIN-SUFFIX,googleapis.com,Google',
-    'DOMAIN-SUFFIX,googleusercontent.com,Google',
-    'DOMAIN-SUFFIX,gstatic.com,Google',
-    'DOMAIN-SUFFIX,gmail.com,Google',
-    'DOMAIN-KEYWORD,google,Google',
+    // 国际直播 / 流媒体
+    'DOMAIN-SUFFIX,twitch.tv,国际直播',
+    'DOMAIN-SUFFIX,twitchcdn.net,国际直播',
+    'DOMAIN-SUFFIX,ttvnw.net,国际直播',
+    'DOMAIN-SUFFIX,live-video.net,国际直播',
+    'DOMAIN-SUFFIX,pscp.tv,国际直播',
+    'DOMAIN-SUFFIX,periscope.tv,国际直播',
+    'DOMAIN-SUFFIX,afreecatv.com,国际直播',
+    'DOMAIN-SUFFIX,sooplive.co.kr,国际直播',
+    'DOMAIN-SUFFIX,bigo.tv,国际直播',
+    'DOMAIN-SUFFIX,huya.com,国际直播',
+    'DOMAIN-SUFFIX,douyu.com,国际直播',
+    'DOMAIN-SUFFIX,trovo.live,国际直播',
+    'DOMAIN-KEYWORD,twitch,国际直播',
+    'DOMAIN-KEYWORD,streaming,国际直播',
+
+    // 日韩生态（动画/社区/下载/搜索）
+    'DOMAIN-SUFFIX,abema.tv,日韩生态',
+    'DOMAIN-SUFFIX,abema.io,日韩生态',
+    'DOMAIN-SUFFIX,dmm.co.jp,日韩生态',
+    'DOMAIN-SUFFIX,dlsite.com,日韩生态',
+    'DOMAIN-SUFFIX,melonbooks.co.jp,日韩生态',
+    'DOMAIN-SUFFIX,bookwalker.jp,日韩生态',
+    'DOMAIN-SUFFIX,fc2.com,日韩生态',
+    'DOMAIN-SUFFIX,fc2live.co,日韩生态',
+    'DOMAIN-SUFFIX,pixiv.net,日韩生态',
+    'DOMAIN-SUFFIX,pximg.net,日韩生态',
+    'DOMAIN-SUFFIX,line.me,日韩生态',
+    'DOMAIN-SUFFIX,line-apps.com,日韩生态',
+    'DOMAIN-SUFFIX,naver.com,日韩生态',
+    'DOMAIN-SUFFIX,webtoons.com,日韩生态',
+    'DOMAIN-SUFFIX,coupangplay.com,日韩生态',
+    'DOMAIN-SUFFIX,tving.com,日韩生态',
+    'DOMAIN-SUFFIX,wavve.com,日韩生态',
+    'DOMAIN-SUFFIX,ani.gamer.com.tw,日韩生态',
+    'DOMAIN-SUFFIX,bahamut.com.tw,日韩生态',
+    'DOMAIN-SUFFIX,hmvod.com.hk,日韩生态',
+    'DOMAIN-SUFFIX,mytvsuper.com,日韩生态',
+    'DOMAIN-KEYWORD,pixiv,日韩生态',
+    'DOMAIN-KEYWORD,line,日韩生态',
+
     // 国内服务
-
-    'DOMAIN-SUFFIX,cn,国内服务',
-    'DOMAIN-SUFFIX,360.cn,国内服务',
-    'DOMAIN-SUFFIX,360.com,国内服务',
-    'DOMAIN-SUFFIX,bilibili.com,国内服务',
-    'DOMAIN-SUFFIX,bilivideo.com,国内服务',
-    'DOMAIN-SUFFIX,hdslb.com,国内服务',
-    'DOMAIN-SUFFIX,b23.tv,国内服务',
-    'DOMAIN-SUFFIX,douyin.com,国内服务',
-    'DOMAIN-SUFFIX,douyinvod.com,国内服务',
-    'DOMAIN-SUFFIX,douyincdn.com,国内服务',
-    'DOMAIN-SUFFIX,douyinpic.com,国内服务',
-    'DOMAIN-SUFFIX,douyinstatic.com,国内服务',
-    'DOMAIN-SUFFIX,byteimg.com,国内服务',
-    'DOMAIN-SUFFIX,bytedance.com,国内服务',
-    'DOMAIN-SUFFIX,bytegecko.com,国内服务',
-    'DOMAIN-SUFFIX,bytegoofy.com,国内服务',
-    'DOMAIN-SUFFIX,ibytedapm.com,国内服务',
-    'DOMAIN-SUFFIX,zijieapi.com,国内服务',
-    'DOMAIN-SUFFIX,amemv.com,国内服务',
-    'DOMAIN-SUFFIX,snssdk.com,国内服务',
-    'DOMAIN-SUFFIX,ixigua.com,国内服务',
-    'DOMAIN-SUFFIX,toutiao.com,国内服务',
-    'DOMAIN-KEYWORD,douyin,国内服务',
-    'DOMAIN-KEYWORD,amemv,国内服务',
-    'DOMAIN-KEYWORD,bytedance,国内服务',
-    'DOMAIN-KEYWORD,snssdk,国内服务',
-
-    'DOMAIN-SUFFIX,qq.com,国内服务',
-    'DOMAIN-SUFFIX,weixin.qq.com,国内服务',
-    'DOMAIN-SUFFIX,gtimg.com,国内服务',
-    'DOMAIN-SUFFIX,qpic.cn,国内服务',
-    'DOMAIN-SUFFIX,qlogo.cn,国内服务',
-    'DOMAIN-SUFFIX,tenpay.com,国内服务',
-    'DOMAIN-SUFFIX,tencent.com,国内服务',
-    'DOMAIN-SUFFIX,tencent-cloud.com,国内服务',
-    'DOMAIN-SUFFIX,myqcloud.com,国内服务',
-    'DOMAIN-SUFFIX,video.qq.com,国内服务',
-    'DOMAIN-SUFFIX,v.qq.com,国内服务',
-    'DOMAIN-SUFFIX,iqiyi.com,国内服务',
-    'DOMAIN-SUFFIX,iq.com,国内服务',
-    'DOMAIN-SUFFIX,qiyi.com,国内服务',
-    'DOMAIN-SUFFIX,youku.com,国内服务',
-    'DOMAIN-SUFFIX,youkuapp.com,国内服务',
-    'DOMAIN-SUFFIX,ykimg.com,国内服务',
-    'DOMAIN-SUFFIX,mgtv.com,国内服务',
-    'DOMAIN-SUFFIX,hunantv.com,国内服务',
-    'DOMAIN-SUFFIX,meituan.com,国内服务',
-    'DOMAIN-SUFFIX,dianping.com,国内服务',
-    'DOMAIN-SUFFIX,ele.me,国内服务',
-    'DOMAIN-SUFFIX,taobao.com,国内服务',
-    'DOMAIN-SUFFIX,tmall.com,国内服务',
-    'DOMAIN-SUFFIX,tmall.hk,国内服务',
-    'DOMAIN-SUFFIX,1688.com,国内服务',
-    'DOMAIN-SUFFIX,jd.com,国内服务',
-    'DOMAIN-SUFFIX,jd.hk,国内服务',
-    'DOMAIN-SUFFIX,jingdong.com,国内服务',
-    'DOMAIN-SUFFIX,pinduoduo.com,国内服务',
-    'DOMAIN-SUFFIX,yangkeduo.com,国内服务',
-    'DOMAIN-SUFFIX,alipay.com,国内服务',
-    'DOMAIN-SUFFIX,alipayobjects.com,国内服务',
-    'DOMAIN-SUFFIX,alicdn.com,国内服务',
-    'DOMAIN-SUFFIX,aliyun.com,国内服务',
-    'DOMAIN-SUFFIX,aliyuncs.com,国内服务',
     'DOMAIN-SUFFIX,baidu.com,国内服务',
-    'DOMAIN-SUFFIX,bdimg.com,国内服务',
-    'DOMAIN-SUFFIX,bdstatic.com,国内服务',
-    'DOMAIN-SUFFIX,baidubce.com,国内服务',
+    'DOMAIN-SUFFIX,qq.com,国内服务',
+    'DOMAIN-SUFFIX,taobao.com,国内服务',
+    'DOMAIN-SUFFIX,bilibili.com,国内服务',
+    'DOMAIN-SUFFIX,jd.com,国内服务',
     'DOMAIN-SUFFIX,163.com,国内服务',
-    'DOMAIN-SUFFIX,126.com,国内服务',
-    'DOMAIN-SUFFIX,126.net,国内服务',
-    'DOMAIN-SUFFIX,163yun.com,国内服务',
-    'DOMAIN-SUFFIX,music.163.com,国内服务',
-    'DOMAIN-SUFFIX,sina.com.cn,国内服务',
-    'DOMAIN-SUFFIX,weibo.cn,国内服务',
-    'DOMAIN-SUFFIX,xiaohongshu.com,国内服务',
-    'DOMAIN-SUFFIX,xhscdn.com,国内服务',
-    'DOMAIN-SUFFIX,xhscdn.net,国内服务',
-    'DOMAIN-SUFFIX,xhslink.com,国内服务',
-    'DOMAIN-SUFFIX,xhschannel.com,国内服务',
-    'DOMAIN-SUFFIX,edith.xiaohongshu.com,国内服务',
-    'DOMAIN-KEYWORD,xiaohongshu,国内服务',
-    'DOMAIN-KEYWORD,xhs,国内服务',
+    'DOMAIN-SUFFIX,weibo.com,国内服务',
+    'DOMAIN-SUFFIX,douyin.com,国内服务',
+    'DOMAIN-SUFFIX,iqiyi.com,国内服务',
+    'DOMAIN-SUFFIX,youku.com,国内服务',
+    'DOMAIN-SUFFIX,mgtv.com,国内服务',
     'DOMAIN-SUFFIX,zhihu.com,国内服务',
+    'DOMAIN-SUFFIX,xiaohongshu.com,国内服务',
+    'DOMAIN-KEYWORD,baidu,国内服务',
+    'DOMAIN-KEYWORD,qq,国内服务',
+    'DOMAIN-KEYWORD,wechat,国内服务',
 
-    'DOMAIN-SUFFIX,zhimg.com,国内服务',
-    'DOMAIN-SUFFIX,amap.com,国内服务',
-    'DOMAIN-SUFFIX,autonavi.com,国内服务',
-    'DOMAIN-SUFFIX,map.qq.com,国内服务',
-    'DOMAIN-SUFFIX,didiglobal.com,国内服务',
-    'DOMAIN-SUFFIX,didichuxing.com,国内服务',
-    'DOMAIN-SUFFIX,ctrip.com,国内服务',
-    'DOMAIN-SUFFIX,trip.com,国内服务',
-    'DOMAIN-SUFFIX,qunar.com,国内服务',
-    'DOMAIN-SUFFIX,12306.cn,国内服务',
-    'DOMAIN-SUFFIX,kuaishou.com,国内服务',
-    'DOMAIN-SUFFIX,kwai.com,国内服务',
-    'DOMAIN-SUFFIX,ksapisrv.com,国内服务',
-    'DOMAIN-SUFFIX,kspkg.com,国内服务',
-    'DOMAIN-SUFFIX,yximgs.com,国内服务',
-    'DOMAIN-SUFFIX,gifshow.com,国内服务',
-    'DOMAIN-KEYWORD,kuaishou,国内服务',
-    'DOMAIN-KEYWORD,gifshow,国内服务',
-    'DOMAIN-KEYWORD,kwai,国内服务',
+    // 苹果/系统服务
+    'DOMAIN-SUFFIX,apple.com,国内服务',
+    'DOMAIN-SUFFIX,icloud.com,国内服务',
+    'DOMAIN-SUFFIX,icloud-content.com,国内服务',
+    'DOMAIN-SUFFIX,itunes.apple.com,国内服务',
+    'DOMAIN-SUFFIX,apps.apple.com,国内服务',
 
-    'DOMAIN-SUFFIX,gov.cn,国内服务',
-    'DOMAIN-SUFFIX,edu.cn,国内服务',
-    'DOMAIN-SUFFIX,gov.com,国内服务',
-    'DOMAIN-SUFFIX,人民网.cn,国内服务',
-    'DOMAIN-SUFFIX,people.com.cn,国内服务',
-    'DOMAIN-SUFFIX,xinhuanet.com,国内服务',
-    'DOMAIN-SUFFIX,cctv.com,国内服务',
-    'DOMAIN-SUFFIX,cntv.cn,国内服务',
-    'DOMAIN-SUFFIX,china.com,国内服务',
-    'DOMAIN-SUFFIX,chinadaily.com.cn,国内服务',
-    'DOMAIN-SUFFIX,moe.gov.cn,国内服务',
-    'DOMAIN-SUFFIX,chaoxing.com,国内服务',
-    'DOMAIN-SUFFIX,icourse163.org,国内服务',
-    'DOMAIN-SUFFIX,cnki.net,国内服务',
-    'DOMAIN-SUFFIX,bjtu.edu.cn,国内服务',
-    'DOMAIN-SUFFIX,tsinghua.edu.cn,国内服务',
-    'DOMAIN-SUFFIX,pku.edu.cn,国内服务',
-    'DOMAIN-SUFFIX,csdn.net,国内服务',
-    'DOMAIN-SUFFIX,oschina.net,国内服务',
-    'DOMAIN-SUFFIX,gitee.com,国内服务',
-    'DOMAIN-SUFFIX,csdnimg.cn,国内服务',
-    'DOMAIN-SUFFIX,juejin.cn,国内服务',
-    'DOMAIN-SUFFIX,leetcode.cn,国内服务',
-    'DOMAIN-SUFFIX,nowcoder.com,国内服务',
-    'DOMAIN-SUFFIX,osuol.com,国内服务',
-
-
-    // Microsoft
-
-    'DOMAIN-SUFFIX,microsoft.com,Microsoft',
-    'DOMAIN-SUFFIX,microsoftonline.com,Microsoft',
-    'DOMAIN-SUFFIX,live.com,Microsoft',
-    'DOMAIN-SUFFIX,office.com,Microsoft',
-    'DOMAIN-SUFFIX,outlook.com,Microsoft',
-    'DOMAIN-KEYWORD,microsoft,Microsoft',
-
-    // 局域网
+    // 局域网/私有地址直连
     'DOMAIN-SUFFIX,local,全球直连',
     'IP-CIDR,10.0.0.0/8,全球直连,no-resolve',
+    'IP-CIDR,100.64.0.0/10,全球直连,no-resolve',
     'IP-CIDR,127.0.0.0/8,全球直连,no-resolve',
+    'IP-CIDR,169.254.0.0/16,全球直连,no-resolve',
     'IP-CIDR,172.16.0.0/12,全球直连,no-resolve',
     'IP-CIDR,192.168.0.0/16,全球直连,no-resolve',
     'IP-CIDR,224.0.0.0/4,全球直连,no-resolve',
+    'IP-CIDR6,fc00::/7,全球直连,no-resolve',
+    'IP-CIDR6,fe80::/10,全球直连,no-resolve',
 
-    // 中国直连
+    // 中国 IP / 中国域名优先直连
     'GEOIP,CN,国内服务',
-
-    // 漏网之鱼
     'MATCH,漏网之鱼'
   ];
 
-  // 更新配置
+  // 应用新策略组，并尽量保留旧 select 组的顺序偏好
   config['proxy-groups'] = newProxyGroups.map(preserveGroup);
   config.rules = rules;
 
