@@ -478,7 +478,7 @@ function main(config) {
     makeSelectGroup('Google', iconMap.google, googleChoices),
     makeSelectGroup('谷歌商店', iconMap.playstore, playStoreChoices),
     makeSelectGroup('微软服务', iconMap.microsoft, microsoftChoices),
-    makeSelectGroup('国内服务', iconMap.china, domesticChoices),
+    makeSelectGroup('国内服务', iconMap.china, ['全球直连'].concat(domesticChoices.filter(x => x !== '全球直连'))),
     makeSelectGroup('流媒体', iconMap.streaming, streamingChoices),
     makeSelectGroup('GitHub', iconMap.github, githubChoices),
     makeSelectGroup('AI', iconMap.ai, aiChoices),
