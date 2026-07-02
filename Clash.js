@@ -9,7 +9,7 @@ function main(config) {
 
   config.profile = {
     ...(config.profile || {}),
-    'store-selected': true,
+    'store-selected': false,
     'store-fake-ip': true
   };
 
@@ -269,6 +269,9 @@ function main(config) {
     if (group.type !== 'select') return group;
     const oldGroup = existingGroupMap[group.name];
     if (!oldGroup || !Array.isArray(oldGroup.proxies) || !Array.isArray(group.proxies)) return group;
+    if (group.name === '全球直连') {
+      return { ...group, proxies: ['DIRECT'] };
+    }
     const oldProxies = oldGroup.proxies.filter(p => group.proxies.includes(p));
     const remaining = group.proxies.filter(p => !oldProxies.includes(p));
     return { ...group, proxies: oldProxies.concat(remaining) };
@@ -292,8 +295,8 @@ function main(config) {
     };
   }
 
-  function makeSelectGroup(name, icon, list) {
-    return { name, type: 'select', icon, proxies: ensureGroupList(list, ['自动选择']) };
+  function makeSelectGroup(name, icon, list, extraDefaults = ['自动选择']) {
+    return { name, type: 'select', icon, proxies: ensureGroupList(list, extraDefaults) };
   }
 
   function makeFallbackGroup(name, icon, list) {
@@ -430,7 +433,7 @@ function main(config) {
    ].filter(Boolean);
 
   const fallbackNames = fallbackGroups.map(group => group.name);
-  const baseChoices = ['自动选择', '手动选择'].concat(fallbackNames).concat(regionAutoNames).concat(proxies.map(p => p.name)).concat(['全球直连']);
+  const baseChoices = ['自动选择', '手动选择'].concat(fallbackNames).concat(regionAutoNames).concat(proxies.map(p => p.name));
   const commonChoices = ['节点选择'].concat(baseChoices.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI故障转移'));
   const youtubeOnlyChoices = ['节点选择', 'YouTube无广节点优先组'].concat(baseChoices.filter(name => name !== '国外AI故障转移'));
   const aiOnlyChoices = ['节点选择', '国外AI故障转移'].concat(baseChoices.filter(name => name !== 'YouTube无广节点优先组'));
@@ -463,9 +466,9 @@ function main(config) {
   const jpKrChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
  
    const proxyGroups = [
-    makeSelectGroup('节点选择', iconMap.rocket, ['自动选择', '手动选择', '全球直连'].concat(fallbackNames).concat(regionAutoNames)),
+    makeSelectGroup('节点选择', iconMap.rocket, ['手动选择'].concat(fallbackNames).concat(regionAutoNames)),
     makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50),
-    makeSelectGroup('手动选择', iconMap.proxy, allProxyNames.concat(['全球直连'])),
+    makeSelectGroup('手动选择', iconMap.proxy, allProxyNames),
     ...fallbackGroups,
     makeSelectGroup('YouTube', iconMap.youtube, youtubeChoices),
     makeSelectGroup('TikTok', iconMap.tiktok, tiktokChoices),
@@ -477,7 +480,7 @@ function main(config) {
     makeSelectGroup('Telegram', iconMap.telegram, telegramChoices),
     makeSelectGroup('Google', iconMap.google, googleChoices),
     makeSelectGroup('谷歌商店', iconMap.playstore, playStoreChoices),
-    makeSelectGroup('微软服务', iconMap.microsoft, microsoftChoices),
+    makeSelectGroup('微软服务', iconMap.microsoft, ['全球直连'].concat(microsoftChoices.filter(x => x !== '全球直连'))),
     makeSelectGroup('国内服务', iconMap.china, ['全球直连'].concat(domesticChoices.filter(x => x !== '全球直连'))),
     makeSelectGroup('流媒体', iconMap.streaming, streamingChoices),
     makeSelectGroup('GitHub', iconMap.github, githubChoices),
@@ -485,13 +488,13 @@ function main(config) {
     makeSelectGroup('国外游戏', iconMap.game, gameChoices),
     makeSelectGroup('社交信息流', iconMap.reddit, socialChoices),
     makeSelectGroup('去中心化平台', iconMap.bluesky, decentralizedChoices),
-    makeSelectGroup('FCM', iconMap.fcm, ['自动选择', '节点选择', '手动选择'].concat(regionAutoNames).concat(proxies.map(p => p.name)).concat(['全球直连'])),
-    makeSelectGroup('Apple', iconMap.apple, ['自动选择', '全球直连', '节点选择', '手动选择'].concat(regionAutoNames).concat(proxies.map(p => p.name))),
-    makeSelectGroup('Cloudflare', iconMap.cloudflare || iconMap.global, ['欧美故障转移', '自动选择', '手动选择'].concat(buildRegionChain(['美国', '新加坡', '日本', '香港', '台湾', '欧盟']))),
+    makeSelectGroup('FCM', iconMap.fcm, ['自动选择', '节点选择', '手动选择', '全球直连'].concat(regionAutoNames).concat(proxies.map(p => p.name))),
+    makeSelectGroup('Apple', iconMap.apple, ['自动选择', '节点选择', '手动选择', '全球直连'].concat(regionAutoNames).concat(proxies.map(p => p.name))),
+    makeSelectGroup('Cloudflare', iconMap.cloudflare || iconMap.global, ['欧美故障转移', '自动选择', '全球直连', '手动选择'].concat(buildRegionChain(['美国', '新加坡', '日本', '香港', '台湾', '欧盟']))),
     makeSelectGroup('下载专用组', iconMap.download || iconMap.fallback, ['自动选择', '欧美故障转移', '手动选择'].concat(buildRegionChain(['美国', '欧盟', '新加坡', '日本', '香港', '台湾', '韩国']))),
     makeSelectGroup('广告拦截', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Reject.png', ['REJECT', 'REJECT-DROP', 'PASS']),
-    makeSelectGroup('漏网之鱼', iconMap.final, ['自动选择', '全球直连', '手动选择'].concat(fallbackNames.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI故障转移')).concat(regionAutoNames)),
-    makeSelectGroup('全球直连', iconMap.direct, ['DIRECT']),
+    makeSelectGroup('漏网之鱼', iconMap.final, ['自动选择', '手动选择'].concat(fallbackNames.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI故障转移')).concat(regionAutoNames)),
+    makeSelectGroup('全球直连', iconMap.direct, ['DIRECT'], []),
   ]
     .concat([
       ...regionAutoGroups,
