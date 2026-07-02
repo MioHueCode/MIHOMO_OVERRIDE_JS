@@ -173,8 +173,8 @@ function main(config) {
   function normalizeName(name) {
     return String(name || '')
       .toLowerCase()
-      .replace(/[ -]/g, ' ')
-      .replace(/[|｜¦•·・,，;；:：/\\_+\-–—()[]{}<>【】「」『』]/g, ' ')
+      .replace(/[^\x20-\x7E]/g, function(ch) { return /\s/.test(ch) ? ' ' : ch; })
+      .replace(/[|｜¦•·・,，;；:：/\\_+\-–—()\[\]{}<>【】「」『』]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -215,7 +215,7 @@ function main(config) {
       .toLowerCase()
       .replace(/[\u{1F1E6}-\u{1F1FF}]/gu, ' ')
       .replace(/[\u2600-\u27BF]/gu, ' ')
-      .replace(/[|｜¦•·・,，;；:：/\_+-–—()[]{}<>【】「」『』]/g, ' ')
+      .replace(/[|｜¦•·・,，;；:：/\_+-–—()\[\]{}<>【】「」『』]/g, ' ')
       .replace(/\b(vip|svip|倍率|x\d+|iepl|iplc|bgp|cn2|gia|game|games|gaming|stream|media|unlock|nf|奈飞|netflix|disney|hbo|max|prime|chatgpt|gpt|ai|home|residential|station|server|node|premium|traffic|test|testing|expire|plan|used|aws|hy2|anytls)\b/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -551,7 +551,7 @@ function main(config) {
     makeSelectGroup('去中心化平台', iconMap.bluesky, decentralizedChoices),
     makeSelectGroup('FCM', iconMap.fcm, ['自动选择', '节点选择', '手动选择', '全球直连'].concat(regionAutoNames).concat(proxies.map(p => p.name))),
     makeSelectGroup('Apple', iconMap.apple, ['自动选择', '节点选择', '手动选择', '全球直连'].concat(regionAutoNames).concat(proxies.map(p => p.name))),
-    makeSelectGroup('Cloudflare', iconMap.cloudflare || iconMap.global, ['欧美故障转移', '自动选择', '全球直连', '手动选择'].concat(buildRegionChain(['美国', '新加坡', '日本', '香港', '台湾', '欧盟']))),
+    makeSelectGroup('Cloudflare', iconMap.cloudflare || iconMap.global, ['自动选择', '欧美故障转移', '全球直连', '手动选择'].concat(buildRegionChain(['美国', '新加坡', '日本', '香港', '台湾', '欧盟']))),
     makeSelectGroup('下载专用组', iconMap.download || iconMap.fallback, ['自动选择', '欧美故障转移', '手动选择'].concat(buildRegionChain(['美国', '欧盟', '新加坡', '日本', '香港', '台湾', '韩国']))),
     makeSelectGroup('广告拦截', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Reject.png', ['REJECT', 'REJECT-DROP', 'PASS']),
     makeSelectGroup('漏网之鱼', iconMap.final, ['自动选择', '手动选择'].concat(fallbackNames.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI故障转移')).concat(regionAutoNames)),
