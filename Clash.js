@@ -1131,9 +1131,18 @@ function main(config) {
     'DOMAIN-SUFFIX,tiktok.com,TikTok',
     'DOMAIN-SUFFIX,tiktokcdn.com,TikTok',
     'DOMAIN-SUFFIX,tiktokv.com,TikTok',
+    'DOMAIN-SUFFIX,tiktokcdn-us.com,TikTok',
+    'DOMAIN-SUFFIX,tiktokcdn-eu.com,TikTok',
+    'DOMAIN-SUFFIX,tiktokrow-cdn.com,TikTok',
+    'DOMAIN-SUFFIX,tiktokv.us,TikTok',
     'DOMAIN-SUFFIX,ibyteimg.com,TikTok',
+    'DOMAIN-SUFFIX,ibytedtos.com,TikTok',
     'DOMAIN-SUFFIX,byteoversea.com,TikTok',
+    'DOMAIN-SUFFIX,muscdn.com,TikTok',
     'DOMAIN-SUFFIX,musical.ly,TikTok',
+    'DOMAIN-SUFFIX,tiktokd.org,TikTok',
+    'DOMAIN-KEYWORD,tiktok,TikTok',
+    'DOMAIN-KEYWORD,musical,TikTok',
 
     // 日韩生态区
     'DOMAIN-SUFFIX,line.me,日韩生态区',
