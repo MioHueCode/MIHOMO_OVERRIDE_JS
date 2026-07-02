@@ -145,6 +145,13 @@ function main(config) {
   }
 
   const proxies = config.proxies.filter(p => p && p.name && isRealProxyName(p.name));
+  const residentialNamePatterns = [
+    /家宽/i, /家庭宽带/i, /住宅/i, /home/i, /residential/i
+  ];
+  function isResidentialProxyName(name) {
+    return residentialNamePatterns.some(re => re.test(String(name || '')));
+  }
+  const residentialProxies = proxies.filter(p => isResidentialProxyName(p.name));
   config.proxies = proxies.concat([
     {
       name: '🇨🇳 直连 | IPv4优先',
@@ -299,7 +306,7 @@ function main(config) {
     return { name, type: 'select', icon, proxies: ensureGroupList(list, extraDefaults) };
   }
 
-  function makeFallbackGroup(name, icon, list) {
+  function makeFallbackGroup(name, icon, list, extraDefaults = ['自动选择']) {
     return {
       name,
       type: 'fallback',
@@ -308,7 +315,20 @@ function main(config) {
       interval: fallbackInterval,
       tolerance: fallbackTolerance,
       lazy: fallbackLazy,
-      proxies: ensureGroupList(list, ['自动选择'])
+      proxies: ensureGroupList(list, extraDefaults)
+    };
+  }
+
+  function makeLoadBalanceGroup(name, icon, list, strategy = 'round-robin', extraDefaults = ['自动选择']) {
+    return {
+      name,
+      type: 'load-balance',
+      icon,
+      url: testUrl,
+      interval: testInterval,
+      strategy,
+      lazy: testLazy,
+      proxies: ensureGroupList(list, extraDefaults)
     };
   }
 
@@ -340,6 +360,9 @@ function main(config) {
     auto: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Auto.png',
     proxy: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Proxy.png',
     fallback: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Available_1.png',
+    fallbackFinal: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final_1.png',
+    balance: 'https://api.iconify.design/tabler:arrows-shuffle.svg',
+    home: 'https://api.iconify.design/tabler:home-filled.svg',
     global: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Global.png',
     russia: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Russia.png',
     direct: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png',
@@ -377,6 +400,9 @@ function main(config) {
    const regionAutoMap = {};
    const regionAutoNames = [];
    const regionAutoGroups = [];
+   const regionHomeAutoMap = {};
+   const regionHomeAutoNames = [];
+   const regionHomeAutoGroups = [];
    const regionAutoOrder = ['香港', '台湾', '美国', '日本', '新加坡', '韩国', '俄罗斯', '欧盟', '其他地区'];
    for (const regionName of regionAutoOrder) {
      if (!regionGroups[regionName] || regionGroups[regionName].length === 0) continue;
@@ -384,13 +410,27 @@ function main(config) {
      regionAutoMap[regionName] = autoName;
      regionAutoNames.push(autoName);
      regionAutoGroups.push(makeUrlTestGroup(autoName, regionIconMap[regionName], regionGroups[regionName], regionUrlTestInterval, regionUrlTestTolerance));
+
+     const residentialRegionNodes = regionGroups[regionName].filter(name => isResidentialProxyName(name));
+     if (residentialRegionNodes.length > 0) {
+       const homeAutoName = regionName + '家宽自动';
+       regionHomeAutoMap[regionName] = homeAutoName;
+       regionHomeAutoNames.push(homeAutoName);
+       regionHomeAutoGroups.push(makeUrlTestGroup(homeAutoName, regionIconMap[regionName], residentialRegionNodes, regionUrlTestInterval, regionUrlTestTolerance));
+     }
    }
 
   function getRegionAuto(name) {
     return regionAutoMap[name] || null;
   }
+  function getRegionHomeAuto(name) {
+    return regionHomeAutoMap[name] || null;
+  }
   function buildRegionChain(names) {
     return names.map(getRegionAuto).filter(Boolean);
+  }
+  function buildRegionHomeChain(names) {
+    return names.map(getRegionHomeAuto).filter(Boolean);
   }
 
   function buildNodeChain(patterns) {
@@ -400,8 +440,11 @@ function main(config) {
   function unique(list) {
     return list.filter((item, index) => list.indexOf(item) === index);
   }
-   const jpKrFallbackNodes = buildRegionChain(['日本', '韩国', '新加坡', '美国', '香港', '台湾']);
-   const hkTwFallbackNodes = buildRegionChain(['香港', '台湾', '新加坡', '美国', '日本', '韩国']);
+  const globalHomeNodes = unique(residentialProxies.map(p => p.name));
+  const autoFallbackNodes = unique(buildRegionChain(['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '其他地区']).concat(allProxyNames));
+  const balanceNodes = unique(buildRegionChain(['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟']).concat(allProxyNames));
+  const jpKrFallbackNodes = buildRegionChain(['日本', '韩国', '新加坡', '美国', '香港', '台湾']);
+  const hkTwFallbackNodes = buildRegionChain(['香港', '台湾', '新加坡', '美国', '日本', '韩国']);
 
   const youtubeFallbackNodes = unique([].concat(
     buildNodeChain([/俄罗斯/i, /俄(罗斯)?/i, /\bRU\b/i, /🇷🇺/]),
@@ -424,16 +467,33 @@ function main(config) {
     buildRegionChain(['美国', '新加坡', '日本', '香港', '台湾', '欧盟'])
   ));
 
-   const fallbackGroups = [
-     makeFallbackGroup('港台故障转移', iconMap.fallback, hkTwFallbackNodes),
-     makeFallbackGroup('日韩故障转移', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/JP.png', jpKrFallbackNodes),
-    makeFallbackGroup('欧美故障转移', iconMap.global, usEuFallbackNodes),
-     makeFallbackGroup('YouTube无广节点优先组', iconMap.youtubeFallback, youtubeFallbackNodes),
-     makeFallbackGroup('国外AI故障转移', iconMap.aiFallback, aiFallbackNodes)
-   ].filter(Boolean);
+  const fallbackGroups = [
+    makeFallbackGroup('自动兜底', iconMap.fallbackFinal, autoFallbackNodes, []),
+    makeFallbackGroup('港台故障转移', iconMap.fallback, hkTwFallbackNodes, ['自动兜底']),
+    makeFallbackGroup('日韩故障转移', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/JP.png', jpKrFallbackNodes, ['自动兜底']),
+    makeFallbackGroup('欧美故障转移', iconMap.global, usEuFallbackNodes, ['自动兜底']),
+    makeFallbackGroup('YouTube无广节点优先组', iconMap.youtubeFallback, youtubeFallbackNodes, ['自动兜底']),
+    makeFallbackGroup('国外AI故障转移', iconMap.aiFallback, aiFallbackNodes, ['自动兜底'])
+  ].filter(Boolean);
+
+  const loadBalanceGroups = [
+    makeLoadBalanceGroup('负载均衡', iconMap.balance, balanceNodes, 'round-robin', ['自动选择'])
+  ].filter(Boolean);
+
+  const globalHomeGroup = globalHomeNodes.length
+    ? makeUrlTestGroup('全球家宽', iconMap.home, globalHomeNodes, regionUrlTestInterval, regionUrlTestTolerance)
+    : null;
 
   const fallbackNames = fallbackGroups.map(group => group.name);
-  const baseChoices = ['自动选择', '手动选择'].concat(fallbackNames).concat(regionAutoNames).concat(proxies.map(p => p.name));
+  const loadBalanceNames = loadBalanceGroups.map(group => group.name);
+  const homeAutoNames = regionHomeAutoNames.slice();
+  const baseChoices = ['自动选择', '负载均衡', '手动选择']
+    .concat(fallbackNames)
+    .concat(loadBalanceNames)
+    .concat(globalHomeGroup ? ['全球家宽'] : [])
+    .concat(homeAutoNames)
+    .concat(regionAutoNames)
+    .concat(proxies.map(p => p.name));
   const commonChoices = ['节点选择'].concat(baseChoices.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI故障转移'));
   const youtubeOnlyChoices = ['节点选择', 'YouTube无广节点优先组'].concat(baseChoices.filter(name => name !== '国外AI故障转移'));
   const aiOnlyChoices = ['节点选择', '国外AI故障转移'].concat(baseChoices.filter(name => name !== 'YouTube无广节点优先组'));
@@ -466,8 +526,9 @@ function main(config) {
   const jpKrChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
  
    const proxyGroups = [
-    makeSelectGroup('节点选择', iconMap.rocket, ['手动选择'].concat(fallbackNames).concat(regionAutoNames)),
+    makeSelectGroup('节点选择', iconMap.rocket, ['自动选择', '负载均衡', '手动选择'].concat(fallbackNames).concat(globalHomeGroup ? ['全球家宽'] : []).concat(homeAutoNames).concat(regionAutoNames)),
     makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50),
+    ...loadBalanceGroups,
     makeSelectGroup('手动选择', iconMap.proxy, allProxyNames),
     ...fallbackGroups,
     makeSelectGroup('YouTube', iconMap.youtube, youtubeChoices),
@@ -498,7 +559,12 @@ function main(config) {
   ]
     .concat([
       ...regionAutoGroups,
-    ]).map(preserveGroup);
+    ])
+    .concat([
+      ...regionHomeAutoGroups,
+    ])
+    .concat(globalHomeGroup ? [globalHomeGroup] : [])
+    .map(preserveGroup);
 
   config['proxy-groups'] = proxyGroups;
   config.rules = [
