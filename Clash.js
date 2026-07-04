@@ -3,156 +3,136 @@
  */
 function main(config) {
   if (!config || !Array.isArray(config.proxies)) return config;
-
   const existingGroups = Array.isArray(config['proxy-groups']) ? config['proxy-groups'] : [];
   const existingGroupMap = Object.fromEntries(existingGroups.map(g => [g.name, g]));
+  const QURE_BASE = 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/';
+  const qIcon = name => QURE_BASE + name + '.png';
 
   config.profile = {
     ...(config.profile || {}),
-    'store-selected': false,
+    'store-selected': true,
     'store-fake-ip': true
   };
 
   config['mixed-port'] = config['mixed-port'] || 7890;
-  config['allow-lan'] = true;
+  config['allow-lan'] = false;
+  config['tcp-concurrent'] = config['tcp-concurrent'] ?? false;
+
   config['mode'] = 'rule';
+
   config['log-level'] = config['log-level'] || 'info';
   config.ipv6 = false;
+
   config['unified-delay'] = true;
   config['find-process-mode'] = 'strict';
+  config['global-client-fingerprint'] = config['global-client-fingerprint'] || 'chrome';
+
+  const localDns = ['223.5.5.5', '119.29.29.29'];
+  const cnDns = ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query', ...localDns];
+  const trustDns = ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'];
+  const directChoices = ['🇨🇳 直连 | IPv4优先', '🇨🇳 直连 | IPv6优先', '🇨🇳 直连 | 双栈', '全球直连'];
 
   config.dns = {
     enable: true,
     listen: '0.0.0.0:1053',
     ipv6: false,
-    'prefer-h3': true,
+    'prefer-h3': false,
+
     'respect-rules': true,
     'use-hosts': true,
     'enhanced-mode': 'fake-ip',
     'fake-ip-range': '198.18.0.1/16',
     'fake-ip-filter': [
-      '*.lan',
-      '*.local',
-      '*.localdomain',
-      '*.home.arpa',
-      'localhost.ptlogin2.qq.com',
-      'msftconnecttest.com',
-      'msftncsi.com',
-      'time.windows.com',
-      'time.apple.com',
-      'pool.ntp.org',
-      'ntp.*.com',
-      'ntp.*.cn',
-      'stun.*.*',
-      'stun.*.*.*',
-      'stun.*',
-      'turn.*',
-      'turn.*.*',
-      'relay.*',
-      'cable.auth.com',
-      '*.srv.nintendo.net',
-      '*.stun.playstation.net',
-      'xbox.*.microsoft.com',
-      '*.xboxlive.com',
-      '*.battle.net',
-      '*.battlenet.com.cn',
-      '*.wotgame.cn',
-      '*.wggames.cn',
-      '*.wowsgame.cn',
-      '*.wargaming.net',
-      'router.asus.com',
-      'routerlogin.net',
-      'www.routerlogin.com',
-      'tplogin.cn',
-      'tplinkwifi.net',
-      'miwifi.com',
-      'mediatek.com',
-      'plex.direct'
+      '*.lan', '*.local', '*.localdomain', '*.home.arpa',
+      'localhost.ptlogin2.qq.com', 'msftconnecttest.com', 'msftncsi.com',
+      'time.windows.com', 'time.apple.com', 'pool.ntp.org', 'ntp.*.com', 'ntp.*.cn',
+      'stun.*', 'stun.*.*', 'stun.*.*.*', 'turn.*', 'turn.*.*', 'relay.*',
+      'cable.auth.com', '*.srv.nintendo.net', '*.stun.playstation.net',
+      'xbox.*.microsoft.com', '*.xboxlive.com', '*.battle.net', '*.battlenet.com.cn',
+      '*.wotgame.cn', '*.wggames.cn', '*.wowsgame.cn', '*.wargaming.net',
+      'router.asus.com', 'routerlogin.net', 'www.routerlogin.com',
+      'tplogin.cn', 'tplinkwifi.net', 'miwifi.com', 'mediatek.com', 'plex.direct',
+      'ultimateota.d.miui.com', 'superota.d.miui.com', 'bigota.d.miui.com', '*.d.miui.com',
+      'etl-xlmc-ssl.sandai.net', '*.xlmc.sandai.net', '*.shub.sandai.net', '*.rcv.sandai.net'
+
     ],
-    nameserver: [
-      'https://dns.alidns.com/dns-query',
-      'https://doh.pub/dns-query',
-      '223.5.5.5',
-      '119.29.29.29'
-    ],
-    'default-nameserver': ['223.5.5.5', '119.29.29.29'],
-    'proxy-server-nameserver': [
-      'https://dns.alidns.com/dns-query',
-      'https://doh.pub/dns-query',
-      'https://dns.cloudflare.com/dns-query',
-      'https://dns.google/dns-query'
-    ],
+    nameserver: cnDns,
+    'default-nameserver': localDns,
+    'proxy-server-nameserver': localDns,
+
     'nameserver-policy': {
-      'geosite:cn': ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'],
-      'geosite:private': ['223.5.5.5', '119.29.29.29'],
-      'geosite:geolocation-!cn': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
-      'geosite:telegram': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
-      'geosite:twitter': ['https://dns.cloudflare.com/dns-query', 'https://dns.google/dns-query'],
-      'geosite:facebook': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'geosite:instagram': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'geosite:whatsapp': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:x.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:twitter.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:t.co': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:twimg.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:facebook.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:facebook.net': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:graph.facebook.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:scontent.xx.fbcdn.net': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:fb.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:meta.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:fbsbx.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:fbcdn.net': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:tfbnw.net': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:instagram.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:instagr.am': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:ig.me': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:igcdn.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:cdnig.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:cdninstagram.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:scontent.cdninstagram.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:threads.net': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:threadsdotnet.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:whatsapp.com': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:whatsapp.net': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:cdn.whatsapp.net': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:static.whatsapp.net': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
-      'domain:mmg.whatsapp.net': ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query']
+      'geosite:private': localDns,
+
+      'geosite:cn': cnDns,
+      'geosite:geolocation-!cn': trustDns,
+      'domain:openai.com': trustDns,
+      'domain:chatgpt.com': trustDns,
+      'domain:github.com': trustDns,
+      'domain:githubusercontent.com': trustDns,
+      'domain:discord.com': trustDns,
+      'domain:play.google.com': trustDns,
+      'domain:play.googleapis.com': trustDns,
+      'domain:android.clients.google.com': trustDns,
+      'domain:dl.google.com': trustDns,
+      'domain:youtube.com': trustDns,
+      'domain:youtubei.googleapis.com': trustDns,
+      'domain:youtube.googleapis.com': trustDns,
+      'domain:sponsor.ajay.app': trustDns,
+      'domain:returnyoutubedislikeapi.com': trustDns,
+      'domain:ultimateota.d.miui.com': cnDns,
+
+      'domain:superota.d.miui.com': cnDns,
+      'domain:bigota.d.miui.com': cnDns,
+      'domain:etl-xlmc-ssl.sandai.net': cnDns
+
     },
     'fallback-filter': {
       geoip: true,
       'geoip-code': 'CN',
       ipcidr: ['240.0.0.0/4'],
-      domain: ['+.google.com', '+.youtube.com', '+.twitter.com', '+.x.com', '+.telegram.org', '+.t.me']
+      domain: [
+        '+.google.com', '+.youtube.com', '+.twitter.com', '+.x.com', '+.telegram.org', '+.t.me',
+        '+.facebook.com', '+.fbcdn.net', '+.instagram.com', '+.whatsapp.com', '+.whatsapp.net',
+        '+.openai.com', '+.chatgpt.com', '+.github.com', '+.githubusercontent.com', '+.discord.com', '+.reddit.com'
+      ]
     },
-    fallback: [
-      'https://dns.cloudflare.com/dns-query',
-      'https://dns.google/dns-query'
-    ]
+    fallback: trustDns
   };
 
-  const invalidProxyNamePatterns = [
-    /剩余流量/i, /重置/i, /到期/i, /官网/i, /官方/i, /公告/i, /通知/i, /最新/i,
-    /售后/i, /telegram/i, /电报/i, /套餐/i, /订阅/i, /使用说明/i, /请使用/i,
-    /客户端/i, /更新订阅/i, /复制链接/i, /浏览器打开/i, /https?:\/\//i, /@\w+/i
-  ];
 
+  const invalidProxyNamePatterns = [
+    /(?:剩余流量|重置|到期|官网|官方|公告|通知|最新|售后|telegram|电报|套餐|订阅|使用说明|请使用|客户端|更新订阅|复制链接|浏览器打开|https?:\/\/|@\w+)/i
+  ];
   function isRealProxyName(name) {
     if (!name) return false;
-    if (/^(urltest|select|fallback)\b/i.test(name)) return false;
+    if (/^(urltest|select|fallback|load-balance)\b/i.test(name)) return false;
     if (/\b\d+\/\d+\b/.test(name)) return false;
     return !invalidProxyNamePatterns.some(re => re.test(name));
   }
 
   const proxies = config.proxies.filter(p => p && p.name && isRealProxyName(p.name));
+
+  const unique = arr => [...new Set(arr.filter(Boolean))];
+
+  const uniqueBy = (arr, keyFn) => {
+    const seen = new Set();
+    return arr.filter(item => {
+      const key = keyFn(item);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
   const residentialNamePatterns = [
     /家宽/i, /家庭宽带/i, /住宅/i, /home/i, /residential/i
   ];
   function isResidentialProxyName(name) {
     return residentialNamePatterns.some(re => re.test(String(name || '')));
   }
-  const residentialProxies = proxies.filter(p => isResidentialProxyName(p.name));
-  config.proxies = proxies.concat([
+  const cleanProxies = uniqueBy(proxies, p => p && p.name);
+  const residentialProxies = cleanProxies.filter(p => isResidentialProxyName(p.name));
+  const builtInDirectProxies = [
+
     {
       name: '🇨🇳 直连 | IPv4优先',
       type: 'direct',
@@ -167,17 +147,10 @@ function main(config) {
       name: '🇨🇳 直连 | 双栈',
       type: 'direct',
     },
-  ]);
-  const allProxyNames = proxies.map(p => p.name);
+  ];
+  config.proxies = uniqueBy(cleanProxies.concat(builtInDirectProxies), p => p && p.name);
 
-  function normalizeName(name) {
-    return String(name || '')
-      .toLowerCase()
-      .replace(/[^\x20-\x7E]/g, function(ch) { return /\s/.test(ch) ? ' ' : ch; })
-      .replace(/[|｜¦•·・,，;；:：/\\_+\-–—()\[\]{}<>【】「」『』]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
+  const allProxyNames = cleanProxies.map(p => p.name);
 
   function hasWholeWord(text, word) {
     const escaped = String(word || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -205,7 +178,7 @@ function main(config) {
     '韩国': ['韩国', '南韩', 'kr', 'korea', 'seoul', 'busan'],
    '俄罗斯': ['俄罗斯', 'ru', 'russia', 'moscow', 'moskva', 'saint petersburg', 'st. petersburg'],
     '欧盟': ['英国', 'gb', 'uk', 'britain', 'united kingdom', 'london', 'manchester', '德国', 'de', 'germany', 'frankfurt', 'berlin', 'munich', '法国', 'fr', 'france', 'paris', 'marseille', '荷兰', 'nl', 'netherlands', 'amsterdam', 'rotterdam', '土耳其', 'tr', 'turkey', 'istanbul', '欧盟', '欧洲', 'europe', 'european union'],
-    '其他地区': ['印度', 'india', 'in', '马来西亚', 'malaysia', 'my', '越南', 'vietnam', 'vn']
+    '其他地区': ['印度', 'india', 'in', '马来西亚', 'malaysia', 'my', '越南', 'vietnam', 'vn', '加拿大', 'canada', 'ca', '澳大利亚', '澳洲', 'australia', 'au', '悉尼', 'sydney', '墨尔本', 'melbourne', '新西兰', 'new zealand', 'nz', '奥克兰', 'auckland', '阿联酋', 'uae', 'dubai', '迪拜', '泰国', 'thailand', 'th', '曼谷', 'bangkok', '菲律宾', 'philippines', 'ph', '马尼拉', 'manila', '印度尼西亚', '印尼', 'indonesia', 'id', '雅加达', 'jakarta']
   };
 
   const regionPriority = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '欧盟', '其他地区'];
@@ -213,8 +186,8 @@ function main(config) {
   function normalizeRegionName(name) {
     return String(name || '')
       .toLowerCase()
-      .replace(/[\u{1F1E6}-\u{1F1FF}]/gu, ' ')
-      .replace(/[\u2600-\u27BF]/gu, ' ')
+      .replace(/(?:\uD83C[\uDDE6-\uDDFF]){2}/g, ' ')
+      .replace(/[\u2600-\u27BF]/g, ' ')
       .replace(/[|｜¦•·・,，;；:：/\_+-–—()\[\]{}<>【】「」『』]/g, ' ')
       .replace(/\b(vip|svip|倍率|x\d+|iepl|iplc|bgp|cn2|gia|game|games|gaming|stream|media|unlock|nf|奈飞|netflix|disney|hbo|max|prime|chatgpt|gpt|ai|home|residential|station|server|node|premium|traffic|test|testing|expire|plan|used|aws|hy2|anytls)\b/gi, ' ')
       .replace(/\s+/g, ' ')
@@ -246,8 +219,9 @@ function main(config) {
       ['新加坡', /(新加坡|singapore|\bsg\b|\bsgp\b)/i],
       ['美国', /(美国|united states|america|los angeles|san jose|new york|\bus\b|\busa\b)/i],
       ['韩国', /(韩国|南韩|korea|seoul|busan|\bkr\b)/i],
-     ['俄罗斯', /(俄罗斯|russia|moscow|moskva|saint petersburg|st\. petersburg|\bru\b)/i],
-     ['欧盟', /(英国|德国|法国|荷兰|土耳其|欧盟|欧洲|united kingdom|britain|england|germany|france|netherlands|turkey|europe|\buk\b|\bgb\b|\bde\b|\bfr\b|\bnl\b|\btr\b)/i]
+      ['俄罗斯', /(俄罗斯|russia|moscow|moskva|saint petersburg|st\. petersburg|\bru\b)/i],
+      ['欧盟', /(英国|德国|法国|荷兰|土耳其|欧盟|欧洲|united kingdom|britain|england|germany|france|netherlands|turkey|europe|\buk\b|\bgb\b|\bde\b|\bfr\b|\bnl\b|\btr\b)/i],
+      ['其他地区', /(加拿大|canada|\bca\b|澳大利亚|澳洲|australia|\bau\b|悉尼|sydney|墨尔本|melbourne|新西兰|new zealand|\bnz\b|奥克兰|auckland|阿联酋|\buae\b|迪拜|dubai|泰国|thailand|\bth\b|曼谷|bangkok|菲律宾|philippines|\bph\b|马尼拉|manila|印度尼西亚|印尼|indonesia|\bid\b|雅加达|jakarta)/i]
     ];
 
     for (const [regionName, pattern] of recoveryPatterns) {
@@ -260,21 +234,20 @@ function main(config) {
   for (const proxy of proxies) {
     regionGroups[matchRegion(proxy.name)].push(proxy.name);
   }
-  const validRegionGroups = Object.keys(regionGroups).filter(name => regionGroups[name].length > 0);
   const testUrl = 'http://www.gstatic.com/generate_204';
   const testInterval = 420;
   const testTolerance = 80;
   const testLazy = true;
-  const fallbackInterval = 420;
-  const fallbackTolerance = 80;
+  const fallbackInterval = 300;
+  const fallbackTolerance = 180;
   const fallbackLazy = true;
-  const regionUrlTestInterval = 420;
-  const regionUrlTestTolerance = 80;
-  const regionUrlTestLazy = true;
-  const fallbackDefaultProxy = allProxyNames.length ? allProxyNames[0] : 'DIRECT';
+  const regionUrlTestInterval = 300;
+  const regionUrlTestTolerance = 180;
+
   function preserveGroup(group) {
-    if (group.type !== 'select') return group;
     const oldGroup = existingGroupMap[group.name];
+
+    if (group.type !== 'select') return group;
     if (!oldGroup || !Array.isArray(oldGroup.proxies) || !Array.isArray(group.proxies)) return group;
     if (group.name === '全球直连') {
       return { ...group, proxies: ['DIRECT'] };
@@ -290,13 +263,15 @@ function main(config) {
   }
   function makeUrlTestGroup(name, icon, nodes, interval, tolerance) {
     const proxies = unique(nodes || []);
+    const normalizedInterval = typeof interval === 'number' ? interval : testInterval;
+    const normalizedTolerance = typeof tolerance === 'number' ? tolerance : testTolerance;
     return {
       name,
       type: 'url-test',
       icon,
       url: testUrl,
-      interval: interval || testInterval,
-      tolerance: tolerance || testTolerance,
+      interval: normalizedInterval,
+      tolerance: normalizedTolerance,
       lazy: testLazy,
       proxies: proxies.length ? proxies : ['DIRECT']
     };
@@ -305,21 +280,26 @@ function main(config) {
   function makeSelectGroup(name, icon, list, extraDefaults = ['自动选择']) {
     return { name, type: 'select', icon, proxies: ensureGroupList(list, extraDefaults) };
   }
-
-  function makeFallbackGroup(name, icon, list, extraDefaults = ['自动选择']) {
+  function makeFallbackGroup(name, icon, list, extraDefaults = ['自动选择'], options = {}) {
+    const proxies = ensureGroupList(list, extraDefaults);
     return {
       name,
       type: 'fallback',
       icon,
-      url: testUrl,
-      interval: fallbackInterval,
-      tolerance: fallbackTolerance,
-      lazy: fallbackLazy,
-      proxies: ensureGroupList(list, extraDefaults)
+      url: options.url || testUrl,
+      interval: options.interval || fallbackInterval,
+      tolerance: options.tolerance || fallbackTolerance,
+      lazy: typeof options.lazy === 'boolean' ? options.lazy : fallbackLazy,
+      proxies
     };
   }
 
+  function finalizeGroupList(groups) {
+    return uniqueBy((groups || []).filter(Boolean), group => group && group.name);
+  }
+
   function makeLoadBalanceGroup(name, icon, list, strategy = 'round-robin', extraDefaults = ['自动选择']) {
+
     return {
       name,
       type: 'load-balance',
@@ -331,17 +311,6 @@ function main(config) {
       proxies: ensureGroupList(list, extraDefaults)
     };
   }
-
-  function makeDirectGroup(name, icon) {
-    return {
-      name,
-      type: 'select',
-      icon,
-      proxies: ['DIRECT'],
-      udp: true
-    };
-  }
-
   const regionIconMap = {
 
     '香港': 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Hong_Kong.png',
@@ -355,13 +324,25 @@ function main(config) {
     '其他地区': 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/World_Map.png'
   };
 
+  const regionFlagMap = {
+    '香港': '🇭🇰',
+    '台湾': '🇹🇼',
+    '日本': '🇯🇵',
+    '新加坡': '🇸🇬',
+    '美国': '🇺🇸',
+    '韩国': '🇰🇷',
+    '俄罗斯': '🇷🇺',
+    '欧盟': '🇪🇺',
+    '其他地区': '🌍',
+  };
   const iconMap = {
     rocket: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Rocket.png',
     auto: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Auto.png',
     proxy: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Proxy.png',
-    fallback: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Available_1.png',
-    fallbackFinal: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final_1.png',
-    balance: 'https://api.iconify.design/tabler:arrows-shuffle.svg',
+    fallback: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png',
+    fallbackFinal: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png',
+    balance: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Round_Robin.png',
+
     home: 'https://api.iconify.design/tabler:home-filled.svg',
     global: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Global.png',
     russia: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Russia.png',
@@ -393,32 +374,51 @@ function main(config) {
     china: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/China_Map.png',
     game: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Game.png',
     download: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Download.png',
-    cloudflare: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png'
+    cloudflare: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png',
+    adblock: qIcon('Advertising'),
+    jpkr: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/AbemaTV.png',
+    homeRegion: 'https://api.iconify.design/tabler:home-filled.svg',
+    social: 'https://api.iconify.design/simple-icons:reddit.svg',
+    decentralized: 'https://api.iconify.design/simple-icons:bluesky.svg'
 
   };
+  function makeFusionRegionGroupNames(label) {
+    return {
+      auto: label + '自动',
+      manual: label + '手动',
+      homeAuto: label + '家宽',
+      homeManual: label + '家宽手动',
+    };
+  }
 
-   const regionAutoMap = {};
-   const regionAutoNames = [];
-   const regionAutoGroups = [];
-   const regionHomeAutoMap = {};
-   const regionHomeAutoNames = [];
-   const regionHomeAutoGroups = [];
-   const regionAutoOrder = ['香港', '台湾', '美国', '日本', '新加坡', '韩国', '俄罗斯', '欧盟', '其他地区'];
-   for (const regionName of regionAutoOrder) {
-     if (!regionGroups[regionName] || regionGroups[regionName].length === 0) continue;
-     const autoName = regionName + '自动';
-     regionAutoMap[regionName] = autoName;
-     regionAutoNames.push(autoName);
-     regionAutoGroups.push(makeUrlTestGroup(autoName, regionIconMap[regionName], regionGroups[regionName], regionUrlTestInterval, regionUrlTestTolerance));
 
-     const residentialRegionNodes = regionGroups[regionName].filter(name => isResidentialProxyName(name));
-     if (residentialRegionNodes.length > 0) {
-       const homeAutoName = regionName + '家宽自动';
-       regionHomeAutoMap[regionName] = homeAutoName;
-       regionHomeAutoNames.push(homeAutoName);
-       regionHomeAutoGroups.push(makeUrlTestGroup(homeAutoName, regionIconMap[regionName], residentialRegionNodes, regionUrlTestInterval, regionUrlTestTolerance));
-     }
-   }
+
+
+  const regionAutoMap = {};
+  const regionAutoNames = [];
+  const regionAutoGroups = [];
+  const regionHomeAutoMap = {};
+  const regionHomeAutoNames = [];
+  const regionHomeAutoGroups = [];
+
+  const regionAutoOrder = ['香港', '台湾', '美国', '日本', '新加坡', '韩国', '俄罗斯', '欧盟', '其他地区'];
+  for (const regionName of regionAutoOrder) {
+    if (!regionGroups[regionName] || regionGroups[regionName].length === 0) continue;
+
+    const fusionNames = makeFusionRegionGroupNames(regionName);
+    regionAutoMap[regionName] = fusionNames.auto;
+    regionAutoNames.push(fusionNames.auto);
+    regionAutoGroups.push(makeUrlTestGroup(fusionNames.auto, regionIconMap[regionName], regionGroups[regionName], regionUrlTestInterval, regionUrlTestTolerance));
+    const residentialRegionNodes = regionGroups[regionName].filter(name => isResidentialProxyName(name));
+
+    if (residentialRegionNodes.length > 0) {
+      regionHomeAutoMap[regionName] = fusionNames.homeAuto;
+      regionHomeAutoNames.push(fusionNames.homeAuto);
+      regionHomeAutoGroups.push(makeUrlTestGroup(fusionNames.homeAuto, regionIconMap[regionName], residentialRegionNodes, regionUrlTestInterval, regionUrlTestTolerance));
+    }
+
+  }
+
 
   function getRegionAuto(name) {
     return regionAutoMap[name] || null;
@@ -436,16 +436,15 @@ function main(config) {
   function buildNodeChain(patterns) {
     return allProxyNames.filter(name => patterns.some(pattern => pattern.test(name)));
   }
-
-  function unique(list) {
-    return list.filter((item, index) => list.indexOf(item) === index);
-  }
   const globalHomeNodes = unique(residentialProxies.map(p => p.name));
-  const autoFallbackNodes = unique(buildRegionChain(['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '其他地区']).concat(allProxyNames));
-  const balanceNodes = unique(buildRegionChain(['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟']).concat(allProxyNames));
-  const jpKrFallbackNodes = buildRegionChain(['日本', '韩国', '新加坡', '美国', '香港', '台湾']);
-  const hkTwFallbackNodes = buildRegionChain(['香港', '台湾', '新加坡', '美国', '日本', '韩国']);
+  const fusionVisibleRegions = unique(regionAutoNames.concat(regionHomeAutoNames));
 
+  const autoFallbackNodes = unique(buildRegionChain(['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '其他地区']).concat(allProxyNames));
+
+  const balanceNodes = unique(buildRegionChain(['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟']).concat(allProxyNames));
+  const jpKrFallbackNodes = buildRegionChain(['日本', '韩国']);
+  const hkTwFallbackNodes = buildRegionChain(['香港', '台湾']);
+  const usEuFallbackNodes = buildRegionChain(['美国', '欧盟']);
   const youtubeFallbackNodes = unique([].concat(
     buildNodeChain([/俄罗斯/i, /俄(罗斯)?/i, /\bRU\b/i, /🇷🇺/]),
     regionGroups['欧盟'],
@@ -458,23 +457,55 @@ function main(config) {
     regionGroups['美国']
   ));
   const aiFallbackNodes = unique([].concat(
+
     buildRegionChain(['台湾', '美国', '日本', '新加坡', '韩国', '其他地区'])
   ));
-  const usEuFallbackNodes = buildRegionChain(['美国', '欧盟', '新加坡', '日本', '韩国', '香港', '台湾']);
-  const downloadFallbackNodes = buildRegionChain(['欧美故障转移', '香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟']);
-  const cloudflareNodes = unique([].concat(
-    buildNodeChain([/cloudflare/i, /CF/i, /WARP/i, /1\.1\.1\.1/]),
+  const cloudflareGroupChoices = unique([].concat(
+    ['自动选择', '欧美故障转移', '全球直连', '全球手动'],
+
+    buildNodeChain([/cloudflare/i, /\bCF\b/i, /WARP/i, /1\.1\.1\.1/]),
     buildRegionChain(['美国', '新加坡', '日本', '香港', '台湾', '欧盟'])
   ));
+  const downloadGroupChoices = unique([].concat(
+    ['自动选择', '欧美故障转移', '全球手动'],
 
+    buildRegionChain(['美国', '欧盟', '新加坡', '日本', '香港', '台湾', '韩国'])
+  ));
   const fallbackGroups = [
-    makeFallbackGroup('自动兜底', iconMap.fallbackFinal, autoFallbackNodes, []),
-    makeFallbackGroup('港台故障转移', iconMap.fallback, hkTwFallbackNodes, ['自动兜底']),
-    makeFallbackGroup('日韩故障转移', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/JP.png', jpKrFallbackNodes, ['自动兜底']),
-    makeFallbackGroup('欧美故障转移', iconMap.global, usEuFallbackNodes, ['自动兜底']),
-    makeFallbackGroup('YouTube无广节点优先组', iconMap.youtubeFallback, youtubeFallbackNodes, ['自动兜底']),
-    makeFallbackGroup('国外AI故障转移', iconMap.aiFallback, aiFallbackNodes, ['自动兜底'])
+    makeFallbackGroup('自动兜底', iconMap.fallbackFinal, autoFallbackNodes, [], {
+      interval: 300,
+      tolerance: 180,
+      lazy: true
+    }),
+    makeFallbackGroup('港台故障转移', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Available_1.png', hkTwFallbackNodes, ['自动兜底'], {
+
+      interval: 300,
+      tolerance: 180,
+      lazy: true
+    }),
+     makeFallbackGroup('日韩故障转移', qIcon('JP'), jpKrFallbackNodes, ['自动兜底'], {
+
+      interval: 300,
+      tolerance: 180,
+      lazy: true
+    }),
+    makeFallbackGroup('欧美故障转移', iconMap.global, usEuFallbackNodes, ['自动兜底'], {
+      interval: 300,
+      tolerance: 180,
+      lazy: true
+    }),
+    makeFallbackGroup('YouTube无广节点优先组', iconMap.youtubeFallback, youtubeFallbackNodes, ['自动兜底'], {
+      interval: 300,
+      tolerance: 180,
+      lazy: true
+    }),
+    makeFallbackGroup('国外AI故障转移', iconMap.aiFallback, aiFallbackNodes, ['自动兜底'], {
+      interval: 300,
+      tolerance: 180,
+      lazy: true
+    })
   ].filter(Boolean);
+
 
   const loadBalanceGroups = [
     makeLoadBalanceGroup('负载均衡', iconMap.balance, balanceNodes, 'round-robin', ['自动选择'])
@@ -483,17 +514,16 @@ function main(config) {
   const globalHomeGroup = globalHomeNodes.length
     ? makeUrlTestGroup('全球家宽', iconMap.home, globalHomeNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
-
   const fallbackNames = fallbackGroups.map(group => group.name);
   const loadBalanceNames = loadBalanceGroups.map(group => group.name);
-  const homeAutoNames = regionHomeAutoNames.slice();
-  const baseChoices = ['自动选择', '负载均衡', '手动选择']
+  const baseChoices = ['自动选择', '负载均衡', '全球手动']
+
     .concat(fallbackNames)
     .concat(loadBalanceNames)
     .concat(globalHomeGroup ? ['全球家宽'] : [])
-    .concat(homeAutoNames)
-    .concat(regionAutoNames)
+    .concat(fusionVisibleRegions)
     .concat(proxies.map(p => p.name));
+
   const commonChoices = ['节点选择'].concat(baseChoices.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI故障转移'));
   const youtubeOnlyChoices = ['节点选择', 'YouTube无广节点优先组'].concat(baseChoices.filter(name => name !== '国外AI故障转移'));
   const aiOnlyChoices = ['节点选择', '国外AI故障转移'].concat(baseChoices.filter(name => name !== 'YouTube无广节点优先组'));
@@ -509,13 +539,14 @@ function main(config) {
   const telegramChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const googleChoices = makeOrderedChoices(['港台故障转移'], commonChoices);
   const playStoreChoices = makeOrderedChoices(['自动选择'], commonChoices);
-  const domesticChoices = ['🇨🇳 直连 | IPv4优先', '🇨🇳 直连 | IPv6优先', '🇨🇳 直连 | 双栈', '全球直连'].concat(regionAutoNames);
 
-  const microsoftChoices = makeOrderedChoices(['自动选择'], commonChoices);
+  const domesticChoices = directChoices.concat(fusionVisibleRegions);
+  const microsoftChoices = makeOrderedChoices(['全球直连', '自动选择'], commonChoices);
   const streamingChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const gameChoices = makeOrderedChoices(['自动选择'], commonChoices);
 
   const twitterChoices = makeOrderedChoices(['自动选择'], commonChoices);
+
 
   const socialChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const decentralizedChoices = makeOrderedChoices(['欧美故障转移'], commonChoices);
@@ -524,52 +555,64 @@ function main(config) {
   const aiChoices = makeOrderedChoices(['国外AI故障转移', '节点选择'], aiOnlyChoices);
   const githubChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const jpKrChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
- 
    const proxyGroups = [
-    makeSelectGroup('节点选择', iconMap.rocket, ['自动选择', '负载均衡', '手动选择'].concat(fallbackNames).concat(globalHomeGroup ? ['全球家宽'] : []).concat(homeAutoNames).concat(regionAutoNames)),
+    makeSelectGroup('节点选择', iconMap.rocket, ['自动选择', '负载均衡', '全球手动'].concat(fallbackNames).concat(globalHomeGroup ? ['全球家宽'] : []).concat(fusionVisibleRegions)),
+
     makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50),
     ...loadBalanceGroups,
-    makeSelectGroup('手动选择', iconMap.proxy, allProxyNames),
+    makeSelectGroup('全球手动', iconMap.proxy, allProxyNames),
+
     ...fallbackGroups,
     makeSelectGroup('YouTube', iconMap.youtube, youtubeChoices),
     makeSelectGroup('TikTok', iconMap.tiktok, tiktokChoices),
     makeSelectGroup('Meta', iconMap.meta, metaChoices),
     makeSelectGroup('Twitter', iconMap.twitter, twitterChoices),
     makeSelectGroup('Niconico', iconMap.niconico, niconicoChoices),
-    makeSelectGroup('日韩生态区', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/AbemaTV.png', jpKrChoices),
+    makeSelectGroup('日韩生态区', iconMap.jpkr, jpKrChoices),
+
     makeSelectGroup('Spotify', iconMap.spotify, spotifyChoices),
     makeSelectGroup('Telegram', iconMap.telegram, telegramChoices),
     makeSelectGroup('Google', iconMap.google, googleChoices),
     makeSelectGroup('谷歌商店', iconMap.playstore, playStoreChoices),
-    makeSelectGroup('微软服务', iconMap.microsoft, ['全球直连'].concat(microsoftChoices.filter(x => x !== '全球直连'))),
-    makeSelectGroup('国内服务', iconMap.china, ['全球直连'].concat(domesticChoices.filter(x => x !== '全球直连'))),
+    makeSelectGroup('微软服务', iconMap.microsoft, microsoftChoices),
+    makeSelectGroup('国内服务', iconMap.china, directChoices.concat(domesticChoices.filter(x => !directChoices.includes(x)))),
+
     makeSelectGroup('流媒体', iconMap.streaming, streamingChoices),
     makeSelectGroup('GitHub', iconMap.github, githubChoices),
     makeSelectGroup('AI', iconMap.ai, aiChoices),
     makeSelectGroup('国外游戏', iconMap.game, gameChoices),
-    makeSelectGroup('社交信息流', iconMap.reddit, socialChoices),
-    makeSelectGroup('去中心化平台', iconMap.bluesky, decentralizedChoices),
-    makeSelectGroup('FCM', iconMap.fcm, ['自动选择', '节点选择', '手动选择', '全球直连'].concat(regionAutoNames).concat(proxies.map(p => p.name))),
-    makeSelectGroup('Apple', iconMap.apple, ['自动选择', '节点选择', '手动选择', '全球直连'].concat(regionAutoNames).concat(proxies.map(p => p.name))),
-    makeSelectGroup('Cloudflare', iconMap.cloudflare || iconMap.global, ['自动选择', '欧美故障转移', '全球直连', '手动选择'].concat(buildRegionChain(['美国', '新加坡', '日本', '香港', '台湾', '欧盟']))),
-    makeSelectGroup('下载专用组', iconMap.download || iconMap.fallback, ['自动选择', '欧美故障转移', '手动选择'].concat(buildRegionChain(['美国', '欧盟', '新加坡', '日本', '香港', '台湾', '韩国']))),
-    makeSelectGroup('广告拦截', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Reject.png', ['REJECT', 'REJECT-DROP', 'PASS']),
-    makeSelectGroup('漏网之鱼', iconMap.final, ['自动选择', '手动选择'].concat(fallbackNames.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI故障转移')).concat(regionAutoNames)),
+
+    makeSelectGroup('社交信息流', iconMap.social, socialChoices),
+    makeSelectGroup('去中心化平台', iconMap.decentralized, decentralizedChoices),
+    makeSelectGroup('FCM', iconMap.fcm, ['自动选择', '节点选择', '全球手动', '全球直连'].concat(fusionVisibleRegions).concat(allProxyNames)),
+    makeSelectGroup('Apple', iconMap.apple, ['自动选择', '节点选择', '全球手动', '全球直连'].concat(fusionVisibleRegions).concat(allProxyNames)),
+
+    makeSelectGroup('Cloudflare', iconMap.cloudflare || iconMap.global, cloudflareGroupChoices),
+    makeSelectGroup('下载专用组', iconMap.download || iconMap.fallback, downloadGroupChoices),
+    makeSelectGroup('广告拦截', iconMap.adblock, ['REJECT', 'REJECT-DROP', 'PASS']),
+    makeSelectGroup('漏网之鱼', iconMap.final, ['自动选择', '全球手动'].concat(fallbackNames.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI故障转移')).concat(fusionVisibleRegions)),
+
     makeSelectGroup('全球直连', iconMap.direct, ['DIRECT'], []),
   ]
-    .concat([
-      ...regionAutoGroups,
-    ])
+    .concat(regionAutoOrder.flatMap(regionName => {
+      const groups = [];
+      const autoGroup = regionAutoGroups.find(group => group.name === (regionAutoMap[regionName] || ''));
+      if (autoGroup) groups.push(autoGroup);
+      return groups;
+
+    }))
     .concat([
       ...regionHomeAutoGroups,
     ])
+
     .concat(globalHomeGroup ? [globalHomeGroup] : [])
     .map(preserveGroup);
 
-  config['proxy-groups'] = proxyGroups;
-  config.rules = [
+  config['proxy-groups'] = finalizeGroupList(proxyGroups);
+  config.rules = unique([
     // 广告拦截
     'DOMAIN-KEYWORD,adservice,广告拦截',
+
     'DOMAIN-SUFFIX,doubleclick.net,广告拦截',
     'DOMAIN-SUFFIX,googleadservices.com,广告拦截',
     'DOMAIN-SUFFIX,googlesyndication.com,广告拦截',
@@ -659,15 +702,81 @@ function main(config) {
     'DOMAIN-SUFFIX,beizi.biz,广告拦截',
     'DOMAIN-SUFFIX,admobile.top,广告拦截',
     'DOMAIN-SUFFIX,adpush.cn,广告拦截',
+    // FCM / Google 推送
+    'DOMAIN-SUFFIX,fcm.googleapis.com,FCM',
+    'DOMAIN-SUFFIX,fcm-xmpp.googleapis.com,FCM',
+    'DOMAIN-SUFFIX,mtalk.google.com,FCM',
+    'DOMAIN-SUFFIX,mtalk4.google.com,FCM',
+    'DOMAIN-SUFFIX,mtalk-staging.google.com,FCM',
+    'DOMAIN-SUFFIX,fcmtoken.googleapis.com,FCM',
+    'DST-PORT,5228,FCM',
+    'DST-PORT,5229,FCM',
+    'DST-PORT,5230,FCM',
+
+    // 谷歌商店 / Play Store
+    'PROCESS-NAME,com.android.vending,谷歌商店',
+    'DOMAIN-SUFFIX,play.google.com,谷歌商店',
+    'DOMAIN-SUFFIX,play.googleapis.com,谷歌商店',
+    'DOMAIN-SUFFIX,play-fe.googleapis.com,谷歌商店',
+    'DOMAIN-SUFFIX,play-pa.googleapis.com,谷歌商店',
+    'DOMAIN-SUFFIX,playatoms-pa.googleapis.com,谷歌商店',
+    'DOMAIN-SUFFIX,play-apps-download-frontend.googleapis.com,谷歌商店',
+    'DOMAIN-SUFFIX,play-lh.googleusercontent.com,谷歌商店',
+    'DOMAIN-SUFFIX,play-games.googleusercontent.com,谷歌商店',
+    'DOMAIN-SUFFIX,market.android.com,谷歌商店',
+    'DOMAIN-SUFFIX,android.clients.google.com,谷歌商店',
+    'DOMAIN-SUFFIX,android.googleapis.com,谷歌商店',
+    'DOMAIN-KEYWORD,googleplay,谷歌商店',
+
+    // YouTube / Google 视频媒体
+    'PROCESS-NAME,app.revanced.android.youtube,YouTube',
+    'PROCESS-NAME,app.rvx.android.youtube,YouTube',
+    'PROCESS-NAME,app.morphe.android.youtube,YouTube',
+    'DOMAIN-SUFFIX,youtube.com,YouTube',
+    'DOMAIN-SUFFIX,youtube-nocookie.com,YouTube',
+    'DOMAIN-SUFFIX,youtu.be,YouTube',
+    'DOMAIN-SUFFIX,yt.be,YouTube',
+    'DOMAIN-SUFFIX,youtube.googleapis.com,YouTube',
+    'DOMAIN-SUFFIX,youtubei.googleapis.com,YouTube',
+    'DOMAIN-SUFFIX,googlevideo.com,YouTube',
+    'DOMAIN-SUFFIX,ytimg.com,YouTube',
+    'DOMAIN-SUFFIX,ggpht.com,YouTube',
+    'DOMAIN-SUFFIX,yt3.ggpht.com,YouTube',
+    'DOMAIN-SUFFIX,youtubekids.com,YouTube',
+    'DOMAIN-SUFFIX,sponsor.ajay.app,YouTube',
+    'DOMAIN-SUFFIX,returnyoutubedislikeapi.com,YouTube',
+
+    // Google AI / Gemini
+    'DOMAIN-SUFFIX,gemini.google.com,AI',
+    'DOMAIN-SUFFIX,generativeai.google,AI',
+    'DOMAIN-SUFFIX,generativelanguage.googleapis.com,AI',
+    'DOMAIN-SUFFIX,proactivebackend-pa.googleapis.com,AI',
+    'DOMAIN-SUFFIX,notebooklm.google.com,AI',
+
+    // Google 下载 / 更新
+    'DOMAIN-SUFFIX,dl.google.com,下载专用组',
+    'DOMAIN-SUFFIX,dl.googleusercontent.com,下载专用组',
+    'DOMAIN-SUFFIX,redirector.gvt1.com,下载专用组',
+    'DOMAIN-SUFFIX,update.googleapis.com,下载专用组',
+    'DOMAIN-SUFFIX,connectivitycheck.gstatic.com,下载专用组',
 
     // 国内服务
     'GEOSITE,CN,国内服务',
+
+
+    // 腾讯系
     'DOMAIN-SUFFIX,wechat.com,国内服务',
     'DOMAIN-SUFFIX,weixin.qq.com,国内服务',
     'DOMAIN-SUFFIX,qq.com,国内服务',
     'DOMAIN-SUFFIX,gtimg.com,国内服务',
     'DOMAIN-SUFFIX,qpic.cn,国内服务',
     'DOMAIN-SUFFIX,tenpay.com,国内服务',
+    'DOMAIN-SUFFIX,qqvideo.tc.qq.com,国内服务',
+    'DOMAIN-SUFFIX,v.qq.com,国内服务',
+    'DOMAIN-SUFFIX,hunyuan.tencent.com,国内服务',
+    'DOMAIN-SUFFIX,yuanbao.tencent.com,国内服务',
+
+    // 阿里系
     'DOMAIN-SUFFIX,alicdn.com,国内服务',
     'DOMAIN-SUFFIX,aliyun.com,国内服务',
     'DOMAIN-SUFFIX,aliyuncs.com,国内服务',
@@ -675,8 +784,22 @@ function main(config) {
     'DOMAIN-SUFFIX,tmall.com,国内服务',
     'DOMAIN-SUFFIX,alipay.com,国内服务',
     'DOMAIN-SUFFIX,alipayobjects.com,国内服务',
+    'DOMAIN-SUFFIX,youku.com,国内服务',
+    'DOMAIN-SUFFIX,youkuimg.com,国内服务',
+    'DOMAIN-SUFFIX,tongyi.com,国内服务',
+    'DOMAIN-SUFFIX,tongyi.aliyun.com,国内服务',
+
+    // 京东 / 电商 / 生活
     'DOMAIN-SUFFIX,jd.com,国内服务',
     'DOMAIN-SUFFIX,jdstatic.com,国内服务',
+    'DOMAIN-SUFFIX,pinduoduo.com,国内服务',
+    'DOMAIN-SUFFIX,smzdm.com,国内服务',
+    'DOMAIN-SUFFIX,meituan.com,国内服务',
+    'DOMAIN-SUFFIX,dianping.com,国内服务',
+    'DOMAIN-SUFFIX,ctrip.com,国内服务',
+    'DOMAIN-SUFFIX,12306.cn,国内服务',
+
+    // B 站 / 视频内容
     'DOMAIN-SUFFIX,bilibili.com,国内服务',
     'DOMAIN-SUFFIX,biliapi.com,国内服务',
     'DOMAIN-SUFFIX,biliimg.com,国内服务',
@@ -685,11 +808,9 @@ function main(config) {
     'DOMAIN-SUFFIX,hdslb.com,国内服务',
     'DOMAIN-SUFFIX,iqiyi.com,国内服务',
     'DOMAIN-SUFFIX,iqiyipic.com,国内服务',
-    'DOMAIN-SUFFIX,youku.com,国内服务',
-    'DOMAIN-SUFFIX,youkuimg.com,国内服务',
     'DOMAIN-SUFFIX,mgtv.com,国内服务',
-    'DOMAIN-SUFFIX,qqvideo.tc.qq.com,国内服务',
-    'DOMAIN-SUFFIX,v.qq.com,国内服务',
+
+    // 字节 / 抖音 / 豆包
     'DOMAIN-SUFFIX,douyin.com,国内服务',
     'DOMAIN-SUFFIX,douyincdn.com,国内服务',
     'DOMAIN-SUFFIX,bytecdn.cn,国内服务',
@@ -698,10 +819,16 @@ function main(config) {
     'DOMAIN-SUFFIX,ibytedtos.com,国内服务',
     'DOMAIN-SUFFIX,iesdouyin.com,国内服务',
     'DOMAIN-SUFFIX,amemv.com,国内服务',
+    'DOMAIN-SUFFIX,doubao.com,国内服务',
+    'DOMAIN-SUFFIX,volces.com,国内服务',
+
+    // 快手系
     'DOMAIN-SUFFIX,kuaishou.com,国内服务',
     'DOMAIN-SUFFIX,ksapisrv.com,国内服务',
     'DOMAIN-SUFFIX,kspkg.com,国内服务',
     'DOMAIN-SUFFIX,ksyuncdn.com,国内服务',
+
+    // 社区 / 资讯
     'DOMAIN-SUFFIX,zhihu.com,国内服务',
     'DOMAIN-SUFFIX,zhimg.com,国内服务',
     'DOMAIN-SUFFIX,weibo.com,国内服务',
@@ -709,51 +836,35 @@ function main(config) {
     'DOMAIN-SUFFIX,xiaohongshu.com,国内服务',
     'DOMAIN-SUFFIX,xhscdn.com,国内服务',
     'DOMAIN-SUFFIX,xhsglobal.com,国内服务',
+
+    // 百度系
     'DOMAIN-SUFFIX,baidu.com,国内服务',
     'DOMAIN-SUFFIX,bdimg.com,国内服务',
     'DOMAIN-SUFFIX,bdstatic.com,国内服务',
+    'DOMAIN-SUFFIX,qianfan.baidu.com,国内服务',
+    'DOMAIN-SUFFIX,erniebot.com,国内服务',
+    'DOMAIN-SUFFIX,yiyan.baidu.com,国内服务',
+
+    // 网易 / 门户
     'DOMAIN-SUFFIX,163.com,国内服务',
     'DOMAIN-SUFFIX,126.net,国内服务',
     'DOMAIN-SUFFIX,126.com,国内服务',
     'DOMAIN-SUFFIX,sina.com.cn,国内服务',
     'DOMAIN-SUFFIX,sohu.com,国内服务',
-    'DOMAIN-SUFFIX,smzdm.com,国内服务',
-    'DOMAIN-SUFFIX,pinduoduo.com,国内服务',
-    'DOMAIN-SUFFIX,meituan.com,国内服务',
-    'DOMAIN-SUFFIX,dianping.com,国内服务',
-    'DOMAIN-SUFFIX,ctrip.com,国内服务',
-    'DOMAIN-SUFFIX,12306.cn,国内服务',
+
+    // 国产 AI
     'DOMAIN-SUFFIX,deepseek.com,国内服务',
     'DOMAIN-SUFFIX,deepseek.cn,国内服务',
     'DOMAIN-SUFFIX,moonshot.cn,国内服务',
     'DOMAIN-SUFFIX,kimi.com,国内服务',
     'DOMAIN-SUFFIX,minimaxi.com,国内服务',
-    'DOMAIN-SUFFIX,doubao.com,国内服务',
-    'DOMAIN-SUFFIX,volces.com,国内服务',
-    'DOMAIN-SUFFIX,qianfan.baidu.com,国内服务',
-    'DOMAIN-SUFFIX,erniebot.com,国内服务',
-    'DOMAIN-SUFFIX,yiyan.baidu.com,国内服务',
-    'DOMAIN-SUFFIX,tongyi.com,国内服务',
-    'DOMAIN-SUFFIX,tongyi.aliyun.com,国内服务',
-    'DOMAIN-SUFFIX,hunyuan.tencent.com,国内服务',
-    'DOMAIN-SUFFIX,yuanbao.tencent.com,国内服务',
     'DOMAIN-SUFFIX,xinghuo.xfyun.cn,国内服务',
     'DOMAIN-SUFFIX,sensenova.cn,国内服务',
-
-    // FCM
-    'DOMAIN-SUFFIX,fcm.googleapis.com,FCM',
-    'DOMAIN-SUFFIX,fcm-xmpp.googleapis.com,FCM',
-    'DOMAIN-SUFFIX,mtalk.google.com,FCM',
-    'DOMAIN-SUFFIX,mtalk4.google.com,FCM',
-    'DOMAIN-SUFFIX,mtalk-staging.google.com,FCM',
-    'DST-PORT,5228,FCM',
-    'DST-PORT,5229,FCM',
-    'DST-PORT,5230,FCM',
-
     // Apple
     'DOMAIN-SUFFIX,apple.com,Apple',
     'DOMAIN-SUFFIX,icloud.com,Apple',
     'DOMAIN-SUFFIX,icloud-content.com,Apple',
+
     'DOMAIN-SUFFIX,itunes.apple.com,Apple',
     'DOMAIN-SUFFIX,apps.apple.com,Apple',
     'DOMAIN-SUFFIX,mzstatic.com,Apple',
@@ -764,12 +875,13 @@ function main(config) {
     'DOMAIN-SUFFIX,applemusic.com,Apple',
     'DOMAIN-SUFFIX,appstore.com,Apple',
     'DOMAIN,time.apple.com,Apple',
-
     // AI
     'DOMAIN-SUFFIX,openai.com,AI',
     'DOMAIN-SUFFIX,chatgpt.com,AI',
     'DOMAIN-SUFFIX,oaistatic.com,AI',
     'DOMAIN-SUFFIX,oaiusercontent.com,AI',
+    'DOMAIN-SUFFIX,openaiusercontent.com,AI',
+    'DOMAIN-SUFFIX,chatgpt.livekit.cloud,AI',
     'DOMAIN-SUFFIX,openaiapi-site.azureedge.net,AI',
     'DOMAIN-SUFFIX,auth0.openai.com,AI',
     'DOMAIN-SUFFIX,identrust.com,AI',
@@ -778,10 +890,6 @@ function main(config) {
     'DOMAIN-SUFFIX,claude.ai,AI',
     'DOMAIN-SUFFIX,claudeusercontent.com,AI',
     'DOMAIN-SUFFIX,anthropiccdn.com,AI',
-    'DOMAIN-SUFFIX,gemini.google.com,AI',
-    'DOMAIN-SUFFIX,generativeai.google,AI',
-    'DOMAIN-SUFFIX,generativelanguage.googleapis.com,AI',
-    'DOMAIN-SUFFIX,proactivebackend-pa.googleapis.com,AI',
     'DOMAIN-SUFFIX,perplexity.ai,AI',
     'DOMAIN-SUFFIX,perplexity.com,AI',
     'DOMAIN-SUFFIX,pplx.ai,AI',
@@ -797,7 +905,16 @@ function main(config) {
     'DOMAIN-SUFFIX,c.ai,AI',
     'DOMAIN-SUFFIX,midjourney.com,AI',
 
+    // 去中心化平台
+    'PROCESS-NAME,io.metamask,去中心化平台',
+    'PROCESS-NAME,io.metamask:bridge,去中心化平台',
+    'PROCESS-NAME,io.metamask:fileprovider,去中心化平台',
+    'DOMAIN-SUFFIX,metamask.io,去中心化平台',
+    'DOMAIN,api2.branch.io,去中心化平台',
+    'DOMAIN,cdn.branch.io,去中心化平台',
+
     // Cloudflare
+
     'DOMAIN-SUFFIX,cloudflare.com,Cloudflare',
     'DOMAIN-SUFFIX,cloudflare-dns.com,Cloudflare',
     'DOMAIN-SUFFIX,cloudflareclient.com,Cloudflare',
@@ -809,12 +926,11 @@ function main(config) {
     'DOMAIN,1.1.1.1,Cloudflare',
 
     // 下载专用组
+
     'DOMAIN-SUFFIX,download.windowsupdate.com,下载专用组',
     'DOMAIN-SUFFIX,windowsupdate.com,下载专用组',
     'DOMAIN-SUFFIX,update.microsoft.com,下载专用组',
     'DOMAIN-SUFFIX,delivery.mp.microsoft.com,下载专用组',
-    'DOMAIN-SUFFIX,redirector.gvt1.com,下载专用组',
-    'DOMAIN-SUFFIX,dl.googleusercontent.com,下载专用组',
     'DOMAIN-SUFFIX,download.jetbrains.com,下载专用组',
     'DOMAIN-SUFFIX,download.docker.com,下载专用组',
     'DOMAIN-SUFFIX,packages.microsoft.com,下载专用组',
@@ -822,6 +938,7 @@ function main(config) {
     'DOMAIN-SUFFIX,speed.hetzner.de,下载专用组',
 
     // 国外游戏
+
     'DOMAIN-SUFFIX,steamcommunity.com,国外游戏',
     'DOMAIN-SUFFIX,steampowered.com,国外游戏',
     'DOMAIN-SUFFIX,steamstatic.com,国外游戏',
@@ -838,37 +955,59 @@ function main(config) {
     'DOMAIN-SUFFIX,playvalorant.com,国外游戏',
     'DOMAIN-SUFFIX,riotcdn.net,国外游戏',
     'DOMAIN-SUFFIX,lol.secure.dyn.riotcdn.net,国外游戏',
+    // Blizzard
     'DOMAIN-SUFFIX,battle.net,国外游戏',
     'DOMAIN-SUFFIX,blizzard.com,国外游戏',
+
     'DOMAIN-SUFFIX,blzddist1-a.akamaihd.net,国外游戏',
+
+    // EA
     'DOMAIN-SUFFIX,ea.com,国外游戏',
     'DOMAIN-SUFFIX,origin.com,国外游戏',
     'DOMAIN-SUFFIX,origin-a.akamaihd.net,国外游戏',
+
+    // Ubisoft
     'DOMAIN-SUFFIX,uplay.com,国外游戏',
     'DOMAIN-SUFFIX,ubisoft.com,国外游戏',
     'DOMAIN-SUFFIX,cdn.ubisoft.com,国外游戏',
+
+    // Rockstar / GOG
     'DOMAIN-SUFFIX,rockstargames.com,国外游戏',
     'DOMAIN-SUFFIX,gog.com,国外游戏',
+
+    // Roblox
     'DOMAIN-SUFFIX,roblox.com,国外游戏',
     'DOMAIN-SUFFIX,rbxcdn.com,国外游戏',
+
+    // Mojang / Minecraft
     'DOMAIN-SUFFIX,minecraft.net,国外游戏',
     'DOMAIN-SUFFIX,mojang.com,国外游戏',
     'DOMAIN-SUFFIX,launcher.mojang.com,国外游戏',
     'DOMAIN-SUFFIX,piston-meta.mojang.com,国外游戏',
+
+    // Nintendo
     'DOMAIN-SUFFIX,nintendo.com,国外游戏',
     'DOMAIN-SUFFIX,nintendo.net,国外游戏',
     'DOMAIN-SUFFIX,nintendo.co.jp,国外游戏',
     'DOMAIN-SUFFIX,cdn.nintendo.net,国外游戏',
+
+    // PlayStation
     'DOMAIN-SUFFIX,sonyentertainmentnetwork.com,国外游戏',
     'DOMAIN-SUFFIX,playstation.com,国外游戏',
     'DOMAIN-SUFFIX,playstation.net,国外游戏',
     'DOMAIN-SUFFIX,psnprofiles.com,国外游戏',
+
+    // Xbox Services
     'DOMAIN-SUFFIX,xboxservices.com,国外游戏',
+
+    // Supercell
     'DOMAIN-SUFFIX,supercell.com,国外游戏',
     'DOMAIN-SUFFIX,supercell.net,国外游戏',
 
     // GitHub
+
     'DOMAIN-SUFFIX,github.com,GitHub',
+
     'DOMAIN-SUFFIX,githubusercontent.com,GitHub',
     'DOMAIN-SUFFIX,raw.githubusercontent.com,GitHub',
     'DOMAIN-SUFFIX,media.githubusercontent.com,GitHub',
@@ -886,19 +1025,19 @@ function main(config) {
     'DOMAIN-SUFFIX,microsoftonline.com,微软服务',
     'DOMAIN-SUFFIX,live.com,微软服务',
     'DOMAIN-SUFFIX,live.net,微软服务',
-    'DOMAIN-SUFFIX,msn.com,微软服务',
+    'DOMAIN-SUFFIX,outlook.com,微软服务',
+    'DOMAIN-SUFFIX,officeapps.live.com,微软服务',
+    'DOMAIN-SUFFIX,onedrive.com,微软服务',
     'DOMAIN-SUFFIX,bing.com,微软服务',
     'DOMAIN-SUFFIX,bingapis.com,微软服务',
     'DOMAIN-SUFFIX,bingstatic.com,微软服务',
     'DOMAIN-SUFFIX,copilot.microsoft.com,微软服务',
+    'DOMAIN-SUFFIX,msn.com,微软服务',
     'DOMAIN-SUFFIX,office.com,微软服务',
     'DOMAIN-SUFFIX,office.net,微软服务',
     'DOMAIN-SUFFIX,office365.com,微软服务',
     'DOMAIN-SUFFIX,microsoft365.com,微软服务',
     'DOMAIN-SUFFIX,sharepoint.com,微软服务',
-    'DOMAIN-SUFFIX,outlook.com,微软服务',
-    'DOMAIN-SUFFIX,officeapps.live.com,微软服务',
-    'DOMAIN-SUFFIX,onedrive.com,微软服务',
     'DOMAIN-SUFFIX,skype.com,微软服务',
     'DOMAIN-SUFFIX,teams.microsoft.com,微软服务',
     'DOMAIN-SUFFIX,xbox.com,微软服务',
@@ -915,12 +1054,12 @@ function main(config) {
     'DOMAIN-SUFFIX,disney-plus.net,流媒体',
     'DOMAIN-SUFFIX,dssott.com,流媒体',
     'DOMAIN-SUFFIX,bamgrid.com,流媒体',
-    'DOMAIN-SUFFIX,max.com,流媒体',
-    'DOMAIN-SUFFIX,hbomax.com,流媒体',
-    'DOMAIN-SUFFIX,hbo.com,流媒体',
     'DOMAIN-SUFFIX,primevideo.com,流媒体',
     'DOMAIN-SUFFIX,amazonvideo.com,流媒体',
     'DOMAIN-SUFFIX,media-amazon.com,流媒体',
+    'DOMAIN-SUFFIX,max.com,流媒体',
+    'DOMAIN-SUFFIX,hbomax.com,流媒体',
+    'DOMAIN-SUFFIX,hbo.com,流媒体',
     'DOMAIN-SUFFIX,hulu.com,流媒体',
     'DOMAIN-SUFFIX,huluim.com,流媒体',
     'DOMAIN-SUFFIX,appletvplus.com,流媒体',
@@ -934,6 +1073,7 @@ function main(config) {
 
     // Meta
     'DOMAIN-SUFFIX,facebook.com,Meta',
+
     'DOMAIN-SUFFIX,facebook.net,Meta',
     'DOMAIN-SUFFIX,fb.com,Meta',
     'DOMAIN-SUFFIX,fbcdn.net,Meta',
@@ -954,59 +1094,98 @@ function main(config) {
     'DOMAIN-SUFFIX,spotifycdn.com,Spotify',
     'DOMAIN-SUFFIX,scdn.co,Spotify',
     'DOMAIN-SUFFIX,spoti.fi,Spotify',
-
     // Telegram
+    'PROCESS-NAME,org.telegram.messenger,Telegram',
+    'PROCESS-NAME,org.telegram.messenger.web,Telegram',
+    'PROCESS-NAME,com.exteragram.messenger,Telegram',
+    'PROCESS-NAME,nekox.messenger,Telegram',
+    'PROCESS-NAME,tw.nekomimi.nekogram,Telegram',
+    'PROCESS-NAME,xyz.nextalone.nagram,Telegram',
+    'PROCESS-NAME,org.telegram.plus,Telegram',
+    'PROCESS-NAME,ellipi.messenger,Telegram',
     'DOMAIN-SUFFIX,telegram.org,Telegram',
+
     'DOMAIN-SUFFIX,t.me,Telegram',
     'DOMAIN-SUFFIX,telegra.ph,Telegram',
     'DOMAIN-SUFFIX,telesco.pe,Telegram',
     'DOMAIN-SUFFIX,telegram.me,Telegram',
     'DOMAIN-SUFFIX,telegram.dog,Telegram',
+    'DOMAIN-SUFFIX,telegram-cdn.org,Telegram',
+    'DOMAIN-SUFFIX,telegram.space,Telegram',
+    'DOMAIN-SUFFIX,tg.dev,Telegram',
+    'DOMAIN-SUFFIX,tdesktop.com,Telegram',
+    'DOMAIN-SUFFIX,usercontent.dev,Telegram',
+    'DOMAIN-SUFFIX,graph.org,Telegram',
+    'DOMAIN-KEYWORD,telegram,Telegram',
+    'DOMAIN-KEYWORD,tg,Telegram',
+    'IP-CIDR,91.108.4.0/22,Telegram,no-resolve',
+    'IP-CIDR,91.108.8.0/21,Telegram,no-resolve',
+    'IP-CIDR,91.108.12.0/22,Telegram,no-resolve',
+    'IP-CIDR,91.108.16.0/22,Telegram,no-resolve',
+    'IP-CIDR,91.108.20.0/22,Telegram,no-resolve',
+    'IP-CIDR,91.108.56.0/22,Telegram,no-resolve',
+    'IP-CIDR,91.105.192.0/23,Telegram,no-resolve',
+    'IP-CIDR,149.154.160.0/20,Telegram,no-resolve',
+    'IP-CIDR6,2001:b28:f23d::/48,Telegram,no-resolve',
+    'IP-CIDR6,2001:b28:f23f::/48,Telegram,no-resolve',
+    'IP-CIDR6,2001:67c:4e8::/48,Telegram,no-resolve',
 
-    // 谷歌商店
-    'DOMAIN-SUFFIX,play.google.com,谷歌商店',
-    'DOMAIN-SUFFIX,play.googleapis.com,谷歌商店',
-    'DOMAIN-SUFFIX,play-fe.googleapis.com,谷歌商店',
-    'DOMAIN-SUFFIX,play-pa.googleapis.com,谷歌商店',
-    'DOMAIN-SUFFIX,playatoms-pa.googleapis.com,谷歌商店',
-    'DOMAIN-SUFFIX,play-lh.googleusercontent.com,谷歌商店',
-    'DOMAIN-SUFFIX,play-games.googleusercontent.com,谷歌商店',
-    'DOMAIN-SUFFIX,play-apps-download-frontend.googleapis.com,谷歌商店',
-    'DOMAIN-SUFFIX,market.android.com,谷歌商店',
-    'DOMAIN-SUFFIX,android.clients.google.com,谷歌商店',
-    'DOMAIN-SUFFIX,android.googleapis.com,谷歌商店',
-    'DOMAIN-SUFFIX,ggpht.com,谷歌商店',
-    'DOMAIN-SUFFIX,gvt1.com,谷歌商店',
-    'DOMAIN-SUFFIX,gvt2.com,谷歌商店',
-    'DOMAIN-SUFFIX,gvt3.com,谷歌商店',
-    'DOMAIN-SUFFIX,gvt1-cn.com,谷歌商店',
-    'DOMAIN-SUFFIX,gvt2-cn.com,谷歌商店',
-    'DOMAIN-SUFFIX,gvt3-cn.com,谷歌商店',
-    'DOMAIN-SUFFIX,dl.google.com,谷歌商店',
-    'DOMAIN-KEYWORD,googleplay,谷歌商店',
+    // Google 通用服务
 
-    // YouTube
-    'DOMAIN-SUFFIX,youtube.com,YouTube',
-    'DOMAIN-SUFFIX,youtube-nocookie.com,YouTube',
-    'DOMAIN-SUFFIX,youtu.be,YouTube',
-    'DOMAIN-SUFFIX,yt.be,YouTube',
-    'DOMAIN-SUFFIX,googlevideo.com,YouTube',
-    'DOMAIN-SUFFIX,ytimg.com,YouTube',
-    'DOMAIN-SUFFIX,youtubei.googleapis.com,YouTube',
-    'DOMAIN-SUFFIX,yt3.ggpht.com,YouTube',
 
-    // Google 生态
+    'DOMAIN,dns.google,Google',
+    'DOMAIN,dns.google.com,Google',
+    'DOMAIN,mail.google.com,Google',
     'DOMAIN-SUFFIX,google.com,Google',
     'DOMAIN-SUFFIX,googleapis.com,Google',
     'DOMAIN-SUFFIX,gstatic.com,Google',
     'DOMAIN-SUFFIX,gmail.com,Google',
+    'DOMAIN-SUFFIX,googlemail.com,Google',
     'DOMAIN-SUFFIX,ggpht.cn,Google',
     'DOMAIN-SUFFIX,googleusercontent.com,Google',
     'DOMAIN-SUFFIX,googleusercontent.cn,Google',
+    'DOMAIN-SUFFIX,withgoogle.com,Google',
+    'DOMAIN-SUFFIX,gvt1.com,Google',
+    'DOMAIN-SUFFIX,gvt2.com,Google',
+    'DOMAIN-SUFFIX,gvt3.com,Google',
+    'DOMAIN-SUFFIX,xn--ngstr-lra8j.com,Google',
+    'DOMAIN-SUFFIX,g.co,Google',
+    'DOMAIN-SUFFIX,goo.gl,Google',
+    'DOMAIN-SUFFIX,googleearth.com,Google',
+    'DOMAIN-SUFFIX,clients1.google.com,Google',
+    'DOMAIN-SUFFIX,clients2.google.com,Google',
+    'DOMAIN-SUFFIX,clients3.google.com,Google',
+    'DOMAIN-SUFFIX,clients4.google.com,Google',
+    'DOMAIN-SUFFIX,clients5.google.com,Google',
+    'DOMAIN-SUFFIX,clients6.google.com,Google',
+    'DOMAIN-SUFFIX,clients.googleapis.com,Google',
+    'DOMAIN-SUFFIX,ogs.google.com,Google',
+    'DOMAIN-SUFFIX,accounts.google.com,Google',
+    'DOMAIN-SUFFIX,myaccount.google.com,Google',
+    'DOMAIN-SUFFIX,workspace.google.com,Google',
+    'DOMAIN-SUFFIX,one.google.com,Google',
+    'DOMAIN-SUFFIX,lens.google.com,Google',
+    'DOMAIN-SUFFIX,photos.google.com,Google',
+    'DOMAIN-SUFFIX,maps.google.com,Google',
+    'DOMAIN-SUFFIX,maps.gstatic.com,Google',
+    'DOMAIN-SUFFIX,news.google.com,Google',
+    'DOMAIN-SUFFIX,meet.google.com,Google',
+    'DOMAIN-SUFFIX,chat.google.com,Google',
+    'DOMAIN-SUFFIX,drive.google.com,Google',
+    'DOMAIN-SUFFIX,docs.google.com,Google',
+    'DOMAIN-SUFFIX,sheets.google.com,Google',
+    'DOMAIN-SUFFIX,slides.google.com,Google',
+    'DOMAIN-SUFFIX,classroom.google.com,Google',
+    'DOMAIN-SUFFIX,calendar.google.com,Google',
+    'DOMAIN-SUFFIX,contacts.google.com,Google',
+    'DOMAIN-SUFFIX,keep.google.com,Google',
+    'DOMAIN-SUFFIX,translate.google.com,Google',
+    'DOMAIN-SUFFIX,earth.google.com,Google',
 
     // Twitter / X
     'DOMAIN-SUFFIX,x.com,Twitter',
     'DOMAIN-SUFFIX,twitter.com,Twitter',
+
     'DOMAIN-SUFFIX,twimg.com,Twitter',
     'DOMAIN-SUFFIX,t.co,Twitter',
     'DOMAIN-SUFFIX,pscp.tv,Twitter',
@@ -1194,7 +1373,7 @@ function main(config) {
 
     // 直连与兜底
     'GEOIP,CN,全球直连',
-    'MATCH,漏网之鱼'];
+    'MATCH,漏网之鱼']);
 
   return config;
 }
