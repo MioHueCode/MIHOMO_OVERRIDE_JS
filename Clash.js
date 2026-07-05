@@ -124,8 +124,8 @@ function main(config) {
     });
   };
   const residentialNamePatterns = [
-    /家宽/i, /家庭宽带/i, /住宅/i, /home/i, /residential/i
-  ];
+  /家宽/i, /家庭宽带/i, /住宅/i, /原生/i, /home/i, /residential/i
+];
   function isResidentialProxyName(name) {
     return residentialNamePatterns.some(re => re.test(String(name || '')));
   }
@@ -339,6 +339,7 @@ function main(config) {
     rocket: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Rocket.png',
     auto: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Auto.png',
     proxy: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Proxy.png',
+    select: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Static.png',
     fallback: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png',
     fallbackFinal: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png',
     balance: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Round_Robin.png',
@@ -560,7 +561,7 @@ function main(config) {
 
     makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50),
     ...loadBalanceGroups,
-    makeSelectGroup('全球手动', iconMap.proxy, allProxyNames),
+    makeSelectGroup('全球手动', iconMap.select, allProxyNames),
 
     ...fallbackGroups,
     makeSelectGroup('YouTube', iconMap.youtube, youtubeChoices),
@@ -575,7 +576,7 @@ function main(config) {
     makeSelectGroup('Google', iconMap.google, googleChoices),
     makeSelectGroup('谷歌商店', iconMap.playstore, playStoreChoices),
     makeSelectGroup('微软服务', iconMap.microsoft, microsoftChoices),
-    makeSelectGroup('国内服务', iconMap.china, directChoices.concat(domesticChoices.filter(x => !directChoices.includes(x)))),
+    makeSelectGroup('国内服务', iconMap.china, ['全球直连'].concat(directChoices.filter(x => x !== '全球直连')).concat(domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x)))),
 
     makeSelectGroup('流媒体', iconMap.streaming, streamingChoices),
     makeSelectGroup('GitHub', iconMap.github, githubChoices),
