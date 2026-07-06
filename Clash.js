@@ -79,6 +79,8 @@ function main(config) {
       'domain:youtube.googleapis.com': trustDns,
       'domain:sponsor.ajay.app': trustDns,
       'domain:returnyoutubedislikeapi.com': trustDns,
+      'domain:twitch.tv': trustDns,
+      'domain:ttvnw.net': trustDns,
       'domain:ultimateota.d.miui.com': cnDns,
 
       'domain:superota.d.miui.com': cnDns,
@@ -372,7 +374,11 @@ function main(config) {
     apple: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Apple.png',
     microsoft: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Microsoft.png',
     streaming: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Netflix.png',
+    taiwanMedia: 'https://ani.gamer.com.tw/favicon.ico',
+
+    twitch: 'https://api.iconify.design/simple-icons:twitch.svg',
     china: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/China_Map.png',
+
     game: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Game.png',
     download: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Download.png',
     cloudflare: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png',
@@ -497,22 +503,22 @@ function main(config) {
       lazy: true
     }),
     makeFallbackGroup('港台故障转移', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Available_1.png', hkTwFallbackNodes, ['自动兜底'], {
-
       interval: 300,
       tolerance: 180,
       lazy: true
     }),
+
     makeFallbackGroup('日韩故障转移', qIcon('JP'), jpKrFallbackNodes, ['自动兜底'], {
       interval: 300,
       tolerance: 180,
       lazy: true
     }),
-
     makeFallbackGroup('欧美故障转移', iconMap.global, usEuFallbackNodes, ['自动兜底'], {
       interval: 300,
       tolerance: 180,
       lazy: true
     }),
+
     makeFallbackGroup('YouTube无广节点优先组', iconMap.youtubeFallback, youtubeFallbackNodes, ['自动兜底'], {
       interval: 300,
       tolerance: 180,
@@ -524,11 +530,10 @@ function main(config) {
       lazy: true
     })
   ].filter(Boolean);
-
   const loadBalanceGroups = [
-
     {
       name: '负载均衡',
+
       type: 'load-balance',
       icon: iconMap.balance,
       url: testUrl,
@@ -550,7 +555,6 @@ function main(config) {
         buildRegionHomeChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟'])
       )), ['自动选择'])
     }
-
   ].filter(Boolean);
 
   const globalHomeGroup = globalHomeNodes.length
@@ -558,11 +562,12 @@ function main(config) {
     : null;
   const fallbackNames = fallbackGroups.map(group => group.name);
   const loadBalanceNames = loadBalanceGroups.map(group => group.name);
+  const commonLoadBalanceNames = loadBalanceNames.filter(name => name !== '谷歌商店负载均衡');
   const baseChoices = ['自动选择', '负载均衡', '全球手动']
     .concat(fallbackNames)
-
-    .concat(loadBalanceNames)
+    .concat(commonLoadBalanceNames)
     .concat(globalHomeGroup ? ['全球家宽'] : [])
+
     .concat(fusionVisibleRegions)
     .concat(proxies.map(p => p.name));
 
@@ -581,16 +586,22 @@ function main(config) {
   const telegramChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const googleChoices = makeOrderedChoices(['港台故障转移'], commonChoices);
   const playStoreChoices = makeOrderedChoices(['谷歌商店负载均衡', '负载均衡', '自动选择'], commonChoices);
-
   const domesticChoices = directChoices.concat(fusionVisibleRegions);
   const microsoftChoices = makeOrderedChoices(['全球直连', '自动选择'], commonChoices);
   const streamingChoices = makeOrderedChoices(['自动选择'], commonChoices);
+  const taiwanAutoChoice = getRegionAuto('台湾');
+  const taiwanMediaChoices = makeOrderedChoices(
+    unique(['港台故障转移', taiwanAutoChoice, '自动选择'].filter(Boolean)),
+    commonChoices
+  );
+
+  const twitchChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const gameChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const twitterChoices = makeOrderedChoices(['自动选择'], commonChoices);
 
   const socialChoices = makeOrderedChoices(['自动选择'], commonChoices);
-
   const decentralizedChoices = makeOrderedChoices(['欧美故障转移'], commonChoices);
+
   const tiktokChoices = makeOrderedChoices(['港台故障转移'], commonChoices);
   const niconicoChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
   const aiChoices = makeOrderedChoices(['国外AI故障转移', '节点选择'], aiOnlyChoices);
@@ -618,9 +629,11 @@ function main(config) {
     makeSelectGroup('谷歌商店', iconMap.playstore, playStoreChoices),
     makeSelectGroup('微软服务', iconMap.microsoft, microsoftChoices),
     makeSelectGroup('国内服务', iconMap.china, ['全球直连'].concat(directChoices.filter(x => x !== '全球直连')).concat(domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x)))),
-
     makeSelectGroup('流媒体', iconMap.streaming, streamingChoices),
+    makeSelectGroup('台湾媒体', iconMap.taiwanMedia, taiwanMediaChoices),
+    makeSelectGroup('Twitch', iconMap.twitch, twitchChoices),
     makeSelectGroup('GitHub', iconMap.github, githubChoices),
+
     makeSelectGroup('AI', iconMap.ai, aiChoices),
     makeSelectGroup('国外游戏', iconMap.game, gameChoices),
 
@@ -1114,8 +1127,61 @@ function main(config) {
     'DOMAIN-SUFFIX,peacocktv.com,流媒体',
     'DOMAIN-SUFFIX,crunchyroll.com,流媒体',
     'DOMAIN-SUFFIX,crunchyrollsvc.com,流媒体',
+    // 台湾媒体
+    'DOMAIN-SUFFIX,hamivideo.hinet.net,台湾媒体',
+    'DOMAIN-SUFFIX,hami.video,台湾媒体',
+    'DOMAIN-SUFFIX,litv.tv,台湾媒体',
+    'DOMAIN-SUFFIX,4gtv.tv,台湾媒体',
+    'DOMAIN-SUFFIX,myvideo.net.tw,台湾媒体',
+    'DOMAIN-SUFFIX,ofiii.com,台湾媒体',
+    'DOMAIN-SUFFIX,catchplay.com,台湾媒体',
+    'DOMAIN-SUFFIX,catchplay.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,garageplay.tw,台湾媒体',
+    'DOMAIN-SUFFIX,friday.tw,台湾媒体',
+    'DOMAIN-SUFFIX,video.friday.tw,台湾媒体',
+    'DOMAIN-SUFFIX,kktv.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,linetv.tw,台湾媒体',
+    'DOMAIN-SUFFIX,bahamut.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,gamer.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,ani.gamer.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,ptsplus.tv,台湾媒体',
+    'DOMAIN-SUFFIX,pts.org.tw,台湾媒体',
+    'DOMAIN-SUFFIX,cts.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,ftvnews.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,news.tvbs.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,tvbs.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,setn.com,台湾媒体',
+    'DOMAIN-SUFFIX,ettoday.net,台湾媒体',
+    'DOMAIN-SUFFIX,mirrormedia.mg,台湾媒体',
+    'DOMAIN-SUFFIX,bcc.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,dcard.tw,台湾媒体',
+    'DOMAIN-SUFFIX,dcard.video,台湾媒体',
+    'DOMAIN-SUFFIX,udn.com,台湾媒体',
+    'DOMAIN-SUFFIX,udngroup.com,台湾媒体',
+    'DOMAIN-SUFFIX,ltn.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,thenewslens.com,台湾媒体',
+    'DOMAIN-SUFFIX,businessweekly.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,cmmedia.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,storm.mg,台湾媒体',
+    'DOMAIN-SUFFIX,nownews.com,台湾媒体',
+    'DOMAIN-SUFFIX,cna.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,books.com.tw,台湾媒体',
+    'DOMAIN-SUFFIX,readmoo.com,台湾媒体',
+    'DOMAIN-SUFFIX,mojim.com,台湾媒体',
+    'DOMAIN-SUFFIX,kkbox.com,台湾媒体',
+
+
+    // Twitch
+    'PROCESS-NAME,tv.twitch.android.app,Twitch',
+    'PROCESS-NAME,tv.twitch.android.viewer,Twitch',
+    'DOMAIN-SUFFIX,twitch.tv,Twitch',
+    'DOMAIN-SUFFIX,twitchcdn.net,Twitch',
+    'DOMAIN-SUFFIX,ttvnw.net,Twitch',
+    'DOMAIN-SUFFIX,jtvnw.net,Twitch',
+    'DOMAIN-SUFFIX,live-video.net,Twitch',
 
     // Meta
+
     'DOMAIN-SUFFIX,facebook.com,Meta',
 
     'DOMAIN-SUFFIX,facebook.net,Meta',
