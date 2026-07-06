@@ -601,22 +601,59 @@ function main(config) {
 
   const socialChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const decentralizedChoices = makeOrderedChoices(['欧美故障转移'], commonChoices);
-
   const tiktokChoices = makeOrderedChoices(['港台故障转移'], commonChoices);
   const niconicoChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
   const aiChoices = makeOrderedChoices(['国外AI故障转移', '节点选择'], aiOnlyChoices);
   const githubChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const jpKrChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
+  const riskControlChoices = unique([
+  '家宽故障转移',
+  globalHomeGroup ? '全球家宽' : null,
+  '全球手动',
+  ...regionHomeAutoNames.filter(name => name !== '全球家宽'),
+  '港台故障转移',
+  '日韩故障转移',
+  '欧美故障转移',
+  '自动兜底',
+  '节点选择',
+  '自动选择',
+  '全球直连'
+].filter(Boolean));
+  const preferredHomeFailover = [
+    '香港家宽自动',
+    '香港自动',
+    '新加坡家宽自动',
+    '新加坡自动',
+    '日本家宽自动',
+    '日本自动',
+    '韩国家宽自动',
+    '韩国自动',
+    '美国家宽自动',
+    '美国自动',
+    '欧盟家宽自动',
+    '欧盟自动'
+  ];
+  const availableHomeAutoNames = new Set(regionHomeAutoNames);
+  const homeFailoverChoices = unique([
+    ...preferredHomeFailover.filter(name => availableHomeAutoNames.has(name)),
+    ...regionHomeAutoNames.filter(name => !preferredHomeFailover.includes(name))
+  ].filter(Boolean));
+
   const proxyGroups = [
+
+
 
     makeSelectGroup('节点选择', iconMap.rocket, ['自动选择', '负载均衡', '全球手动'].concat(fallbackNames).concat(globalHomeGroup ? ['全球家宽'] : []).concat(fusionVisibleRegions)),
 
     makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50),
     ...loadBalanceGroups,
     makeSelectGroup('全球手动', iconMap.select, allProxyNames),
-
     ...fallbackGroups,
+    makeFallbackGroup('家宽故障转移', iconMap.flare, homeFailoverChoices, ['自动兜底']),
+
+    makeSelectGroup('风控安全', 'https://mihomo.echs.top/img/Hand-Painted-icon/Google_Suite/Account.png', riskControlChoices, []),
     makeSelectGroup('YouTube', iconMap.youtube, youtubeChoices),
+
     makeSelectGroup('TikTok', iconMap.tiktok, tiktokChoices),
     makeSelectGroup('Meta', iconMap.meta, metaChoices),
     makeSelectGroup('Twitter', iconMap.twitter, twitterChoices),
@@ -759,7 +796,172 @@ function main(config) {
     'DOMAIN-SUFFIX,beizi.biz,广告拦截',
     'DOMAIN-SUFFIX,admobile.top,广告拦截',
     'DOMAIN-SUFFIX,adpush.cn,广告拦截',
+    // 风控安全 / 登录 / 验证 / 高敏感账号
+    'DOMAIN-SUFFIX,accounts.google.com,风控安全',
+    'DOMAIN-SUFFIX,myaccount.google.com,风控安全',
+    'DOMAIN-SUFFIX,ogs.google.com,风控安全',
+    'DOMAIN-SUFFIX,androidauth.googleapis.com,风控安全',
+    'DOMAIN-SUFFIX,oauthaccountmanager.googleapis.com,风控安全',
+    'DOMAIN-SUFFIX,oauth2.googleapis.com,风控安全',
+    'DOMAIN-SUFFIX,securetoken.googleapis.com,风控安全',
+    'DOMAIN-SUFFIX,identitytoolkit.googleapis.com,风控安全',
+    'DOMAIN-SUFFIX,firebaseauth.googleapis.com,风控安全',
+    'DOMAIN-SUFFIX,accounts.youtube.com,风控安全',
+    'DOMAIN-SUFFIX,families.google.com,风控安全',
+    'DOMAIN-SUFFIX,accounts.google.cn,风控安全',
+    'DOMAIN-SUFFIX,workspace.google.com,风控安全',
+    'DOMAIN-SUFFIX,admin.google.com,风控安全',
+    'DOMAIN-SUFFIX,passwords.google.com,风控安全',
+    'DOMAIN-SUFFIX,notifications.google.com,风控安全',
+    'DOMAIN-SUFFIX,recaptcha.net,风控安全',
+    'DOMAIN-SUFFIX,recaptcha-enterprise.google.com,风控安全',
+    'DOMAIN-SUFFIX,auth0.openai.com,风控安全',
+    'DOMAIN-SUFFIX,openai.com,风控安全',
+    'DOMAIN-SUFFIX,chatgpt.com,风控安全',
+    'DOMAIN-SUFFIX,anthropic.com,风控安全',
+    'DOMAIN-SUFFIX,console.anthropic.com,风控安全',
+
+    'DOMAIN-SUFFIX,claude.ai,风控安全',
+    'DOMAIN-SUFFIX,challenges.cloudflare.com,风控安全',
+    'DOMAIN-SUFFIX,turnstile.cloudflare.com,风控安全',
+    'DOMAIN-SUFFIX,cloudflare.com,风控安全',
+    'DOMAIN-SUFFIX,dash.cloudflare.com,风控安全',
+    'DOMAIN-SUFFIX,discord.com,风控安全',
+    'DOMAIN-SUFFIX,discordapp.com,风控安全',
+    'DOMAIN-SUFFIX,discord.gg,风控安全',
+    'DOMAIN-SUFFIX,discordstatus.com,风控安全',
+
+    'DOMAIN-SUFFIX,github.com,风控安全',
+    'DOMAIN-SUFFIX,githubstatus.com,风控安全',
+    'DOMAIN-SUFFIX,telegram.org,风控安全',
+    'DOMAIN-SUFFIX,t.me,风控安全',
+    'PROCESS-NAME,org.telegram.messenger,Telegram',
+    'DOMAIN-SUFFIX,amazon.com,风控安全',
+
+    'DOMAIN-SUFFIX,aws.amazon.com,风控安全',
+    'DOMAIN-SUFFIX,signin.aws.amazon.com,风控安全',
+    'DOMAIN-SUFFIX,meta.com,风控安全',
+    'PROCESS-NAME,com.instagram.android,Meta',
+
+    'PROCESS-NAME,com.facebook.katana,Meta',
+    'PROCESS-NAME,com.facebook.orca,Meta',
+    'PROCESS-NAME,com.facebook.lite,Meta',
+    'PROCESS-NAME,com.instagram.barcelona,Meta',
+
+    'DOMAIN-SUFFIX,tiktok.com,风控安全',
+    'DOMAIN-SUFFIX,tiktokv.com,风控安全',
+    'DOMAIN-SUFFIX,byteoversea.com,风控安全',
+    'DOMAIN-SUFFIX,slack.com,风控安全',
+
+    'DOMAIN-SUFFIX,notion.so,风控安全',
+    'DOMAIN-SUFFIX,dropbox.com,风控安全',
+    'DOMAIN-SUFFIX,login.live.com,风控安全',
+
+    'DOMAIN-SUFFIX,login.microsoftonline.com,风控安全',
+    'DOMAIN-SUFFIX,account.live.com,风控安全',
+    'DOMAIN-SUFFIX,account.microsoft.com,风控安全',
+    'DOMAIN-SUFFIX,signup.live.com,风控安全',
+    'DOMAIN-SUFFIX,appleid.apple.com,风控安全',
+    'DOMAIN-SUFFIX,appleaccount.apple.com,风控安全',
+    'DOMAIN-SUFFIX,idmsa.apple.com,风控安全',
+    'DOMAIN-SUFFIX,idms-apple.com,风控安全',
+    'DOMAIN-SUFFIX,iforgot.apple.com,风控安全',
+    'DOMAIN-SUFFIX,t.co,风控安全',
+
+    'DOMAIN-SUFFIX,twttr.com,风控安全',
+    'DOMAIN-SUFFIX,twtrdns.net,风控安全',
+    'DOMAIN-SUFFIX,reddit.com,风控安全',
+    'DOMAIN-SUFFIX,redd.it,风控安全',
+    'DOMAIN-SUFFIX,redditmail.com,风控安全',
+    'DOMAIN-SUFFIX,reddit.app.link,风控安全',
+    'DOMAIN-SUFFIX,paypal.com,风控安全',
+    'DOMAIN-SUFFIX,paypal.com.hk,风控安全',
+    'DOMAIN-SUFFIX,paypal.com.sg,风控安全',
+    'DOMAIN-SUFFIX,paypal.me,风控安全',
+    'DOMAIN-SUFFIX,paypal.hk,风控安全',
+    'DOMAIN-SUFFIX,paypal.jp,风控安全',
+    'DOMAIN-SUFFIX,paypal.us,风控安全',
+    'DOMAIN-SUFFIX,paypalservice.com,风控安全',
+    'DOMAIN-SUFFIX,paypalcredit.com,风控安全',
+    'DOMAIN-SUFFIX,braintreegateway.com,风控安全',
+    'DOMAIN-SUFFIX,braintreepayments.com,风控安全',
+    'DOMAIN-SUFFIX,card.io,风控安全',
+    'DOMAIN-SUFFIX,paypalhere.com,风控安全',
+    'DOMAIN-SUFFIX,venmo.com,风控安全',
+    'DOMAIN-SUFFIX,xoom.com,风控安全',
+    'DOMAIN-SUFFIX,stripe.com,风控安全',
+    'DOMAIN-SUFFIX,stripe.network,风控安全',
+    'DOMAIN-SUFFIX,link.com,风控安全',
+    'DOMAIN-SUFFIX,stripe-terminal-local-reader.net,风控安全',
+    'DOMAIN-SUFFIX,wise.com,风控安全',
+    'DOMAIN-SUFFIX,transferwise.com,风控安全',
+    'DOMAIN-SUFFIX,tradingview.com,风控安全',
+    'DOMAIN-SUFFIX,hsbc.com,风控安全',
+    'DOMAIN-SUFFIX,interactivebrokers.com,风控安全',
+    'DOMAIN-SUFFIX,adyen.com,风控安全',
+    'DOMAIN-SUFFIX,visa.com,风控安全',
+    'DOMAIN-SUFFIX,mastercard.com,风控安全',
+    'DOMAIN-SUFFIX,amex.com,风控安全',
+    'DOMAIN-SUFFIX,revolut.com,风控安全',
+
+    'DOMAIN-SUFFIX,ibkr.com,风控安全',
+    'DOMAIN-SUFFIX,schwab.com,风控安全',
+    'DOMAIN-SUFFIX,binance.com,风控安全',
+    'DOMAIN-SUFFIX,binance.us,风控安全',
+    'DOMAIN-SUFFIX,bnbstatic.com,风控安全',
+    'DOMAIN-SUFFIX,binanceapi.com,风控安全',
+    'DOMAIN-SUFFIX,coinbase.com,风控安全',
+    'DOMAIN-SUFFIX,coingecko.com,风控安全',
+    'DOMAIN-SUFFIX,coinmarketcap.com,风控安全',
+    'DOMAIN-SUFFIX,okx.com,风控安全',
+    'DOMAIN-SUFFIX,oklink.com,风控安全',
+    'DOMAIN-SUFFIX,okx-dns.com,风控安全',
+    'DOMAIN-SUFFIX,okx-dns1.com,风控安全',
+    'DOMAIN-SUFFIX,okx-dns2.com,风控安全',
+    'DOMAIN-SUFFIX,bybit.com,风控安全',
+    'DOMAIN-SUFFIX,bytick.com,风控安全',
+    'DOMAIN-SUFFIX,byapis.com,风控安全',
+    'DOMAIN-SUFFIX,bycsi.com,风控安全',
+    'DOMAIN-SUFFIX,bybit-global.com,风控安全',
+    'DOMAIN-SUFFIX,bybitglobal.com,风控安全',
+    'DOMAIN-SUFFIX,gate.io,风控安全',
+    'DOMAIN-SUFFIX,gateimg.com,风控安全',
+    'DOMAIN-SUFFIX,gatedata.org,风控安全',
+    'DOMAIN-SUFFIX,kucoin.com,风控安全',
+    'DOMAIN-SUFFIX,kucoin.plus,风控安全',
+    'DOMAIN-SUFFIX,kraken.com,风控安全',
+    'DOMAIN-SUFFIX,bitget.com,风控安全',
+    'DOMAIN-SUFFIX,mexc.com,风控安全',
+    'DOMAIN-SUFFIX,huobi.com,风控安全',
+    'DOMAIN-SUFFIX,htx.com,风控安全',
+    'DOMAIN-SUFFIX,metamask.io,风控安全',
+    'DOMAIN-SUFFIX,trustwallet.com,风控安全',
+    'DOMAIN-SUFFIX,walletconnect.com,风控安全',
+    'DOMAIN-SUFFIX,walletconnect.org,风控安全',
+    'DOMAIN-SUFFIX,ethereum.org,风控安全',
+    'DOMAIN-SUFFIX,etherscan.io,风控安全',
+    'DOMAIN-SUFFIX,opensea.io,风控安全',
+    'DOMAIN-SUFFIX,uniswap.org,风控安全',
+    'DOMAIN-SUFFIX,safepal.com,风控安全',
+    'DOMAIN-SUFFIX,isafepal.com,风控安全',
+    'DOMAIN-SUFFIX,trezor.io,风控安全',
+    'DOMAIN-SUFFIX,ledger.com,风控安全',
+    'DOMAIN-SUFFIX,hyperliquid.xyz,风控安全',
+    'DOMAIN-SUFFIX,polymarket.com,风控安全',
+    'DOMAIN-SUFFIX,dydx.exchange,风控安全',
+    'DOMAIN-SUFFIX,coindesk.com,风控安全',
+    'DOMAIN-SUFFIX,coinglass.com,风控安全',
+    'DOMAIN-SUFFIX,coinmap.org,风控安全',
+    'DOMAIN-SUFFIX,bitfinex.com,风控安全',
+    'DOMAIN-SUFFIX,bitstamp.net,风控安全',
+    'DOMAIN-SUFFIX,deribit.com,风控安全',
+    'DOMAIN-SUFFIX,bitflyer.com,风控安全',
+    'DOMAIN-SUFFIX,onekey.so,风控安全',
+    'DOMAIN-SUFFIX,onekeycn.com,风控安全',
+    'DOMAIN-SUFFIX,redotpay.com,风控安全',
+
     // FCM / Google 推送
+
     'DOMAIN-SUFFIX,fcm.googleapis.com,FCM',
     'DOMAIN-SUFFIX,fcm-xmpp.googleapis.com,FCM',
     'DOMAIN-SUFFIX,mtalk.google.com,FCM',
@@ -782,7 +984,8 @@ function main(config) {
     'DOMAIN-SUFFIX,play-games.googleusercontent.com,谷歌商店',
     'DOMAIN-SUFFIX,market.android.com,谷歌商店',
     'DOMAIN-SUFFIX,android.clients.google.com,谷歌商店',
-    'DOMAIN-SUFFIX,android.googleapis.com,谷歌商店',
+    'DOMAIN-SUFFIX,android.googleapis.com,风控安全',
+
     'DOMAIN-KEYWORD,googleplay,谷歌商店',
 
     // YouTube / Google 视频媒体
@@ -933,18 +1136,15 @@ function main(config) {
     'DOMAIN-SUFFIX,appstore.com,Apple',
     'DOMAIN,time.apple.com,Apple',
     // AI
-    'DOMAIN-SUFFIX,openai.com,AI',
-    'DOMAIN-SUFFIX,chatgpt.com,AI',
     'DOMAIN-SUFFIX,oaistatic.com,AI',
     'DOMAIN-SUFFIX,oaiusercontent.com,AI',
     'DOMAIN-SUFFIX,openaiusercontent.com,AI',
     'DOMAIN-SUFFIX,chatgpt.livekit.cloud,AI',
     'DOMAIN-SUFFIX,openaiapi-site.azureedge.net,AI',
-    'DOMAIN-SUFFIX,auth0.openai.com,AI',
     'DOMAIN-SUFFIX,identrust.com,AI',
     'DOMAIN-SUFFIX,ai.com,AI',
-    'DOMAIN-SUFFIX,anthropic.com,AI',
     'DOMAIN-SUFFIX,claude.ai,AI',
+
     'DOMAIN-SUFFIX,claudeusercontent.com,AI',
     'DOMAIN-SUFFIX,anthropiccdn.com,AI',
     'DOMAIN-SUFFIX,perplexity.ai,AI',
@@ -1181,9 +1381,7 @@ function main(config) {
     'DOMAIN-SUFFIX,live-video.net,Twitch',
 
     // Meta
-
     'DOMAIN-SUFFIX,facebook.com,Meta',
-
     'DOMAIN-SUFFIX,facebook.net,Meta',
     'DOMAIN-SUFFIX,fb.com,Meta',
     'DOMAIN-SUFFIX,fbcdn.net,Meta',
@@ -1200,6 +1398,7 @@ function main(config) {
     'DOMAIN-SUFFIX,whatsapp.net,Meta',
 
     // Spotify
+
     'DOMAIN-SUFFIX,spotify.com,Spotify',
     'DOMAIN-SUFFIX,spotifycdn.com,Spotify',
     'DOMAIN-SUFFIX,scdn.co,Spotify',
@@ -1213,10 +1412,8 @@ function main(config) {
     'PROCESS-NAME,xyz.nextalone.nagram,Telegram',
     'PROCESS-NAME,org.telegram.plus,Telegram',
     'PROCESS-NAME,ellipi.messenger,Telegram',
-    'DOMAIN-SUFFIX,telegram.org,Telegram',
-
-    'DOMAIN-SUFFIX,t.me,Telegram',
     'DOMAIN-SUFFIX,telegra.ph,Telegram',
+
     'DOMAIN-SUFFIX,telesco.pe,Telegram',
     'DOMAIN-SUFFIX,telegram.me,Telegram',
     'DOMAIN-SUFFIX,telegram.dog,Telegram',
@@ -1269,11 +1466,8 @@ function main(config) {
     'DOMAIN-SUFFIX,clients5.google.com,Google',
     'DOMAIN-SUFFIX,clients6.google.com,Google',
     'DOMAIN-SUFFIX,clients.googleapis.com,Google',
-    'DOMAIN-SUFFIX,ogs.google.com,Google',
-    'DOMAIN-SUFFIX,accounts.google.com,Google',
-    'DOMAIN-SUFFIX,myaccount.google.com,Google',
-    'DOMAIN-SUFFIX,workspace.google.com,Google',
     'DOMAIN-SUFFIX,one.google.com,Google',
+
     'DOMAIN-SUFFIX,lens.google.com,Google',
     'DOMAIN-SUFFIX,photos.google.com,Google',
     'DOMAIN-SUFFIX,maps.google.com,Google',
