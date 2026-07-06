@@ -231,7 +231,7 @@ function main(config) {
     return '其他地区';
   }
 
-  for (const proxy of proxies) {
+  for (const proxy of cleanProxies) {
     regionGroups[matchRegion(proxy.name)].push(proxy.name);
   }
   const testUrl = 'http://www.gstatic.com/generate_204';
@@ -442,7 +442,6 @@ function main(config) {
 
   const autoFallbackNodes = unique(buildRegionChain(['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '其他地区']).concat(allProxyNames));
 
-  const balanceNodes = unique(buildRegionChain(['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟']).concat(allProxyNames));
   const jpKrFallbackNodes = buildRegionChain(['日本', '韩国']);
   const hkTwFallbackNodes = buildRegionChain(['香港', '台湾']);
   const usEuFallbackNodes = buildRegionChain(['美国', '欧盟']);
@@ -467,11 +466,30 @@ function main(config) {
     buildNodeChain([/cloudflare/i, /\bCF\b/i, /WARP/i, /1\.1\.1\.1/]),
     buildRegionChain(['美国', '新加坡', '日本', '香港', '台湾', '欧盟'])
   ));
-  const downloadGroupChoices = unique([].concat(
-    ['自动选择', '欧美故障转移', '全球手动'],
+  const downloadRegionDefs = [
+    { key: '香港', groupName: '香港下载', icon: regionIconMap['香港'] || qIcon('HK') },
+    { key: '台湾', groupName: '台湾下载', icon: regionIconMap['台湾'] || qIcon('TW') },
+    { key: '日本', groupName: '日本下载', icon: regionIconMap['日本'] || qIcon('JP') },
+    { key: '韩国', groupName: '韩国下载', icon: regionIconMap['韩国'] || qIcon('KR') },
+    { key: '新加坡', groupName: '新加坡下载', icon: regionIconMap['新加坡'] || qIcon('SG') },
+    { key: '美国', groupName: '美国下载', icon: regionIconMap['美国'] || qIcon('US') },
+    { key: '欧盟', groupName: '欧盟下载', icon: regionIconMap['欧盟'] || qIcon('EU') }
+  ];
+  const downloadRegionGroups = downloadRegionDefs.map(({ key, groupName, icon }) => {
+    const nodes = unique((regionGroups[key] || []).filter(name => !isResidentialProxyName(name)));
+    return nodes.length ? {
+      name: groupName,
+      type: 'load-balance',
+      icon,
+      url: testUrl,
+      interval: 300,
+      strategy: 'consistent-hashing',
+      lazy: testLazy,
+      proxies: nodes
+    } : null;
+  }).filter(Boolean);
+  const downloadGroupChoices = unique(['负载均衡', '自动选择'].concat(downloadRegionGroups.map(group => group.name)));
 
-    buildRegionChain(['美国', '欧盟', '新加坡', '日本', '香港', '台湾', '韩国'])
-  ));
   const fallbackGroups = [
     makeFallbackGroup('自动兜底', iconMap.fallbackFinal, autoFallbackNodes, [], {
       interval: 300,
@@ -484,12 +502,12 @@ function main(config) {
       tolerance: 180,
       lazy: true
     }),
-     makeFallbackGroup('日韩故障转移', qIcon('JP'), jpKrFallbackNodes, ['自动兜底'], {
-
+    makeFallbackGroup('日韩故障转移', qIcon('JP'), jpKrFallbackNodes, ['自动兜底'], {
       interval: 300,
       tolerance: 180,
       lazy: true
     }),
+
     makeFallbackGroup('欧美故障转移', iconMap.global, usEuFallbackNodes, ['自动兜底'], {
       interval: 300,
       tolerance: 180,
@@ -507,9 +525,32 @@ function main(config) {
     })
   ].filter(Boolean);
 
-
   const loadBalanceGroups = [
-    makeLoadBalanceGroup('负载均衡', iconMap.balance, balanceNodes, 'round-robin', ['自动选择'])
+
+    {
+      name: '负载均衡',
+      type: 'load-balance',
+      icon: iconMap.balance,
+      url: testUrl,
+      interval: testInterval,
+      strategy: 'consistent-hashing',
+      lazy: testLazy,
+      proxies: ensureGroupList(allProxyNames, [])
+    },
+    {
+      name: '谷歌商店负载均衡',
+      type: 'load-balance',
+      icon: iconMap.playstore,
+      url: testUrl,
+      interval: testInterval,
+      strategy: 'consistent-hashing',
+      lazy: testLazy,
+      proxies: ensureGroupList(unique([].concat(
+        buildRegionChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟']),
+        buildRegionHomeChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟'])
+      )), ['自动选择'])
+    }
+
   ].filter(Boolean);
 
   const globalHomeGroup = globalHomeNodes.length
@@ -518,8 +559,8 @@ function main(config) {
   const fallbackNames = fallbackGroups.map(group => group.name);
   const loadBalanceNames = loadBalanceGroups.map(group => group.name);
   const baseChoices = ['自动选择', '负载均衡', '全球手动']
-
     .concat(fallbackNames)
+
     .concat(loadBalanceNames)
     .concat(globalHomeGroup ? ['全球家宽'] : [])
     .concat(fusionVisibleRegions)
@@ -539,24 +580,24 @@ function main(config) {
   const spotifyChoices = makeOrderedChoices(['港台故障转移'], commonChoices);
   const telegramChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const googleChoices = makeOrderedChoices(['港台故障转移'], commonChoices);
-  const playStoreChoices = makeOrderedChoices(['自动选择'], commonChoices);
+  const playStoreChoices = makeOrderedChoices(['谷歌商店负载均衡', '负载均衡', '自动选择'], commonChoices);
 
   const domesticChoices = directChoices.concat(fusionVisibleRegions);
   const microsoftChoices = makeOrderedChoices(['全球直连', '自动选择'], commonChoices);
   const streamingChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const gameChoices = makeOrderedChoices(['自动选择'], commonChoices);
-
   const twitterChoices = makeOrderedChoices(['自动选择'], commonChoices);
 
-
   const socialChoices = makeOrderedChoices(['自动选择'], commonChoices);
+
   const decentralizedChoices = makeOrderedChoices(['欧美故障转移'], commonChoices);
   const tiktokChoices = makeOrderedChoices(['港台故障转移'], commonChoices);
   const niconicoChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
   const aiChoices = makeOrderedChoices(['国外AI故障转移', '节点选择'], aiOnlyChoices);
   const githubChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const jpKrChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
-   const proxyGroups = [
+  const proxyGroups = [
+
     makeSelectGroup('节点选择', iconMap.rocket, ['自动选择', '负载均衡', '全球手动'].concat(fallbackNames).concat(globalHomeGroup ? ['全球家宽'] : []).concat(fusionVisibleRegions)),
 
     makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50),
@@ -589,7 +630,8 @@ function main(config) {
     makeSelectGroup('Apple', iconMap.apple, ['自动选择', '节点选择', '全球手动', '全球直连'].concat(fusionVisibleRegions).concat(allProxyNames)),
 
     makeSelectGroup('Cloudflare', iconMap.cloudflare || iconMap.global, cloudflareGroupChoices),
-    makeSelectGroup('下载专用组', iconMap.download || iconMap.fallback, downloadGroupChoices),
+    makeSelectGroup('下载专用组', iconMap.download || iconMap.fallback, downloadGroupChoices.filter(name => name !== 'DIRECT')),
+    ...downloadRegionGroups,
     makeSelectGroup('广告拦截', iconMap.adblock, ['REJECT', 'REJECT-DROP', 'PASS']),
     makeSelectGroup('漏网之鱼', iconMap.final, ['自动选择', '全球手动'].concat(fallbackNames.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI故障转移')).concat(fusionVisibleRegions)),
 
@@ -605,8 +647,9 @@ function main(config) {
     .concat([
       ...regionHomeAutoGroups,
     ])
-
     .concat(globalHomeGroup ? [globalHomeGroup] : [])
+    .map(group => /^(香港|台湾|日本|韩国|新加坡|美国|欧盟)下载$/.test(group && group.name) ? Object.assign({}, group, { hidden: true }) : group)
+    .map(group => group && group.name === '谷歌商店负载均衡' ? Object.assign({}, group, { hidden: true }) : group)
     .map(preserveGroup);
 
   config['proxy-groups'] = finalizeGroupList(proxyGroups);
