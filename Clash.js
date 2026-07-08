@@ -794,7 +794,7 @@ function main(config) {
   const niconicoChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
   const aiChoices = makeOrderedChoices(['国外AI故障转移', '节点选择'], aiOnlyChoices);
   const githubChoices = makeOrderedChoices(['自动选择'], commonChoices);
-  const microsoftChoices = makeOrderedChoices(['自动选择'], commonChoices);
+  const microsoftChoices = makeOrderedChoices(['全球直连', '自动选择'], commonChoices);
   const jpKrChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
   const riskControlChoices = unique([
     '家宽故障转移',
