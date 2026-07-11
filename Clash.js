@@ -25,27 +25,29 @@ function main(config) {
 
   config['mode'] = 'rule';
 
-  config['log-level'] = config['log-level'] || 'info';
-  config.ipv6 = false;
+  config['log-level'] = config['log-level'] || 'error';
+  config.ipv6 = true;
 
   config['unified-delay'] = true;
   config['find-process-mode'] = 'strict';
   config['global-client-fingerprint'] = config['global-client-fingerprint'] || 'chrome';
-  config['experimental'] = {
-    'quic-go-disable-gso': false,
+  // Android/TUN 稳定性优先：合并而非覆盖客户端已有 experimental 设置。
+  // 关闭 QUIC GSO，避免部分 Android 内核、移动网络或 VPN 链路上的 HTTP/3 卡顿/断流。
+  config['experimental'] = Object.assign({}, config['experimental'] || {}, {
+    'quic-go-disable-gso': true,
     'quic-go-disable-ecn': true,
     'dialer-ip4p-convert': false
-  };
+  });
 
   // Sniffer：域名嗅探配置（强制 DNS 映射、纯 IP 解析、分端口 sniff HTTP/TLS/QUIC）
   if (!config.sniffer || typeof config.sniffer !== 'object') config.sniffer = {};
   config.sniffer['force-dns-mapping'] = true;
   config.sniffer['parse-pure-ip'] = true;
-  config.sniffer['override-destination'] = false;
+  config.sniffer['override-destination'] = true;
   config.sniffer['sniff'] = {
     'HTTP': { 'ports': [80, '8080-8880'], 'override-destination': true },
     'TLS': { 'ports': [443, 8443] },
-    'QUIC': { 'ports': [443, 8443] }
+    'QUIC': { 'ports': [443, 8443], 'override-destination': true }
   };
   config.sniffer['force-domain'] = [
     '+.chatgpt.com', '+.openai.com', '+.auth0.openai.com', '+.oaistatic.com',
@@ -69,12 +71,13 @@ function main(config) {
   config.hosts['google.cn'] = 'google.com';
   config.hosts['cn.bing.com'] = 'global.bing.com';
 
-  const localDns = ['223.5.5.5', '119.29.29.29'];
-  const cnDns = ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query', ...localDns];
-  const trustDns = ['https://dns.cloudflare.com/dns-query', 'https://1.1.1.1/dns-query', 'https://dns.google/dns-query'];
+  const localDns = ['223.6.6.6', '119.29.29.29'];
+  const cnDns = ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'];  // DoH only, 不含纯IP fallback
+  const trustDns = ['https://1.1.1.1/dns-query', 'https://dns.google/dns-query'];
   const adguardDns = ['https://dns.adguard-dns.com/dns-query'];
   // ==================== 测速常量 ====================
-  const TEST_URL = 'http://www.gstatic.com/generate_204';
+  // HTTPS 204 可避免公共 Wi‑Fi、运营商或透明代理劫持 HTTP 204 导致的"假低延迟"。
+  const TEST_URL = 'https://www.gstatic.com/generate_204';
   const TEST_INTERVAL = 420;
   const TEST_TOLERANCE = 80;
   const FALLBACK_INTERVAL = 300;
@@ -86,26 +89,29 @@ function main(config) {
   config.dns = {
     enable: true,
     listen: '0.0.0.0:1053',
-    ipv6: false,
+    ipv6: true,
     'ipv6-timeout': 300,
     'cache-algorithm': 'arc',
     'prefer-h3': true,
     'use-system-hosts': false,
-    'respect-rules': true,
+    'respect-rules': false,
     'use-hosts': true,
     'enhanced-mode': 'fake-ip',
-    'fake-ip-range': '198.18.0.1/16',
-    'fake-ip-ttl': 1,
+    'fake-ip-range': '198.18.0.0/15',
+    // 1 秒会造成映射频繁回收与额外 DNS 查询；60 秒兼顾应用兼容与缓存命中。
+    'fake-ip-ttl': 60,
     'fake-ip-filter': [
-      '*.lan', '*.local', '*.localdomain', '*.home.arpa',
+      '*.lan', '*.local', '*.localdomain', '*.home.arpa', '*.internal',
       'localhost.ptlogin2.qq.com', 'msftconnecttest.com', 'msftncsi.com',
-      'time.windows.com', 'time.apple.com', 'pool.ntp.org', 'ntp.*.com', 'ntp.*.cn',
+      'connectivitycheck.android.com', 'connectivitycheck.gstatic.com', 'connect.rom.miui.com',
+      'captive.apple.com', 'www.msftconnecttest.com', 'www.msftncsi.com',
+      'time.windows.com', 'time.apple.com', 'time.android.com', 'pool.ntp.org', 'ntp.*.com', 'ntp.*.cn',
+      'router.asus.com', 'routerlogin.net', 'www.routerlogin.com', 'tplogin.cn', 'tplinkwifi.net',
+      'miwifi.com', 'router.miwifi.com', 'my.router', 'fritz.box', 'dlinkrouter.local', 'orbilogin.com',
       'stun.*', 'stun.*.*', 'stun.*.*.*', 'turn.*', 'turn.*.*', 'relay.*',
       'cable.auth.com', '*.srv.nintendo.net', '*.stun.playstation.net',
       'xbox.*.microsoft.com', '*.xboxlive.com', '*.battle.net', '*.battlenet.com.cn',
       '*.wotgame.cn', '*.wggames.cn', '*.wowsgame.cn', '*.wargaming.net',
-      'router.asus.com', 'routerlogin.net', 'www.routerlogin.com',
-      'tplogin.cn', 'tplinkwifi.net', 'miwifi.com', 'mediatek.com', 'plex.direct',
       '*.blizzard.com', '*.blizzardentertainment.com',
       '*.xbox.com', '*.xboxservices.com',
       '*.playstation.net', '*.playstation.com', 'psnprofiles.com',
@@ -122,9 +128,9 @@ function main(config) {
       '*.supercell.com', '*.supercell.net',
       '*.piston-meta.mojang.com', '*.launcher.mojang.com'
     ],
-    nameserver: cnDns,
+    nameserver: [...cnDns, ...localDns],
     'default-nameserver': localDns,
-    'proxy-server-nameserver': localDns
+    'proxy-server-nameserver': [...cnDns, ...localDns]
   };
   config.dns['nameserver-policy'] = Object.assign(config.dns['nameserver-policy'] || {}, {
     // geosite 分流
@@ -259,7 +265,32 @@ function main(config) {
     '+.giffgaff.com': trustDns,
     'cdn-eu.dynamicyield.com': trustDns,
     'privacyportal-uk.onetrust.com': trustDns,
-    'mobile-data.onetrust.io': trustDns
+    'mobile-data.onetrust.io': trustDns,
+    // AI / 流媒体 / 社交 / 游戏 / 下载的海外解析补强
+    '+.anthropic.com': trustDns,
+    '+.claude.ai': trustDns,
+    '+.perplexity.ai': trustDns,
+    '+.poe.com': trustDns,
+    '+.cohere.com': trustDns,
+    '+.huggingface.co': trustDns,
+    '+.replicate.com': trustDns,
+    '+.cursor.sh': trustDns,
+    '+.netflix.com': trustDns,
+    '+.nflxvideo.net': trustDns,
+    '+.disneyplus.com': trustDns,
+    '+.primevideo.com': trustDns,
+    '+.spotify.com': trustDns,
+    '+.discord.com': trustDns,
+    '+.discordapp.com': trustDns,
+    '+.reddit.com': trustDns,
+    '+.telegram.org': trustDns,
+    '+.t.me': trustDns,
+    '+.github.com': trustDns,
+    '+.githubusercontent.com': trustDns,
+    '+.steamcommunity.com': trustDns,
+    '+.steampowered.com': trustDns,
+    '+.epicgames.com': trustDns,
+    '+.roblox.com': trustDns
   });
 
     // fallback 过滤器（GeoIP CN 判定 + 被污染域名兜底列表）
@@ -283,7 +314,7 @@ function main(config) {
       ]
     };
     config.dns.fallback = trustDns;
-    config.dns['direct-nameserver'] = [...cnDns];
+    config.dns['direct-nameserver'] = [...cnDns, ...localDns];
     config.dns['direct-nameserver-follow-policy'] = true;
 
   const invalidProxyNamePatterns = [
@@ -310,7 +341,13 @@ function main(config) {
     });
   };
   const residentialNamePatterns = [
-    /家宽/i, /家庭宽带/i, /住宅/i, /原生/i, /home/i, /residential/i
+    // V46 对齐：6 条精确正则，覆盖 家宽/住宅/家庭宽带/原生/home-ip/home-broadband/broadband/ISP
+    /家宽|家庭宽带|家庭住宅|住宅宽带|住宅|宽带/,
+    /\bresi(?:dential)?\b/i,
+    /\bhome(?:\s|-|_)?ip\b/i,
+    /\bhome(?:\s|-|_)?broadband\b/i,
+    /\bbroadband\b/i,
+    /\bisp\b/i
   ];
   function isResidentialProxyName(name) {
     return residentialNamePatterns.some(re => re.test(String(name || '')));
@@ -357,18 +394,24 @@ function main(config) {
   };
 
   const keywordMap = {
-    '香港': ['香港', 'hk', 'hong kong', 'hongkong', 'hkg'],
-    '台湾': ['台湾', '台灣', 'tw', 'taiwan', 'taipei', 'taichung', 'kaohsiung'],
-    '日本': ['日本', 'jp', 'japan', 'tokyo', 'osaka', 'nagoya', 'saitama'],
+    '香港': ['香港', 'hk', 'hong kong', 'hongkong', 'hkg', 'kowloon', 'tsim sha tsui'],
+    '台湾': ['台湾', '台灣', 'tw', 'taiwan', 'taipei', 'taichung', 'kaohsiung', 'hsinchu', 'tainan'],
+    '日本': ['日本', 'jp', 'japan', 'tokyo', 'osaka', 'nagoya', 'saitama', 'yokohama', 'fukuoka', 'kawasaki', 'chiba', 'sapporo', 'okinawa'],
     '新加坡': ['新加坡', 'sg', 'singapore', 'sgp'],
-    '美国': ['美国', 'us', 'usa', 'united states', 'america', 'los angeles', 'san jose', 'seattle', 'chicago', 'new york', 'silicon valley', 'las vegas', 'phoenix', 'dallas'],
-    '韩国': ['韩国', '南韩', 'kr', 'korea', 'seoul', 'busan'],
-    '俄罗斯': ['俄罗斯', 'ru', 'russia', 'moscow', 'moskva', 'saint petersburg', 'st. petersburg'],
-    '欧盟': ['英国', 'gb', 'uk', 'britain', 'united kingdom', 'london', 'manchester', '德国', 'de', 'germany', 'frankfurt', 'berlin', 'munich', '法国', 'fr', 'france', 'paris', 'marseille', '荷兰', 'nl', 'netherlands', 'amsterdam', 'rotterdam', '土耳其', 'tr', 'turkey', 'istanbul', '欧盟', '欧洲', 'europe', 'european union'],
+    '美国': ['美国', 'us', 'usa', 'united states', 'america', 'los angeles', 'san jose', 'seattle', 'chicago', 'new york', 'silicon valley', 'las vegas', 'phoenix', 'dallas', 'miami', 'atlanta', 'denver', 'boston', 'ashburn', 'portland'],
+    '韩国': ['韩国', '南韩', 'kr', 'korea', 'seoul', 'busan', 'incheon', 'daejeon'],
+    '俄罗斯': ['俄罗斯', 'ru', 'russia', 'moscow', 'moskva', 'saint petersburg', 'st. petersburg', 'novosibirsk'],
+    '欧盟': ['英国', 'gb', 'uk', 'britain', 'united kingdom', 'london', 'manchester', '德国', 'de', 'germany', 'frankfurt', 'berlin', 'munich', '法国', 'fr', 'france', 'paris', 'marseille', '荷兰', 'nl', 'netherlands', 'amsterdam', 'rotterdam', '土耳其', 'tr', 'turkey', 'istanbul', '意大利', 'italy', 'milan', 'rome', '西班牙', 'es', 'spain', 'madrid', 'barcelona', '瑞典', 'sweden', 'stockholm', '波兰', 'pl', 'poland', 'warsaw', '瑞士', 'ch', 'switzerland', 'zurich', '奥地利', 'austria', 'vienna', '比利时', 'belgium', 'brussels', '丹麦', 'dk', 'denmark', 'copenhagen', '芬兰', 'fi', 'finland', 'helsinki', '挪威', 'norway', 'oslo', '欧盟', '欧洲', 'europe', 'european union'], 
     '其他地区': ['印度', 'india', 'in', '马来西亚', 'malaysia', 'my', '越南', 'vietnam', 'vn', '加拿大', 'canada', 'ca', '澳大利亚', '澳洲', 'australia', 'au', '悉尼', 'sydney', '墨尔本', 'melbourne', '新西兰', 'new zealand', 'nz', '奥克兰', 'auckland', '阿联酋', 'uae', 'dubai', '迪拜', '泰国', 'thailand', 'th', '曼谷', 'bangkok', '菲律宾', 'philippines', 'ph', '马尼拉', 'manila', '印度尼西亚', '印尼', 'indonesia', 'id', '雅加达', 'jakarta']
   };
 
   const regionPriority = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '欧盟', '其他地区'];
+  // 国旗是订阅名称中最明确的地域信号；在清洗 Emoji 前优先判定，避免纯"🇯🇵 01"落入其他地区。
+  const regionFlagMap = [
+    ['香港', /🇭🇰/], ['台湾', /🇹🇼/], ['日本', /🇯🇵/], ['新加坡', /🇸🇬/],
+    ['美国', /🇺🇸/], ['韩国', /🇰🇷/], ['俄罗斯', /🇷🇺/],
+    ['欧盟', /🇪🇺|🇬🇧|🇩🇪|🇫🇷|🇳🇱|🇮🇹|🇪🇸|🇸🇪|🇵🇱|🇨🇭|🇦🇹|🇧🇪|🇩🇰|🇫🇮|🇳🇴|🇹🇷/]
+  ];
 
   const normalizeCache = new Map();
   const noiseKeywords = [
@@ -396,7 +439,11 @@ function main(config) {
   }
 
   function matchRegion(name) {
-    const normalized = normalizeRegionName(name);
+    const rawName = String(name || '');
+    for (const [regionName, flagPattern] of regionFlagMap) {
+      if (flagPattern.test(rawName)) return regionName;
+    }
+    const normalized = normalizeRegionName(rawName);
     if (!normalized) return '其他地区';
 
     const compact = normalized.replace(/\s+/g, '');
@@ -464,6 +511,8 @@ function main(config) {
   }
   function makeUrlTestGroup(name, icon, nodes, interval, tolerance) {
     const proxies = unique(nodes || []);
+    // 自动测速组没有可用节点时不应静默降级为 DIRECT；由调用方跳过创建，避免"代理组名存在但实际直连"。
+    if (!proxies.length) return null;
     const normalizedInterval = typeof interval === 'number' ? interval : testInterval;
     const normalizedTolerance = typeof tolerance === 'number' ? tolerance : testTolerance;
     return {
@@ -474,7 +523,7 @@ function main(config) {
       interval: normalizedInterval,
       tolerance: normalizedTolerance,
       lazy: testLazy,
-      proxies: proxies.length ? proxies : ['DIRECT']
+      proxies
     };
   }
 
