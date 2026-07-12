@@ -9,6 +9,14 @@ function main(config) {
   const QURE_BASE = 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/';
   const qIcon = name => QURE_BASE + name + '.png';
 
+  function asArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
+  function uniqList(arr) {
+    return Array.from(new Set(asArray(arr).filter(Boolean)));
+  }
+
   config.profile = {
     ...(config.profile || {}),
     'store-selected': true,
@@ -63,9 +71,17 @@ function main(config) {
     '+.ytimg.com', '+.ggpht.com',
     'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com'
   ];
-  config.sniffer['skip-domain'] = [
-    'dns.adguard-dns.com'
-  ];
+  config.sniffer['skip-domain'] = uniqList([
+    ...asArray(config.sniffer['skip-domain']),
+    'dns.adguard-dns.com',
+    'dns.google',
+    'cloudflare-dns.com',
+    'doh.pub',
+    'dns.alidns.com',
+    'time.windows.com',
+    'time.apple.com',
+    'time.android.com'
+  ]);
 
   // Hosts：DoH 域名硬兜底 + 域名重定向（google.cn → google.com 等）
   if (!config.hosts || typeof config.hosts !== 'object') config.hosts = {};
@@ -93,7 +109,7 @@ function main(config) {
   const REGION_TEST_TOLERANCE = 180;
   const directChoices = ['🇨🇳 直连 | IPv4优先', '🇨🇳 直连 | IPv6优先', '🇨🇳 直连 | 双栈', '全球直连'];
 
-  config.dns = {
+  config.dns = Object.assign({}, config.dns || {}, {
     enable: true,
     listen: '0.0.0.0:1053',
     ipv6: true,
@@ -107,7 +123,8 @@ function main(config) {
     'fake-ip-range': '198.18.0.0/15',
     // 1 秒会造成映射频繁回收与额外 DNS 查询；60 秒兼顾应用兼容与缓存命中。
     'fake-ip-ttl': 60,
-    'fake-ip-filter': [
+    'fake-ip-filter': uniqList([
+      ...asArray(config.dns && config.dns['fake-ip-filter']),
       '*.lan', '*.local', '*.localdomain', '*.home.arpa', '*.internal',
       'localhost.ptlogin2.qq.com', 'msftconnecttest.com', 'msftncsi.com',
       'connectivitycheck.android.com', 'connectivitycheck.gstatic.com', 'connect.rom.miui.com',
@@ -136,11 +153,22 @@ function main(config) {
       '*.piston-meta.mojang.com', '*.launcher.mojang.com',
       // Cloudflare 人机验证必须走真实 IP（V 系列 H3 补丁）
       'challenges.cloudflare.com', 'turnstile.cloudflare.com', 'assets.cloudflare.com', '*.cloudflare.com'
-    ],
-    nameserver: [...cnDns, ...localDns],
-    'default-nameserver': localDns,
-    'proxy-server-nameserver': [...cnDns, ...localDns]
-  };
+    ]),
+    nameserver: uniqList([
+      ...asArray(config.dns && config.dns.nameserver),
+      ...cnDns,
+      ...localDns
+    ]),
+    'default-nameserver': uniqList([
+      ...asArray(config.dns && config.dns['default-nameserver']),
+      ...localDns
+    ]),
+    'proxy-server-nameserver': uniqList([
+      ...asArray(config.dns && config.dns['proxy-server-nameserver']),
+      ...cnDns,
+      ...localDns
+    ])
+  });
   config.dns['nameserver-policy'] = Object.assign(config.dns['nameserver-policy'] || {}, {
     // geosite 分流
     'geosite:private': localDns,
@@ -335,7 +363,7 @@ function main(config) {
     config.dns['direct-nameserver-follow-policy'] = true;
 
   const invalidProxyNamePatterns = [
-    /(?:剩余流量|重置|到期|官网|官方|公告|通知|最新|售后|telegram|电报|套餐|订阅|使用说明|请使用|客户端|更新订阅|复制链接|浏览器打开|https?:\/\/|@\w+)/i
+    /(?:剩余流量|流量已用|重置|到期|官网|官方|公告|通知|最新|售后|telegram|电报|套餐|订阅|使用说明|请使用|客户端|更新订阅|复制链接|浏览器打开|https?:\/\/|@\w+|工单|教程|群组|频道|返利|邀请|购买|续费|维护)/i
   ];
   function isRealProxyName(name) {
     if (!name) return false;
@@ -423,11 +451,12 @@ function main(config) {
     return getMultiplierSortInfo(name).recognized;
   }
   const streamingNamePatterns = [
-    /流媒体|streaming|stream|unlock|nf|奈飞|netflix|disney|hbo|max|prime|youtube|ytb|bilibili|b站|爱奇艺|iqiyi|腾讯视频|wechat/i,
-    /媒体全解|全流媒体|流媒体专用|流媒体优化|流媒体节点|流媒体线路/,
+    /流媒体|streaming|unlock|奈飞|netflix|disney|hbo|max|prime|youtube|ytb|bilibili|b站|爱奇艺|iqiyi|腾讯视频|abema|bahamut|动画疯|tvb|dazn|hulu|pornhub/i,
+    /媒体全解|全流媒体|流媒体专用|流媒体优化|流媒体节点|流媒体线路|原生解锁|全解锁|流媒体解锁/,
+    /\bnf\b/i,
     /\bmedia\b/i,
-    /\bvideo\b/i,
-    /\bwatch\b/i
+    /\bstream(?:ing)?\b/i,
+    /\bunlock\b/i
   ];
   function isStreamingProxyName(name) {
     return streamingNamePatterns.some(re => re.test(String(name || '')));
@@ -655,52 +684,65 @@ function main(config) {
   };
 
   const iconMap = {
+    // 基础 / 通用
     rocket: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Rocket.png',
     auto: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Auto.png',
     proxy: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Proxy.png',
     select: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Static.png',
-    fallback: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png',
-    fallbackFinal: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png',
     balance: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Round_Robin.png',
-    home: 'https://api.iconify.design/tabler:home-filled.svg',
-    global: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Global.png',
-    russia: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Russia.png',
     direct: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png',
     final: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png',
-    meta: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/meta.svg',
+    global: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Global.png',
+
+    // 故障转移 / 特殊用途
+    fallback: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png',
+    fallbackFinal: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png',
+    flare: 'https://api.iconify.design/tabler:flame-filled.svg?color=%2300d1b2',
+    lowMultiplier: 'https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b',
+    multiplier: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Filter.png',
+    home: 'https://api.iconify.design/tabler:home-filled.svg',
+    homeRegion: 'https://api.iconify.design/tabler:home-filled.svg',
+
+    // 平台 / 服务
     youtube: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/YouTube.png',
     youtubeFallback: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Streaming.png',
-    aiFallback: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Bot.png',
-    netflix: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Netflix.png',
-    spotify: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Spotify.png',
+    tiktok: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/TikTok.png',
+    meta: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/meta.svg',
+    twitter: 'https://api.iconify.design/simple-icons:x.svg',
     telegram: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Telegram.png',
     google: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Google_Search.png',
-    twitter: 'https://api.iconify.design/simple-icons:x.svg',
-    reddit: 'https://api.iconify.design/simple-icons:reddit.svg',
-    discord: 'https://api.iconify.design/simple-icons:discord.svg',
-    flare: 'https://api.iconify.design/tabler:flame-filled.svg?color=%2300d1b2',
-    bluesky: 'https://api.iconify.design/simple-icons:bluesky.svg',
-    mastodon: 'https://api.iconify.design/simple-icons:mastodon.svg',
-    tiktok: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/TikTok.png',
+    playstore: 'https://api.iconify.design/logos:google-play-icon.svg',
+    microsoft: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Microsoft.png',
+    apple: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Apple.png',
+    cloudflare: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png',
     github: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/GitHub.png',
     ai: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/ChatGPT.png',
-    niconico: 'https://api.iconify.design/simple-icons:niconico.svg',
-    playstore: 'https://api.iconify.design/logos:google-play-icon.svg',
+    aiFallback: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Bot.png',
     fcm: 'https://fastly.jsdelivr.net/gh/MiToverG422/Qure@master/IconSet/Color/fcm.png',
-    apple: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Apple.png',
-    microsoft: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Microsoft.png',
+
+    // 流媒体 / 社交 / 娱乐
     streaming: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Netflix.png',
-    taiwanMedia: 'https://ani.gamer.com.tw/favicon.ico',
+    streamingGlobal: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Media.png',
+    netflix: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Netflix.png',
+    spotify: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Spotify.png',
     twitch: 'https://api.iconify.design/simple-icons:twitch.svg',
+    niconico: 'https://api.iconify.design/simple-icons:niconico.svg',
+    taiwanMedia: 'https://ani.gamer.com.tw/favicon.ico',
+    social: 'https://api.iconify.design/simple-icons:reddit.svg',
+    reddit: 'https://api.iconify.design/simple-icons:reddit.svg',
+    discord: 'https://api.iconify.design/simple-icons:discord.svg',
+    bluesky: 'https://api.iconify.design/simple-icons:bluesky.svg',
+    mastodon: 'https://api.iconify.design/simple-icons:mastodon.svg',
+    decentralized: 'https://api.iconify.design/simple-icons:bluesky.svg',
+
+    // 地区 / 其他
     china: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/China_Map.png',
+    russia: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Russia.png',
+    jpkr: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/AbemaTV.png',
     game: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Game.png',
     download: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Download.png',
-    cloudflare: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png',
     adblock: qIcon('Advertising'),
-    jpkr: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/AbemaTV.png',
-    homeRegion: 'https://api.iconify.design/tabler:home-filled.svg',
-    social: 'https://api.iconify.design/simple-icons:reddit.svg',
-    decentralized: 'https://api.iconify.design/simple-icons:bluesky.svg'
+    riskControl: 'https://mihomo.echs.top/img/Hand-Painted-icon/Google_Suite/Account.png'
   };
   function makeFusionRegionGroupNames(label) {
     return {
@@ -836,8 +878,12 @@ function main(config) {
     } : null;
   }).filter(Boolean);
   const downloadGroupChoices = unique(['负载均衡', '自动选择'].concat(downloadRegionGroups.map(group => group.name)));
+  // ===== 常用候选集 =====
+  const excludedFallbackChoices = ['YouTube无广节点优先组', '国外AI故障转移'];
 
+  // ===== 故障转移组 =====
   const fallbackGroups = [
+
     makeFallbackGroup('自动兜底', iconMap.fallbackFinal, autoFallbackNodes, [], {
       interval: 300,
       tolerance: 180,
@@ -848,7 +894,6 @@ function main(config) {
       tolerance: 180,
       lazy: true
     }),
-
     makeFallbackGroup('日韩故障转移', qIcon('JP'), jpKrFallbackNodes, ['自动兜底'], {
       interval: 300,
       tolerance: 180,
@@ -859,7 +904,6 @@ function main(config) {
       tolerance: 180,
       lazy: true
     }),
-
     makeFallbackGroup('YouTube无广节点优先组', iconMap.youtubeFallback, youtubeFallbackNodes, ['自动兜底'], {
       interval: 300,
       tolerance: 180,
@@ -871,10 +915,16 @@ function main(config) {
       lazy: true
     })
   ].filter(Boolean);
+
+  // ===== 负载均衡组 =====
+  const playStoreBalanceNodes = unique([].concat(
+    buildRegionChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟']),
+    buildRegionHomeChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟'])
+  ));
+
   const loadBalanceGroups = [
     {
       name: '负载均衡',
-
       type: 'load-balance',
       icon: iconMap.balance,
       url: testUrl,
@@ -891,13 +941,11 @@ function main(config) {
       interval: testInterval,
       strategy: 'consistent-hashing',
       lazy: testLazy,
-      proxies: ensureGroupList(unique([].concat(
-        buildRegionChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟']),
-        buildRegionHomeChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟'])
-      )), ['自动选择'])
+      proxies: ensureGroupList(playStoreBalanceNodes, ['自动选择'])
     }
   ].filter(Boolean);
 
+  // ===== 特殊聚合组 =====
   const globalHomeGroup = globalHomeNodes.length
     ? makeUrlTestGroup('全球家宽', iconMap.home, globalHomeNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
@@ -910,63 +958,77 @@ function main(config) {
     if (aInfo.recognized !== bInfo.recognized) return aInfo.recognized ? -1 : 1;
     return String(a).localeCompare(String(b), 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
   });
+  const lowMultiplierNodes = globalMultiplierNodes.filter(name => {
+    const info = getMultiplierSortInfo(name);
+    return info.recognized && info.value <= 1;
+  });
   const globalMultiplierGroup = globalMultiplierNodes.length
-    ? makeUrlTestGroup('全球倍率', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Filter.png', globalMultiplierNodes, regionUrlTestInterval, regionUrlTestTolerance)
+    ? makeUrlTestGroup('全球倍率', iconMap.multiplier, globalMultiplierNodes, regionUrlTestInterval, regionUrlTestTolerance)
+    : null;
+  const lowMultiplierGroup = lowMultiplierNodes.length
+    ? makeUrlTestGroup('低倍率节点', iconMap.lowMultiplier, lowMultiplierNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
   const globalStreamingNodes = unique(streamingProxies.map(p => p.name));
   const globalStreamingGroup = globalStreamingNodes.length
-    ? makeUrlTestGroup('全球流媒体', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Media.png', globalStreamingNodes, regionUrlTestInterval, regionUrlTestTolerance)
+    ? makeUrlTestGroup('全球流媒体', iconMap.streamingGlobal, globalStreamingNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
+  const globalFeatureChoices = []
+    .concat(globalHomeGroup ? ['全球家宽'] : [])
+    .concat(lowMultiplierGroup ? ['低倍率节点'] : [])
+    .concat(globalMultiplierGroup ? ['全球倍率'] : [])
+    .concat(globalStreamingGroup ? ['全球流媒体'] : []);
   const fallbackNames = fallbackGroups.map(group => group.name);
   const loadBalanceNames = loadBalanceGroups.map(group => group.name);
   const commonLoadBalanceNames = loadBalanceNames.filter(name => name !== '谷歌商店负载均衡');
   const baseChoices = ['自动选择', '负载均衡', '全球手动']
     .concat(fallbackNames)
     .concat(commonLoadBalanceNames)
-    .concat(globalHomeGroup ? ['全球家宽'] : [])
-    .concat(globalMultiplierGroup ? ['全球倍率'] : [])
-    .concat(globalStreamingGroup ? ['全球流媒体'] : [])
+    .concat(globalFeatureChoices)
     .concat(fusionVisibleRegions)
     .concat(proxies.map(p => p.name));
-
-  const commonChoices = ['节点选择'].concat(baseChoices.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI故障转移'));
+  // ===== 分流候选池 =====
+  const commonChoices = ['节点选择'].concat(baseChoices.filter(name => !excludedFallbackChoices.includes(name)));
   const youtubeOnlyChoices = ['节点选择', 'YouTube无广节点优先组'].concat(baseChoices.filter(name => name !== '国外AI故障转移'));
   const aiOnlyChoices = ['节点选择', '国外AI故障转移'].concat(baseChoices.filter(name => name !== 'YouTube无广节点优先组'));
 
+  // ===== 通用候选构造器 =====
   function makeOrderedChoices(first, pool) {
+
     const source = pool || baseChoices;
     return first.concat(source.filter(name => first.indexOf(name) === -1));
   }
 
+  // ===== 业务分组候选项 =====
+  const domesticChoices = directChoices.concat(fusionVisibleRegions);
+  const taiwanAutoChoice = getRegionAuto('台湾');
+
   const metaChoices = makeOrderedChoices(['自动选择'], commonChoices);
+  const telegramChoices = makeOrderedChoices(['自动选择'], commonChoices);
+  const twitchChoices = makeOrderedChoices(['自动选择'], commonChoices);
+  const gameChoices = makeOrderedChoices(['自动选择'], commonChoices);
+  const twitterChoices = makeOrderedChoices(['自动选择'], commonChoices);
+  const socialChoices = makeOrderedChoices(['自动选择'], commonChoices);
+  const githubChoices = makeOrderedChoices(['自动选择'], commonChoices);
+
   const youtubeChoices = makeOrderedChoices(['YouTube无广节点优先组', '节点选择'], youtubeOnlyChoices);
   const spotifyChoices = makeOrderedChoices(['港台故障转移'], commonChoices);
-  const telegramChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const googleChoices = makeOrderedChoices(['港台故障转移'], commonChoices);
+  const tiktokChoices = makeOrderedChoices(['港台故障转移'], commonChoices);
+
+  const jpKrChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
+  const niconicoChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
+  const decentralizedChoices = makeOrderedChoices(['欧美故障转移'], commonChoices);
+  const microsoftChoices = makeOrderedChoices(['自动选择', '全球直连'], commonChoices);
   const playStoreChoices = makeOrderedChoices(['谷歌商店负载均衡', '负载均衡', '自动选择'], commonChoices);
-  const domesticChoices = directChoices.concat(fusionVisibleRegions);
+  const aiChoices = makeOrderedChoices(['国外AI故障转移', '节点选择'], aiOnlyChoices);
   const translationChoices = makeOrderedChoices(['自动选择'], commonChoices);
   const streamingChoices = globalStreamingGroup
     ? makeOrderedChoices(['全球流媒体', '自动选择'], commonChoices)
     : makeOrderedChoices(['自动选择'], commonChoices);
-  const taiwanAutoChoice = getRegionAuto('台湾');
   const taiwanMediaChoices = makeOrderedChoices(
     unique(['港台故障转移', taiwanAutoChoice, '自动选择'].filter(Boolean)),
     commonChoices
   );
-
-  const twitchChoices = makeOrderedChoices(['自动选择'], commonChoices);
-  const gameChoices = makeOrderedChoices(['自动选择'], commonChoices);
-  const twitterChoices = makeOrderedChoices(['自动选择'], commonChoices);
-
-  const socialChoices = makeOrderedChoices(['自动选择'], commonChoices);
-  const decentralizedChoices = makeOrderedChoices(['欧美故障转移'], commonChoices);
-  const tiktokChoices = makeOrderedChoices(['港台故障转移'], commonChoices);
-  const niconicoChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
-  const aiChoices = makeOrderedChoices(['国外AI故障转移', '节点选择'], aiOnlyChoices);
-  const githubChoices = makeOrderedChoices(['自动选择'], commonChoices);
-  const microsoftChoices = makeOrderedChoices(['自动选择', '全球直连'], commonChoices);
-  const jpKrChoices = makeOrderedChoices(['日韩故障转移'], commonChoices);
   const riskControlChoices = unique([
     '家宽故障转移',
     globalHomeGroup ? '全球家宽' : null,
@@ -1000,29 +1062,54 @@ function main(config) {
     ...regionHomeAutoNames.filter(name => !preferredHomeFailover.includes(name))
   ].filter(Boolean));
 
-  const proxyGroups = [
-    makeSelectGroup('节点选择', iconMap.rocket, ['自动选择', '负载均衡', '全球手动'].concat(fallbackNames).concat(globalHomeGroup ? ['全球家宽'] : []).concat(globalMultiplierGroup ? ['全球倍率'] : []).concat(globalStreamingGroup ? ['全球流媒体'] : []).concat(fusionVisibleRegions)),
+  // ===== 主分组候选项 =====
+  const nodeSelectionChoices = ['自动选择', '负载均衡', '全球手动']
+    .concat(fallbackNames)
+    .concat(globalFeatureChoices)
+    .concat(fusionVisibleRegions);
+  const systemServiceChoices = ['自动选择', '节点选择', '全球手动', '全球直连']
+    .concat(fusionVisibleRegions)
+    .concat(allProxyNames);
+  const domesticServiceChoices = ['全球直连']
+    .concat(directChoices.filter(x => x !== '全球直连'))
+    .concat(domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x)));
+  const finalFallbackChoices = ['自动选择', '全球手动']
+    .concat(fallbackNames.filter(name => !excludedFallbackChoices.includes(name)))
+    .concat(fusionVisibleRegions);
 
+  // ===== 附加显示组 =====
+  const visibleRegionAutoGroups = regionAutoOrder
+    .map(regionName => regionAutoGroups.find(group => group.name === (regionAutoMap[regionName] || '')))
+    .filter(Boolean);
+  const specialFeatureGroups = [globalHomeGroup, lowMultiplierGroup, globalMultiplierGroup, globalStreamingGroup].filter(Boolean);
+
+  const proxyGroups = [
+    // ===== 总入口组 =====
+    makeSelectGroup('节点选择', iconMap.rocket, nodeSelectionChoices),
+
+    // ===== 自动 / 手动 / 均衡 =====
     makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50),
     ...loadBalanceGroups,
     makeSelectGroup('全球手动', iconMap.select, allProxyNames),
+
+    // ===== 故障转移 =====
     ...fallbackGroups,
     makeFallbackGroup('家宽故障转移', iconMap.flare, homeFailoverChoices, ['自动兜底']),
 
-    makeSelectGroup('风控安全', 'https://mihomo.echs.top/img/Hand-Painted-icon/Google_Suite/Account.png', riskControlChoices, []),
+    // ===== 业务分流 =====
+    makeSelectGroup('风控安全', iconMap.riskControl, riskControlChoices, []),
     makeSelectGroup('YouTube', iconMap.youtube, youtubeChoices),
     makeSelectGroup('TikTok', iconMap.tiktok, tiktokChoices),
     makeSelectGroup('Meta', iconMap.meta, metaChoices),
     makeSelectGroup('Twitter', iconMap.twitter, twitterChoices),
     makeSelectGroup('Niconico', iconMap.niconico, niconicoChoices),
     makeSelectGroup('日韩生态区', iconMap.jpkr, jpKrChoices),
-
     makeSelectGroup('Spotify', iconMap.spotify, spotifyChoices),
     makeSelectGroup('Telegram', iconMap.telegram, telegramChoices),
     makeSelectGroup('Google', iconMap.google, googleChoices),
     makeSelectGroup('谷歌商店', iconMap.playstore, playStoreChoices),
     makeSelectGroup('微软服务', iconMap.microsoft, microsoftChoices),
-    makeSelectGroup('国内服务', iconMap.china, ['全球直连'].concat(directChoices.filter(x => x !== '全球直连')).concat(domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x)))),
+    makeSelectGroup('国内服务', iconMap.china, domesticServiceChoices),
     makeSelectGroup('流媒体', iconMap.streaming, streamingChoices),
     makeSelectGroup('台湾媒体', iconMap.taiwanMedia, taiwanMediaChoices),
     makeSelectGroup('Twitch', iconMap.twitch, twitchChoices),
@@ -1031,31 +1118,23 @@ function main(config) {
     makeSelectGroup('国外游戏', iconMap.game, gameChoices),
     makeSelectGroup('社交信息流', iconMap.social, socialChoices),
     makeSelectGroup('去中心化平台', iconMap.decentralized, decentralizedChoices),
-    makeSelectGroup('FCM', iconMap.fcm, ['自动选择', '节点选择', '全球手动', '全球直连'].concat(fusionVisibleRegions).concat(allProxyNames)),
-    makeSelectGroup('Apple', iconMap.apple, ['自动选择', '节点选择', '全球手动', '全球直连'].concat(fusionVisibleRegions).concat(allProxyNames)),
+    makeSelectGroup('FCM', iconMap.fcm, systemServiceChoices),
+    makeSelectGroup('Apple', iconMap.apple, systemServiceChoices),
     makeSelectGroup('Cloudflare', iconMap.cloudflare || iconMap.global, cloudflareGroupChoices),
+
+    // ===== 下载 / 拦截 / 兜底 =====
     makeSelectGroup('下载专用组', iconMap.download || iconMap.fallback, downloadGroupChoices.filter(name => name !== 'DIRECT')),
     ...downloadRegionGroups,
     makeSelectGroup('广告拦截', iconMap.adblock, ['REJECT', 'REJECT-DROP', 'PASS'], ['REJECT-DROP']),
     // REJECT：返回 127.0.0.1（显示广告拦截页，方便调试）
     // REJECT-DROP：静默丢包（零延迟，推荐日常使用）
     // PASS：允许通过（仅在误拦截时临时使用）
-    makeSelectGroup('漏网之鱼', iconMap.final, ['自动选择', '全球手动'].concat(fallbackNames.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI故障转移')).concat(fusionVisibleRegions)),
-
+    makeSelectGroup('漏网之鱼', iconMap.final, finalFallbackChoices),
     makeSelectGroup('全球直连', iconMap.direct, ['DIRECT'], []),
   ]
-    .concat(regionAutoOrder.flatMap(regionName => {
-      const groups = [];
-      const autoGroup = regionAutoGroups.find(group => group.name === (regionAutoMap[regionName] || ''));
-      if (autoGroup) groups.push(autoGroup);
-      return groups;
-    }))
-    .concat([
-      ...regionHomeAutoGroups,
-    ])
-    .concat(globalHomeGroup ? [globalHomeGroup] : [])
-    .concat(globalMultiplierGroup ? [globalMultiplierGroup] : [])
-    .concat(globalStreamingGroup ? [globalStreamingGroup] : [])
+    .concat(visibleRegionAutoGroups)
+    .concat(regionHomeAutoGroups)
+    .concat(specialFeatureGroups)
     .filter(Boolean)
     .map(group => /^(香港|台湾|日本|韩国|新加坡|美国|欧盟)下载$/.test(group && group.name) ? Object.assign({}, group, { hidden: true }) : group)
     .map(group => group && group.name === '谷歌商店负载均衡' ? Object.assign({}, group, { hidden: true }) : group)
