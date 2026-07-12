@@ -55,7 +55,10 @@ function main(config) {
     '+.livekit.cloud', '+.statsigapi.net',
     '+.tiktok.com', '+.tiktokv.com', '+.tiktokcdn.com', '+.tiktokcdn-us.com', '+.tiktokcdn-eu.com',
     '+.musical.ly', '+.ibyteimg.com', '+.ibytedtos.com', '+.byteoversea.com', '+.bytefcdn-oversea.com',
-    // YouTube 字幕 / 自动翻译链路强制嗅探（V 系列 v51.3）
+    // YouTube 字幕 / 自动翻译 / 嵌入播放器链路强制嗅探：
+    // 参考 V 系列 v51.3 的窄修复思路，只补字幕/播放器核心端点，
+    // 避免被后续广告规则、宽泛 Google 规则或纯 IP 连接吞掉；
+    // 不放开整组 Google 跟踪/广告域名，继续维持拦截强度。
     '+.youtube.com', '+.youtubei.googleapis.com', '+.youtube.googleapis.com', '+.googlevideo.com',
     '+.ytimg.com', '+.ggpht.com',
     'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com'
@@ -366,8 +369,73 @@ function main(config) {
   function isResidentialProxyName(name) {
     return residentialNamePatterns.some(re => re.test(String(name || '')));
   }
+  const multiplierNamePatterns = [
+    /倍率/,
+    /流量倍率|速率倍率|加速倍率/,
+    /\bbandwidth\b/i,
+    /\bboost\b/i,
+    /\bturbo\b/i,
+    /\b\d+(?:\.\d+)?\s*x\b/i,
+    /\bx\s*\d+(?:\.\d+)?\b/i,
+    /\d+(?:\.\d+)?\s*倍/
+  ];
+
+  function getMultiplierSortInfo(name) {
+    const text = String(name || '');
+    const normalized = text
+      .toLowerCase()
+      .replace(/[（【［]/g, '(')
+      .replace(/[）】］]/g, ')')
+      .replace(/[，、｜|_]/g, ' ')
+      .replace(/倍率/g, ' x ')
+      .replace(/倍/g, ' x ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const candidates = [];
+    const numberRegex = /\d+(?:\.\d+)?/g;
+    let match;
+    while ((match = numberRegex.exec(normalized)) !== null) {
+      const value = Number(match[0]);
+      if (!Number.isFinite(value)) continue;
+
+      const start = match.index;
+      const end = start + match[0].length;
+      const before = normalized.slice(Math.max(0, start - 6), start);
+      const after = normalized.slice(end, Math.min(normalized.length, end + 6));
+      const nearMultiplierMark = before.includes('x') || after.includes('x');
+
+      if (nearMultiplierMark) {
+        candidates.push({ value, index: start });
+      }
+    }
+
+    if (candidates.length) {
+      candidates.sort((a, b) => a.value - b.value || a.index - b.index);
+      return { value: candidates[0].value, recognized: true };
+    }
+
+    return { value: Number.POSITIVE_INFINITY, recognized: false };
+  }
+
+  function isMultiplierProxyName(name) {
+    if (multiplierNamePatterns.some(re => re.test(String(name || '')))) return true;
+    return getMultiplierSortInfo(name).recognized;
+  }
+  const streamingNamePatterns = [
+    /流媒体|streaming|stream|unlock|nf|奈飞|netflix|disney|hbo|max|prime|youtube|ytb|bilibili|b站|爱奇艺|iqiyi|腾讯视频|wechat/i,
+    /媒体全解|全流媒体|流媒体专用|流媒体优化|流媒体节点|流媒体线路/,
+    /\bmedia\b/i,
+    /\bvideo\b/i,
+    /\bwatch\b/i
+  ];
+  function isStreamingProxyName(name) {
+    return streamingNamePatterns.some(re => re.test(String(name || '')));
+  }
   const cleanProxies = uniqueBy(proxies, p => p && p.name);
   const residentialProxies = cleanProxies.filter(p => isResidentialProxyName(p.name));
+  const multiplierProxies = cleanProxies.filter(p => isMultiplierProxyName(p.name));
+  const streamingProxies = cleanProxies.filter(p => isStreamingProxyName(p.name));
   const builtInDirectProxies = [
     {
       name: '🇨🇳 直连 | IPv4优先',
@@ -728,6 +796,7 @@ function main(config) {
     cnLandingStrongNodes,                                            // 🅰️ 明确送中 → 极大概率无广
     cnLandingWeakNodes,                                              // 🅱️ 中国线路标记 → 较大概率无广
     buildNodeChain([/俄罗斯/i, /俄(罗斯)?/i, /\bRU\b/i, /🇷🇺/]),     // 🅲 俄罗斯 → Google 无广告运营
+    buildNodeChain([/越南/i, /\bVN\b/i, /🇻🇳/]),                      // 越南 → 低广告概率地区
     buildNodeChain([/澳门/i, /\bMO\b/i, /🇲🇴/]),                      // 🅳 澳门 → 小市场，广告覆盖率低
     regionGroups['欧盟'],
     regionGroups['其他地区'],
@@ -832,6 +901,22 @@ function main(config) {
   const globalHomeGroup = globalHomeNodes.length
     ? makeUrlTestGroup('全球家宽', iconMap.home, globalHomeNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
+
+  const globalMultiplierNodes = unique(multiplierProxies.map(p => p.name)).sort((a, b) => {
+    const aInfo = getMultiplierSortInfo(a);
+    const bInfo = getMultiplierSortInfo(b);
+    const diff = aInfo.value - bInfo.value;
+    if (diff !== 0) return diff;
+    if (aInfo.recognized !== bInfo.recognized) return aInfo.recognized ? -1 : 1;
+    return String(a).localeCompare(String(b), 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
+  });
+  const globalMultiplierGroup = globalMultiplierNodes.length
+    ? makeUrlTestGroup('全球倍率', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Filter.png', globalMultiplierNodes, regionUrlTestInterval, regionUrlTestTolerance)
+    : null;
+  const globalStreamingNodes = unique(streamingProxies.map(p => p.name));
+  const globalStreamingGroup = globalStreamingNodes.length
+    ? makeUrlTestGroup('全球流媒体', 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Media.png', globalStreamingNodes, regionUrlTestInterval, regionUrlTestTolerance)
+    : null;
   const fallbackNames = fallbackGroups.map(group => group.name);
   const loadBalanceNames = loadBalanceGroups.map(group => group.name);
   const commonLoadBalanceNames = loadBalanceNames.filter(name => name !== '谷歌商店负载均衡');
@@ -839,6 +924,8 @@ function main(config) {
     .concat(fallbackNames)
     .concat(commonLoadBalanceNames)
     .concat(globalHomeGroup ? ['全球家宽'] : [])
+    .concat(globalMultiplierGroup ? ['全球倍率'] : [])
+    .concat(globalStreamingGroup ? ['全球流媒体'] : [])
     .concat(fusionVisibleRegions)
     .concat(proxies.map(p => p.name));
 
@@ -859,7 +946,9 @@ function main(config) {
   const playStoreChoices = makeOrderedChoices(['谷歌商店负载均衡', '负载均衡', '自动选择'], commonChoices);
   const domesticChoices = directChoices.concat(fusionVisibleRegions);
   const translationChoices = makeOrderedChoices(['自动选择'], commonChoices);
-  const streamingChoices = makeOrderedChoices(['自动选择'], commonChoices);
+  const streamingChoices = globalStreamingGroup
+    ? makeOrderedChoices(['全球流媒体', '自动选择'], commonChoices)
+    : makeOrderedChoices(['自动选择'], commonChoices);
   const taiwanAutoChoice = getRegionAuto('台湾');
   const taiwanMediaChoices = makeOrderedChoices(
     unique(['港台故障转移', taiwanAutoChoice, '自动选择'].filter(Boolean)),
@@ -912,7 +1001,7 @@ function main(config) {
   ].filter(Boolean));
 
   const proxyGroups = [
-    makeSelectGroup('节点选择', iconMap.rocket, ['自动选择', '负载均衡', '全球手动'].concat(fallbackNames).concat(globalHomeGroup ? ['全球家宽'] : []).concat(fusionVisibleRegions)),
+    makeSelectGroup('节点选择', iconMap.rocket, ['自动选择', '负载均衡', '全球手动'].concat(fallbackNames).concat(globalHomeGroup ? ['全球家宽'] : []).concat(globalMultiplierGroup ? ['全球倍率'] : []).concat(globalStreamingGroup ? ['全球流媒体'] : []).concat(fusionVisibleRegions)),
 
     makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50),
     ...loadBalanceGroups,
@@ -965,6 +1054,9 @@ function main(config) {
       ...regionHomeAutoGroups,
     ])
     .concat(globalHomeGroup ? [globalHomeGroup] : [])
+    .concat(globalMultiplierGroup ? [globalMultiplierGroup] : [])
+    .concat(globalStreamingGroup ? [globalStreamingGroup] : [])
+    .filter(Boolean)
     .map(group => /^(香港|台湾|日本|韩国|新加坡|美国|欧盟)下载$/.test(group && group.name) ? Object.assign({}, group, { hidden: true }) : group)
     .map(group => group && group.name === '谷歌商店负载均衡' ? Object.assign({}, group, { hidden: true }) : group)
     .map(preserveGroup);
