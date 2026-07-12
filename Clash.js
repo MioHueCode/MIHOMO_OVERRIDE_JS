@@ -54,7 +54,11 @@ function main(config) {
     '+.oaiusercontent.com', '+.files.oaiusercontent.com', '+.cdn.openai.com',
     '+.livekit.cloud', '+.statsigapi.net',
     '+.tiktok.com', '+.tiktokv.com', '+.tiktokcdn.com', '+.tiktokcdn-us.com', '+.tiktokcdn-eu.com',
-    '+.musical.ly', '+.ibyteimg.com', '+.ibytedtos.com', '+.byteoversea.com', '+.bytefcdn-oversea.com'
+    '+.musical.ly', '+.ibyteimg.com', '+.ibytedtos.com', '+.byteoversea.com', '+.bytefcdn-oversea.com',
+    // YouTube 字幕 / 自动翻译链路强制嗅探（V 系列 v51.3）
+    '+.youtube.com', '+.youtubei.googleapis.com', '+.youtube.googleapis.com', '+.googlevideo.com',
+    '+.ytimg.com', '+.ggpht.com',
+    'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com'
   ];
   config.sniffer['skip-domain'] = [
     'dns.adguard-dns.com'
@@ -126,7 +130,9 @@ function main(config) {
       '*.gog.com',
       '*.steamcommunity.com', '*.steampowered.com', '*.steamstatic.com', '*.steamcdn-a.akamaihd.net', '*.steamcontent.com',
       '*.supercell.com', '*.supercell.net',
-      '*.piston-meta.mojang.com', '*.launcher.mojang.com'
+      '*.piston-meta.mojang.com', '*.launcher.mojang.com',
+      // Cloudflare 人机验证必须走真实 IP（V 系列 H3 补丁）
+      'challenges.cloudflare.com', 'turnstile.cloudflare.com', 'assets.cloudflare.com', '*.cloudflare.com'
     ],
     nameserver: [...cnDns, ...localDns],
     'default-nameserver': localDns,
@@ -140,7 +146,7 @@ function main(config) {
     // ===== 广告拦截 DNS 层 =====
     // 全量广告域名 → AdGuard DNS
     'geosite:category-ads-all': adguardDns,
-    // 国内广告联盟补充（60+ 条精准域名）
+    // 广告联盟补充
     '+.pglstatp-toutiao.com': adguardDns,
     '+.pangolin-sdk-toutiao.com': adguardDns,
     '+.pangolin.snssdk.com': adguardDns,
@@ -290,7 +296,14 @@ function main(config) {
     '+.steamcommunity.com': trustDns,
     '+.steampowered.com': trustDns,
     '+.epicgames.com': trustDns,
-    '+.roblox.com': trustDns
+    '+.roblox.com': trustDns,
+    // YouTube 字幕链路干净境外 DNS（V 系列 v51.3 对齐）
+    'jnn-pa.googleapis.com': trustDns,
+    'youtubeembeddedplayer.googleapis.com': trustDns,
+    'video.google.com': trustDns,
+    '+.googlevideo.com': trustDns,
+    '+.ytimg.com': trustDns,
+    '+.ggpht.com': trustDns,
   });
 
     // fallback 过滤器（GeoIP CN 判定 + 被污染域名兜底列表）
@@ -310,7 +323,8 @@ function main(config) {
         '+.netflix.com', '+.disneyplus.com', '+.hulu.com', '+.hbomax.com', '+.primevideo.com', '+.spotify.com', '+.twitch.tv', '+.twtrdns.net',
         '+.steamcommunity.com', '+.steampowered.com', '+.epicgames.com', '+.roblox.com', '+.battle.net', '+.blizzard.com', '+.blizzardentertainment.com', '+.battlenet.com.cn', '+.ea.com', '+.origin.com', '+.uplay.com', '+.nintendo.com', '+.playstation.com', '+.xbox.com', '+.xboxlive.com', '+.supercell.com', '+.supercell.net',
         '+.apple.com', '+.icloud.com', '+.microsoft.com', '+.live.com', '+.amazon.com', '+.aws.amazon.com',
-        '+.dns.google', '+.dns.google.com', '+.api2.branch.io', '+.cdn.branch.io'
+        '+.dns.google', '+.dns.google.com', '+.api2.branch.io', '+.cdn.branch.io',
+        '+.youtubei.googleapis.com', '+.youtube.googleapis.com', 'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com', '+.googlevideo.com', '+.ytimg.com', '+.ggpht.com'
       ]
     };
     config.dns.fallback = trustDns;
@@ -676,15 +690,50 @@ function main(config) {
   const jpKrFallbackNodes = buildRegionChain(['日本', '韩国']);
   const hkTwFallbackNodes = buildRegionChain(['香港', '台湾']);
   const usEuFallbackNodes = buildRegionChain(['美国', '欧盟']);
+  // YouTube无广策略：Google 广告投放基于出口 IP 的 GeoIP 归属。
+  // Google 认为你在广告区 → 有广告；认为你在非广告区（中国大陆/俄罗斯等）→ 无广告。
+  // 注意：脚本层面无法做真实 GeoIP 探测（那是运行时网络请求），只能靠节点名特征推断。
+  // 送中信号分为三档：
+  //   🅰️ 强信号（节点名明确写了送中/回国/CN落地）
+  //   🅱️ 弱信号（节点名含 CN2/GIA/CTG/163/CMI/CT/CU/CM 等中国线路标记）
+  //   🅲 推测（延迟异常低的非大陆节点、国内城市名出现在非大陆节点）
+  // 强信号优先，弱信号次之，最后才是俄罗斯/澳门等经验无广地区。
+  const cnLandingStrong = [
+    /送中|回国|落地中|国内中转|CN落地|回国优化|完美回国|极速回国/,
+    /HK.?CN|TW.?CN|SG.?CN|JP.?CN|US.?CN|KR.?CN|AU.?CN|DE.?CN|UK.?CN|FR.?CN/,
+    /\b回国\b|\bCnRoute\b|\bBackCN\b/i,
+  ];
+
+  // 弱信号：中国骨干线路标记 → 走 CN 出口概率高，Google GeoIP → CN
+  const cnLandingWeak = [
+    /\bCN2\b|\bGIA\b|\bCTG\b/i,     // 电信 CN2 GIA / CTG 线路
+    /\b163\b|\bCMI\b|\bCM\b/i,      // 联通 163 / 移动 CMI
+    /\bCT\b|\bCU\b/,                 // China Telecom / China Unicom 缩写（注意噪音排除）
+    /\bIPLC\b|\bIEPL\b/i,            // 专线 → 落地可能是 CN
+    /\b上海\b|\b北京\b|\b深圳\b|\b广州\b|\b杭州\b|\b成都\b|\b南京\b|\b武汉\b/,  // 国内城市名暗示 CN 出口
+  ];
+
+  function isCnLanding(name) {
+    return cnLandingStrong.some(re => re.test(String(name || '')));
+  }
+
+  function isCnLandingWeak(name) {
+    return cnLandingWeak.some(re => re.test(String(name || '')));
+  }
+
+  const cnLandingStrongNodes = allProxyNames.filter(name => isCnLanding(name));
+  const cnLandingWeakNodes = allProxyNames.filter(name => !isCnLanding(name) && isCnLandingWeak(name));
+
   const youtubeFallbackNodes = unique([].concat(
-    buildNodeChain([/俄罗斯/i, /俄(罗斯)?/i, /\bRU\b/i, /🇷🇺/]),
+    cnLandingStrongNodes,                                            // 🅰️ 明确送中 → 极大概率无广
+    cnLandingWeakNodes,                                              // 🅱️ 中国线路标记 → 较大概率无广
+    buildNodeChain([/俄罗斯/i, /俄(罗斯)?/i, /\bRU\b/i, /🇷🇺/]),     // 🅲 俄罗斯 → Google 无广告运营
+    buildNodeChain([/澳门/i, /\bMO\b/i, /🇲🇴/]),                      // 🅳 澳门 → 小市场，广告覆盖率低
     regionGroups['欧盟'],
     regionGroups['其他地区'],
-    buildNodeChain([/澳门/i, /\bMO\b/i, /🇲🇴/]),
     regionGroups['香港'],
     regionGroups['新加坡'],
     regionGroups['日本'],
-    regionGroups['台湾'],
     regionGroups['美国']
   ));
   const aiFallbackNodes = unique([].concat(
@@ -922,6 +971,84 @@ function main(config) {
 
   config['proxy-groups'] = finalizeGroupList(proxyGroups);
   config.rules = unique([
+    // ===== 第 0 层：YouTube 多客户端进程分流 + 字幕防误拦（前置注入，来自 V 系列 v27 + v51.3） =====
+    // YouTube 官方 / RVX / ReVanced / Morphe 进程统一到 YouTube 组
+    'PROCESS-NAME,com.google.android.youtube,YouTube',
+    'PROCESS-NAME,app.rvx.android.youtube,YouTube',
+    'PROCESS-NAME,app.rvx.android.apps.youtube,YouTube',
+    'PROCESS-NAME,app.revanced.android.youtube,YouTube',
+    'PROCESS-NAME,app.morphe.android.youtube,YouTube',
+    // 字幕正文、字幕轨道元数据、嵌入播放器与自动翻译端点
+    'DOMAIN,www.youtube.com,YouTube',
+    'DOMAIN,m.youtube.com,YouTube',
+    'DOMAIN,youtubei.googleapis.com,YouTube',
+    'DOMAIN,youtube.googleapis.com,YouTube',
+    'DOMAIN,youtubeembeddedplayer.googleapis.com,YouTube',
+    'DOMAIN,jnn-pa.googleapis.com,YouTube',
+    'DOMAIN,video.google.com,YouTube',
+    'DOMAIN-SUFFIX,youtube.com,YouTube',
+    'DOMAIN-SUFFIX,youtubei.googleapis.com,YouTube',
+    'DOMAIN-SUFFIX,youtube.googleapis.com,YouTube',
+    'DOMAIN-SUFFIX,googlevideo.com,YouTube',
+    'DOMAIN-SUFFIX,ytimg.com,YouTube',
+    'DOMAIN-SUFFIX,ggpht.com,YouTube',
+    'DOMAIN-SUFFIX,youtu.be,YouTube',
+    // YouTube Music
+    'PROCESS-NAME,com.google.android.apps.youtube.music,YouTube',
+    // ===== 第 0b 层：重点 App 进程级精准分流（V 系列 v51.3 精华补充，仅新增未重复项） =====
+    // AI / 搜索（ChatGPT/CiciAI/Coze 已在后方覆盖，此处仅补 Perplexity / Bard / Grok）
+    'PROCESS-NAME,ai.perplexity.app.android,AI',
+    'PROCESS-NAME,com.google.android.apps.bard,AI',
+    // 流媒体（进程统一到现有「流媒体」组）
+    'PROCESS-NAME,com.spotify.music,Spotify',
+    'PROCESS-NAME,com.netflix.mediaclient,流媒体',
+    'PROCESS-NAME,com.disney.disneyplus,流媒体',
+    'PROCESS-NAME,com.amazon.avod.thirdpartyclient,流媒体',
+    'PROCESS-NAME,com.hulu.plus,流媒体',
+    'PROCESS-NAME,com.hbo.hbonow,流媒体',
+    'PROCESS-NAME,com.hbo.max,流媒体',
+    // 社交 / 即时通讯（IG/FB 已在后方 Meta 组覆盖，此处仅补 Discord/Reddit）
+    'PROCESS-NAME,com.discord,社交信息流',
+    'PROCESS-NAME,com.twitter.android,Twitter',
+    'PROCESS-NAME,com.reddit.frontpage,社交信息流',
+    // 游戏平台
+    'PROCESS-NAME,com.valvesoftware.android.steam.community,国外游戏',
+    'PROCESS-NAME,com.microsoft.xboxone.smartglass,国外游戏',
+    // Google 生态（Translate/GMS/GSF/Maps 进程前置到 Google 组）
+    'PROCESS-NAME,com.google.android.apps.translate,Google',
+    'PROCESS-NAME,com.google.android.gms,Google',
+    'PROCESS-NAME,com.google.android.gsf,Google',
+    'PROCESS-NAME,com.google.android.apps.maps,Google',
+    // 翻译工具 DNS/加速链路（前置域名规则，避免被 Google 宽规则吞错组）
+    'DOMAIN,translate.googleapis.com,Google',
+    'DOMAIN-SUFFIX,translate.googleapis.com,Google',
+    'DOMAIN,translation.googleapis.com,Google',
+    'DOMAIN-SUFFIX,translation.googleapis.com,Google',
+    'DOMAIN,translate-pa.googleapis.com,Google',
+    'DOMAIN-SUFFIX,translate-pa.googleapis.com,Google',
+    'DOMAIN,translate.google.com,Google',
+    'DOMAIN-SUFFIX,translate.google.com,Google',
+    'DOMAIN,translate.google.cn,Google',
+    'DOMAIN-SUFFIX,translate.google.cn,Google',
+    // DeepL 翻译
+    'PROCESS-NAME,com.deepl.mobiletranslator,Google',
+    'DOMAIN,www.deepl.com,Google',
+    'DOMAIN,api.deepl.com,Google',
+    'DOMAIN,www2.deepl.com,Google',
+    'DOMAIN,dict.deepl.com,Google',
+    'DOMAIN,static.deepl.com,Google',
+    'DOMAIN-SUFFIX,deepl.com,Google',
+    'DOMAIN-SUFFIX,deeplpro.com,Google',
+    'DOMAIN-SUFFIX,deeplusercontent.com,Google',
+    'DOMAIN-SUFFIX,linguee.com,Google',
+    // ===== REJECT-DROP 静默丢弃（避免毫秒级重试风暴，省电） =====
+    'DOMAIN,incoming.telemetry.mozilla.org,REJECT-DROP',
+    // TikTok 遥测域名硬拒绝：即使广告组被切到 DIRECT，也不直连污染 IP
+    // 必须置于 TikTok.Mod.Jaggu 进程规则之前，确保遥测不被整包进程归组抢走（V 系列 v43 + v45）
+    'DOMAIN-REGEX,^(log|mon)[0-9A-Za-z.-]*\\.tiktokv\\.com$,REJECT',
+    // TikTok.Mod.Jaggu 修改版进程：除遥测外整包走同一个 TikTok 出口
+    'PROCESS-NAME,TikTok.Mod.Jaggu,TikTok',
+    'PROCESS-NAME-REGEX,(?i)^TikTok\\.Mod\\.Jaggu(?::.*)?$,TikTok',
     // ===== 核心拦截规则（第 1 层：GEOSITE 全量 + 远程规则集） =====
     'GEOSITE,category-ads-all,广告拦截',
     'DOMAIN-KEYWORD,ads,广告拦截',
@@ -1150,6 +1277,7 @@ function main(config) {
     'DOMAIN-SUFFIX,dash.cloudflare.com,风控安全',
     'DOMAIN-SUFFIX,challenges.cloudflare.com,风控安全',
     'DOMAIN-SUFFIX,turnstile.cloudflare.com,风控安全',
+    'DOMAIN-SUFFIX,assets.cloudflare.com,风控安全',
     'DOMAIN-SUFFIX,discordstatus.com,风控安全',
     'DOMAIN-SUFFIX,githubstatus.com,风控安全',
     'DOMAIN-SUFFIX,meta.com,风控安全',
