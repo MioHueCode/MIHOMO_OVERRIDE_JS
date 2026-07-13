@@ -79,26 +79,36 @@ function main(config) {
     'QUIC': { 'ports': [443, 8443], 'override-destination': true }
   };
   config.sniffer['force-domain'] = [
+    // AI 服务：强制嗅探登录、静态资源与实时通信链路，避免进程 / SNI 信息不足导致分流失败。
     '+.chatgpt.com', '+.openai.com', '+.auth0.openai.com', '+.oaistatic.com',
     '+.oaiusercontent.com', '+.files.oaiusercontent.com', '+.cdn.openai.com',
     '+.livekit.cloud', '+.statsigapi.net',
+
+    // TikTok / 字节海外链路：视频、图片与 CDN 域名较多，强制嗅探可提升命中率。
     '+.tiktok.com', '+.tiktokv.com', '+.tiktokcdn.com', '+.tiktokcdn-us.com', '+.tiktokcdn-eu.com',
     '+.musical.ly', '+.ibyteimg.com', '+.ibytedtos.com', '+.byteoversea.com', '+.bytefcdn-oversea.com',
+
+    // YouTube / Google 视频链路：主站、接口、视频资源与缩略图统一强化嗅探。
     '+.youtube.com', '+.youtubei.googleapis.com', '+.youtube.googleapis.com', '+.googlevideo.com',
     '+.ytimg.com', '+.ggpht.com',
     'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com'
   ];
   config.sniffer['skip-domain'] = uniqList([
     ...asArray(config.sniffer['skip-domain']),
+
+    // DoH 域名：解析器自身不参与嗅探，避免请求链路互相干扰。
     'dns.adguard-dns.com',
     'dns.google',
     'cloudflare-dns.com',
     'doh.pub',
     'dns.alidns.com',
+
+    // 时间同步：校时请求应尽量保持简单直接，避免额外嗅探干预。
     'time.windows.com',
     'time.apple.com',
     'time.android.com'
   ]);
+
   // Hosts 兜底：为关键 DoH 与常见重定向域名提供静态兜底映射。
   if (!config.hosts || typeof config.hosts !== 'object') config.hosts = {};
   config.hosts['dns.alidns.com'] = ['223.5.5.5', '223.6.6.6'];
@@ -143,21 +153,36 @@ function main(config) {
     'fake-ip-ttl': 60,
     'fake-ip-filter': uniqList([
       ...asArray(config.dns && config.dns['fake-ip-filter']),
+
+      // 局域网 / 本地域名：这类地址通常用于内网发现与本地服务，不适合 fake-ip。
       '*.lan', '*.local', '*.localdomain', '*.home.arpa', '*.internal',
+
+      // 连通性检测：系统用来判断网络状态，使用 fake-ip 容易触发误判。
       'localhost.ptlogin2.qq.com', 'msftconnecttest.com', 'msftncsi.com',
       'connectivitycheck.android.com', 'connectivitycheck.gstatic.com', 'connect.rom.miui.com',
       'captive.apple.com', 'www.msftconnecttest.com', 'www.msftncsi.com',
+
+      // 时间同步：NTP / 校时域名应返回真实地址，避免时钟同步异常。
       'time.windows.com', 'time.apple.com', 'time.android.com', 'pool.ntp.org', 'ntp.*.com', 'ntp.*.cn',
+
+      // 路由器 / 网关管理地址：管理页和本地路由器域名不应走 fake-ip。
       'router.asus.com', 'routerlogin.net', 'www.routerlogin.com', 'tplogin.cn', 'tplinkwifi.net',
       'miwifi.com', 'router.miwifi.com', 'my.router', 'fritz.box', 'dlinkrouter.local', 'orbilogin.com',
+
+      // STUN / TURN / Relay：实时通信协商依赖真实地址，fake-ip 容易破坏打洞与中继。
       'stun.*', 'stun.*.*', 'stun.*.*.*', 'turn.*', 'turn.*.*', 'relay.*',
+
+      // 主机平台 / 家用设备联机认证：保持真实解析，减少 NAT / 联机检测异常。
       'cable.auth.com', '*.srv.nintendo.net', '*.stun.playstation.net',
-      'xbox.*.microsoft.com', '*.xboxlive.com', '*.battle.net', '*.battlenet.com.cn',
-      '*.wotgame.cn', '*.wggames.cn', '*.wowsgame.cn', '*.wargaming.net',
-      '*.blizzard.com', '*.blizzardentertainment.com',
+      'xbox.*.microsoft.com', '*.xboxlive.com',
       '*.xbox.com', '*.xboxservices.com',
       '*.playstation.net', '*.playstation.com', 'psnprofiles.com',
       '*.nintendo.com', '*.nintendo.net', '*.nintendo.co.jp',
+
+      // 海外 PC / 主机游戏平台：下载器、认证、联机与反作弊链路尽量保留真实 IP。
+      '*.battle.net', '*.battlenet.com.cn',
+      '*.wotgame.cn', '*.wggames.cn', '*.wowsgame.cn', '*.wargaming.net',
+      '*.blizzard.com', '*.blizzardentertainment.com',
       '*.roblox.com', '*.rbxcdn.com',
       '*.minecraft.net', '*.mojang.com', '*.mojangstudios.com',
       '*.epicgames.com', '*.unrealengine.com', '*.epicgames-download1.akamaized.net',
@@ -169,8 +194,11 @@ function main(config) {
       '*.steamcommunity.com', '*.steampowered.com', '*.steamstatic.com', '*.steamcdn-a.akamaihd.net', '*.steamcontent.com',
       '*.supercell.com', '*.supercell.net',
       '*.piston-meta.mojang.com', '*.launcher.mojang.com',
+
+      // Cloudflare 挑战 / 验证资源：验证码与挑战链路对真实地址更敏感。
       'challenges.cloudflare.com', 'turnstile.cloudflare.com', 'assets.cloudflare.com', '*.cloudflare.com'
     ]),
+
     nameserver: uniqList([
       ...asArray(config.dns && config.dns.nameserver),
       ...cnDns,
@@ -186,10 +214,16 @@ function main(config) {
       ...localDns
     ])
   });
+  // DNS 分流策略：按私有网络 / 国内 / 境外 / 广告 / 特殊业务域名分别指定解析器。
   config.dns['nameserver-policy'] = Object.assign(config.dns['nameserver-policy'] || {}, {
+    // 私有网络与国内站点：优先走本地 DNS / 国内 DoH，减少绕路与污染概率。
     'geosite:private': localDns,
     'geosite:cn': cnDns,
+
+    // 境外通用站点：统一交给可信境外 DoH，保证海外服务解析一致性。
     'geosite:geolocation-!cn': trustDns,
+
+    // 广告与追踪域名：交给 AdGuard DNS，尽量在解析层先做拦截。
     'geosite:category-ads-all': adguardDns,
     '+.pglstatp-toutiao.com': adguardDns,
     '+.pangolin-sdk-toutiao.com': adguardDns,
@@ -250,6 +284,7 @@ function main(config) {
     '+.analytics.google.com': adguardDns,
     '+.ads.google.com': adguardDns,
 
+    // TikTok / 字节海外链路：单独指定可信境外 DNS，避免区域解析偏移。
     '+.tiktok.com': trustDns,
     '+.tiktokv.com': trustDns,
     '+.tiktokcdn.com': trustDns,
@@ -260,10 +295,14 @@ function main(config) {
     '+.ibytedtos.com': trustDns,
     '+.byteoversea.com': trustDns,
     '+.bytefcdn-oversea.com': trustDns,
+
+    // 广告过滤服务自身：避免过滤器域名走到被过滤 DNS 造成自指问题。
     '+.adtidy.org': trustDns,
     '+.adguard.com': trustDns,
     '+.adguard.org': trustDns,
     '+.adguard-dns.io': trustDns,
+
+    // 浏览器扩展 / 指纹 / 风控基础设施：优先境外可信解析，减少误判与校验失败。
     '+.addons.mozilla.org': trustDns,
     '+.addons.cdn.mozilla.net': trustDns,
     'api.ipify.org': trustDns,
@@ -273,6 +312,8 @@ function main(config) {
     '+.online-metrix.net': trustDns,
     'volatile-pa.googleapis.com': trustDns,
     'settings-win.data.microsoft.com': trustDns,
+
+    // OpenAI / AI 实时服务：保证登录、静态资源与实时链路解析稳定。
     '+.auth0.openai.com': trustDns,
     '+.oaistatic.com': trustDns,
     '+.oaiusercontent.com': trustDns,
@@ -280,7 +321,11 @@ function main(config) {
     '+.cdn.openai.com': trustDns,
     '+.livekit.cloud': trustDns,
     '+.statsigapi.net': trustDns,
+
+    // 国内 DoH 服务自身：强制回落本地 DNS，避免解析自循环。
     'dns.alidns.com': localDns,
+
+    // Google 主生态：搜索、接口、静态资源与验证码统一走境外可信 DNS。
     '+.google.com': trustDns,
     '+.googleapis.com': trustDns,
     '+.googleapis.cn': trustDns,
@@ -292,6 +337,8 @@ function main(config) {
     '+.gvt3.com': trustDns,
     '+.recaptcha.net': trustDns,
     '+.recaptcha-cn.net': trustDns,
+
+    // 通用海外 AI / 钱包 / 风控站点：避免被国内解析劫持或区域收敛。
     '+.chatgpt.com': trustDns,
     '+.openai.com': trustDns,
     '+.metamask.io': trustDns,
@@ -317,6 +364,8 @@ function main(config) {
     '+.huggingface.co': trustDns,
     '+.replicate.com': trustDns,
     '+.cursor.sh': trustDns,
+
+    // 主流海外内容 / 社交 / 开发 / 游戏站点：统一使用可信境外 DNS 维持地域一致性。
     '+.netflix.com': trustDns,
     '+.nflxvideo.net': trustDns,
     '+.disneyplus.com': trustDns,
@@ -333,6 +382,8 @@ function main(config) {
     '+.steampowered.com': trustDns,
     '+.epicgames.com': trustDns,
     '+.roblox.com': trustDns,
+
+    // YouTube 视频资源链路：单独点名，避免视频域名被错误落到国内 DNS。
     'jnn-pa.googleapis.com': trustDns,
     'youtubeembeddedplayer.googleapis.com': trustDns,
     'video.google.com': trustDns,
@@ -340,27 +391,58 @@ function main(config) {
     '+.ytimg.com': trustDns,
     '+.ggpht.com': trustDns,
   });
+  // fallback 过滤器：决定哪些域名 / IP 结果需要优先参考 fallback DNS。
   config.dns['fallback-filter'] = {
+    // GEOIP 过滤：国内 IP 结果优先视为可信，减少无意义 fallback。
     geoip: true,
     'geoip-code': 'CN',
-    ipcidr: ['240.0.0.0/4'],
-    domain: [
 
-        '+.google.com', '+.youtube.com', '+.twitter.com', '+.x.com', '+.telegram.org', '+.t.me',
-        '+.facebook.com', '+.fbcdn.net', '+.instagram.com', '+.whatsapp.com', '+.whatsapp.net',
-        '+.openai.com', '+.chatgpt.com', '+.claude.ai', '+.anthropic.com', '+.perplexity.ai', '+.poe.com', '+.midjourney.com', '+.character.ai', '+.c.ai', '+.groq.com', '+.mistral.ai', '+.x.ai',
-        '+.github.com', '+.githubusercontent.com', '+.discord.com', '+.reddit.com', '+.reddit.map.fastly.net',
-        '+.tiktok.com', '+.tiktokv.com', '+.byteoversea.com', '+.ibytedtos.com', '+.tiktokcdn.com', '+.tiktokcdn-us.com', '+.tiktokcdn-eu.com', '+.tiktokrow-cdn.com', '+.tiktokv.us', '+.ibyteimg.com', '+.muscdn.com',
-        '+.cloudflare.com', '+.notion.so', '+.dropbox.com',
-        '+.binance.com', '+.coinbase.com', '+.okx.com', '+.bybit.com', '+.kucoin.com', '+.metamask.io', '+.trustwallet.com', '+.walletconnect.com', '+.oklink.com', '+.okx-dns.com', '+.okx-dns1.com', '+.okx-dns2.com', '+.byapis.com', '+.bycsi.com', '+.bybit-global.com', '+.bybitglobal.com', '+.bnbstatic.com', '+.binanceapi.com',
-        '+.paypal.com', '+.stripe.com', '+.wise.com', '+.revolut.com', '+.card.io', '+.paypalhere.com', '+.venmo.com', '+.xoom.com', '+.stripe.network', '+.stripe-terminal-local-reader.net', '+.link.com',
-        '+.netflix.com', '+.disneyplus.com', '+.hulu.com', '+.hbomax.com', '+.primevideo.com', '+.spotify.com', '+.twitch.tv', '+.twtrdns.net',
-        '+.steamcommunity.com', '+.steampowered.com', '+.epicgames.com', '+.roblox.com', '+.battle.net', '+.blizzard.com', '+.blizzardentertainment.com', '+.battlenet.com.cn', '+.ea.com', '+.origin.com', '+.uplay.com', '+.nintendo.com', '+.playstation.com', '+.xbox.com', '+.xboxlive.com', '+.supercell.com', '+.supercell.net',
-        '+.apple.com', '+.icloud.com', '+.microsoft.com', '+.live.com', '+.amazon.com', '+.aws.amazon.com',
-        '+.dns.google', '+.dns.google.com', '+.api2.branch.io', '+.cdn.branch.io',
-        '+.youtubei.googleapis.com', '+.youtube.googleapis.com', 'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com', '+.googlevideo.com', '+.ytimg.com', '+.ggpht.com'
+    // 特殊保留地址段：这类结果通常不应作为正常公网解析结果使用。
+    ipcidr: ['240.0.0.0/4'],
+
+    // 域名白名单：这些域名即使初始解析有结果，也允许 fallback DNS 参与校验。
+    domain: [
+      // Google / YouTube / Twitter / Telegram 等基础海外平台。
+      '+.google.com', '+.youtube.com', '+.twitter.com', '+.x.com', '+.telegram.org', '+.t.me',
+
+      // Meta 社交生态。
+      '+.facebook.com', '+.fbcdn.net', '+.instagram.com', '+.whatsapp.com', '+.whatsapp.net',
+
+      // 海外 AI 服务。
+      '+.openai.com', '+.chatgpt.com', '+.claude.ai', '+.anthropic.com', '+.perplexity.ai', '+.poe.com', '+.midjourney.com', '+.character.ai', '+.c.ai', '+.groq.com', '+.mistral.ai', '+.x.ai',
+
+      // 开发 / 社区服务。
+      '+.github.com', '+.githubusercontent.com', '+.discord.com', '+.reddit.com', '+.reddit.map.fastly.net',
+
+      // TikTok / 字节海外链路。
+      '+.tiktok.com', '+.tiktokv.com', '+.byteoversea.com', '+.ibytedtos.com', '+.tiktokcdn.com', '+.tiktokcdn-us.com', '+.tiktokcdn-eu.com', '+.tiktokrow-cdn.com', '+.tiktokv.us', '+.ibyteimg.com', '+.muscdn.com',
+
+      // 云平台与生产力服务。
+      '+.cloudflare.com', '+.notion.so', '+.dropbox.com',
+
+      // 交易所 / 钱包 / 加密资产基础设施。
+      '+.binance.com', '+.coinbase.com', '+.okx.com', '+.bybit.com', '+.kucoin.com', '+.metamask.io', '+.trustwallet.com', '+.walletconnect.com', '+.oklink.com', '+.okx-dns.com', '+.okx-dns1.com', '+.okx-dns2.com', '+.byapis.com', '+.bycsi.com', '+.bybit-global.com', '+.bybitglobal.com', '+.bnbstatic.com', '+.binanceapi.com',
+
+      // 金融支付与风控敏感域名。
+      '+.paypal.com', '+.stripe.com', '+.wise.com', '+.revolut.com', '+.card.io', '+.paypalhere.com', '+.venmo.com', '+.xoom.com', '+.stripe.network', '+.stripe-terminal-local-reader.net', '+.link.com',
+
+      // 流媒体与内容分发平台。
+      '+.netflix.com', '+.disneyplus.com', '+.hulu.com', '+.hbomax.com', '+.primevideo.com', '+.spotify.com', '+.twitch.tv', '+.twtrdns.net',
+
+      // 海外游戏平台与发行生态。
+      '+.steamcommunity.com', '+.steampowered.com', '+.epicgames.com', '+.roblox.com', '+.battle.net', '+.blizzard.com', '+.blizzardentertainment.com', '+.battlenet.com.cn', '+.ea.com', '+.origin.com', '+.uplay.com', '+.nintendo.com', '+.playstation.com', '+.xbox.com', '+.xboxlive.com', '+.supercell.com', '+.supercell.net',
+
+      // Apple / Microsoft / Amazon 等大厂主域名。
+      '+.apple.com', '+.icloud.com', '+.microsoft.com', '+.live.com', '+.amazon.com', '+.aws.amazon.com',
+
+      // 特殊基础设施域名。
+      '+.dns.google', '+.dns.google.com', '+.api2.branch.io', '+.cdn.branch.io',
+
+      // YouTube 视频与媒体资源链路。
+      '+.youtubei.googleapis.com', '+.youtube.googleapis.com', 'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com', '+.googlevideo.com', '+.ytimg.com', '+.ggpht.com'
     ]
   };
+
   config.dns.fallback = trustDns;
   config.dns['direct-nameserver'] = [...cnDns, ...localDns];
   config.dns['direct-nameserver-follow-policy'] = true;
@@ -391,6 +473,7 @@ function main(config) {
     });
   };
   // 节点特征识别：家宽 / 倍率 / 流媒体节点将用于后续分组聚合。
+  // 家宽识别：用于构建住宅线路候选池，优先把 ISP / Residential 类节点单独筛出。
   const residentialNamePatterns = [
     /家宽|家庭宽带|家庭住宅|住宅宽带|住宅|宽带/,
     /\bresi(?:dential)?\b/i,
@@ -403,6 +486,8 @@ function main(config) {
   function isResidentialProxyName(name) {
     return residentialNamePatterns.some(re => re.test(String(name || '')));
   }
+
+  // 倍率识别：订阅里常用“2x / 1.5倍 / turbo”标注计费倍率，后续可用于排序与分池。
   const multiplierNamePatterns = [
     /倍率/,
     /流量倍率|速率倍率|加速倍率/,
@@ -414,7 +499,9 @@ function main(config) {
     /\d+(?:\.\d+)?\s*倍/
   ];
 
+  // 倍率排序提取：尽量从节点名里抽出明确倍率数值，供后续稳定排序。
   function getMultiplierSortInfo(name) {
+
     const text = String(name || '');
     const normalized = text
       .toLowerCase()
@@ -451,11 +538,12 @@ function main(config) {
 
     return { value: Number.POSITIVE_INFINITY, recognized: false };
   }
-
   function isMultiplierProxyName(name) {
     if (multiplierNamePatterns.some(re => re.test(String(name || '')))) return true;
     return getMultiplierSortInfo(name).recognized;
   }
+
+  // 流媒体识别：把标注为解锁 / 流媒体优化的节点单独抽出，便于媒体业务优先选线。
   const streamingNamePatterns = [
     /流媒体|streaming|unlock|奈飞|netflix|disney|hbo|max|prime|youtube|ytb|bilibili|b站|爱奇艺|iqiyi|腾讯视频|abema|bahamut|动画疯|tvb|dazn|hulu|pornhub/i,
     /媒体全解|全流媒体|流媒体专用|流媒体优化|流媒体节点|流媒体线路|原生解锁|全解锁|流媒体解锁/,
@@ -467,10 +555,13 @@ function main(config) {
   function isStreamingProxyName(name) {
     return streamingNamePatterns.some(re => re.test(String(name || '')));
   }
+
+  // 清洗结果：按名称去重后，再派生家宽 / 倍率 / 流媒体等特征节点集合。
   const cleanProxies = uniqueBy(proxies, p => p && p.name);
   const residentialProxies = cleanProxies.filter(p => isResidentialProxyName(p.name));
   const multiplierProxies = cleanProxies.filter(p => isMultiplierProxyName(p.name));
   const streamingProxies = cleanProxies.filter(p => isStreamingProxyName(p.name));
+
   const builtInDirectProxies = [
     {
       name: '🇨🇳 直连 | IPv4优先',
@@ -496,6 +587,7 @@ function main(config) {
     return new RegExp('(^|[^a-z])' + escaped + '([^a-z]|$)', 'i').test(text);
   }
   // 地区识别：按节点名特征将代理归入主要地理区域，供自动组和故障转移组复用。
+  // 地区桶：先把节点名映射到大区，再由后续逻辑构建地区测速组、故障转移组和业务候选池。
   const regionGroups = {
     '香港': [],
     '台湾': [],
@@ -509,7 +601,9 @@ function main(config) {
     '其他地区': []
   };
 
+  // 关键词映射：覆盖常见中文写法、英文国名、城市名、机场三字码 / 两字码缩写。
   const keywordMap = {
+
     '香港': ['香港', 'hk', 'hong kong', 'hongkong', 'hkg', 'kowloon', 'tsim sha tsui'],
     '台湾': ['台湾', '台灣', 'tw', 'taiwan', 'taipei', 'taichung', 'kaohsiung', 'hsinchu', 'tainan'],
     '日本': ['日本', 'jp', 'japan', 'tokyo', 'osaka', 'nagoya', 'saitama', 'yokohama', 'fukuoka', 'kawasaki', 'chiba', 'sapporo', 'okinawa'],
@@ -520,8 +614,10 @@ function main(config) {
     '欧盟': ['英国', 'gb', 'uk', 'britain', 'united kingdom', 'london', 'manchester', '德国', 'de', 'germany', 'frankfurt', 'berlin', 'munich', '法国', 'fr', 'france', 'paris', 'marseille', '荷兰', 'nl', 'netherlands', 'amsterdam', 'rotterdam', '土耳其', 'tr', 'turkey', 'istanbul', '意大利', 'italy', 'milan', 'rome', '西班牙', 'es', 'spain', 'madrid', 'barcelona', '瑞典', 'sweden', 'stockholm', '波兰', 'pl', 'poland', 'warsaw', '瑞士', 'ch', 'switzerland', 'zurich', '奥地利', 'austria', 'vienna', '比利时', 'belgium', 'brussels', '丹麦', 'dk', 'denmark', 'copenhagen', '芬兰', 'fi', 'finland', 'helsinki', '挪威', 'norway', 'oslo', '欧盟', '欧洲', 'europe', 'european union'], 
     '其他地区': ['印度', 'india', 'in', '马来西亚', 'malaysia', 'my', '越南', 'vietnam', 'vn', '加拿大', 'canada', 'ca', '澳大利亚', '澳洲', 'australia', 'au', '悉尼', 'sydney', '墨尔本', 'melbourne', '新西兰', 'new zealand', 'nz', '奥克兰', 'auckland', '阿联酋', 'uae', 'dubai', '迪拜', '泰国', 'thailand', 'th', '曼谷', 'bangkok', '菲律宾', 'philippines', 'ph', '马尼拉', 'manila', '印度尼西亚', '印尼', 'indonesia', 'id', '雅加达', 'jakarta']
   };
-
+  // 匹配优先级：当前面多个地区关键词可能冲突时，按这个顺序先命中更常见主区域。
   const regionPriority = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '欧盟', '其他地区'];
+
+  // 旗帜优先：节点名带国旗时，直接作为最高置信度地区信号。
   const regionFlagMap = [
     ['香港', /🇭🇰/], ['台湾', /🇹🇼/], ['日本', /🇯🇵/], ['新加坡', /🇸🇬/],
     ['美国', /🇺🇸/], ['韩国', /🇰🇷/], ['俄罗斯', /🇷🇺/],
@@ -529,7 +625,10 @@ function main(config) {
   ];
 
   const normalizeCache = new Map();
+
+  // 噪声关键词：去掉套餐属性、业务标签、机场营销词，尽量只保留地区相关信息。
   const noiseKeywords = [
+
     'vip','svip','倍率','x\\d+','iepl','iplc','bgp','cn2','gia',
     'game','games','gaming','stream','media','unlock','nf','奈飞',
     'netflix','disney','hbo','max','prime','chatgpt','gpt','ai',
@@ -537,7 +636,7 @@ function main(config) {
     'test','testing','expire','plan','used','aws','hy2','anytls'
   ];
   const noisePattern = new RegExp('\\b(' + noiseKeywords.join('|') + ')\\b', 'gi');
-
+  // 名称标准化：先去旗帜、符号和营销噪声，降低地区匹配误伤率。
   function normalizeRegionName(name) {
     const key = String(name || '');
     if (normalizeCache.has(key)) return normalizeCache.get(key);
@@ -553,7 +652,9 @@ function main(config) {
     return result;
   }
 
+  // 地区匹配主流程：旗帜优先，其次关键词，最后再走宽松恢复匹配。
   function matchRegion(name) {
+
     const rawName = String(name || '');
     for (const [regionName, flagPattern] of regionFlagMap) {
       if (flagPattern.test(rawName)) return regionName;
@@ -608,6 +709,7 @@ function main(config) {
   const regionUrlTestInterval = REGION_TEST_INTERVAL;
   const regionUrlTestTolerance = REGION_TEST_TOLERANCE;
   // 分组构造工具：负责保留旧顺序、补默认项，并统一生成各类策略组。
+  // 保留用户顺序：若旧配置已有同名 select 组，则尽量继承其代理顺序，减少每次刷新后的选项跳动。
   function preserveGroup(group) {
     const oldGroup = existingGroupMap[group.name];
 
@@ -621,10 +723,13 @@ function main(config) {
     return { ...group, proxies: oldProxies.concat(remaining) };
   }
 
+  // 代理列表兜底：合并用户列表和默认项，若最终为空则至少返回 DIRECT。
   function ensureGroupList(list, extraDefaults) {
     const merged = unique([].concat(list || [], extraDefaults || []));
     return merged.length ? merged : ['DIRECT'];
   }
+
+  // URL Test 组：用于自动测速选优；没有节点时直接跳过创建，避免伪装成直连组。
   function makeUrlTestGroup(name, icon, nodes, interval, tolerance) {
     const proxies = unique(nodes || []);
     // 自动测速组没有可用节点时不应静默降级为 DIRECT；由调用方跳过创建，避免"代理组名存在但实际直连"。
@@ -643,9 +748,12 @@ function main(config) {
     };
   }
 
+  // Select 组：给用户手动切换使用，默认附带自动选择等兜底入口。
   function makeSelectGroup(name, icon, list, extraDefaults = ['自动选择']) {
     return { name, type: 'select', icon, proxies: ensureGroupList(list, extraDefaults) };
   }
+
+  // Fallback 组：按存活顺序故障转移，适合关键业务场景而不是单纯测速最低延迟。
   function makeFallbackGroup(name, icon, list, extraDefaults = ['自动选择'], options = {}) {
     const proxies = ensureGroupList(list, extraDefaults);
     return {
@@ -659,19 +767,29 @@ function main(config) {
       proxies
     };
   }
+
+  // 批量 Select 生成：把声明式定义表转成实际策略组对象。
   function makeSelectGroupsFromDefs(defs) {
     return defs.map(def => makeSelectGroup(def.name, def.icon, def.choices, def.extraDefaults));
   }
+
+  // 规则集合并：把多个规则片段展开、拍平、去重，供最终 rules 装配。
   function mergeRuleSets(...ruleSets) {
     return unique(ruleSets.flatMap(ruleSet => asArray(ruleSet)));
   }
+
+  // 规则映射表：将 { name, rules } 定义转成按名称索引的查询结构。
   function buildRuleSetMap(defs) {
     return Object.fromEntries(defs.map(def => [def.name, def.rules]));
   }
+
+  // 按顺序收集规则：根据给定 order 拼接规则块，确保最终规则顺序可控。
   function collectRuleSets(defs, order) {
     const ruleSetMap = buildRuleSetMap(defs);
     return order.flatMap(name => asArray(ruleSetMap[name]));
   }
+
+  // 最终分组去重：过滤空项，并按组名去重，防止重复定义覆盖不明。
   function finalizeGroupList(groups) {
     return uniqueBy((groups || []).filter(Boolean), group => group && group.name);
   }
@@ -759,9 +877,12 @@ function main(config) {
     };
   }
   // 地区目录：先生成地区测速组，再派生出地区名称映射与候选链。
+  // 地区测速主顺序：既影响展示顺序，也影响后续若干候选池的默认拼接优先级。
   const regionAutoOrder = ['香港', '台湾', '美国', '日本', '新加坡', '韩国', '俄罗斯', '欧盟', '其他地区'];
 
+  // 地区目录构建：为每个已存在节点的地区生成 自动 / 家宽自动 及其元数据。
   const regionCatalog = regionAutoOrder.reduce((acc, regionName) => {
+
     const regionNodes = unique(regionGroups[regionName] || []);
     if (!regionNodes.length) return acc;
 
@@ -783,7 +904,7 @@ function main(config) {
     };
     return acc;
   }, {});
-
+  // 地区映射缓存：把地区名快速映射到自动组 / 家宽自动组，供候选池复用。
   const regionAutoMap = Object.fromEntries(Object.entries(regionCatalog).map(([regionName, info]) => [regionName, info.names.auto]));
   const regionHomeAutoMap = Object.fromEntries(
     Object.entries(regionCatalog)
@@ -795,7 +916,9 @@ function main(config) {
   const regionAutoGroups = Object.values(regionCatalog).map(info => info.autoGroup).filter(Boolean);
   const regionHomeAutoGroups = Object.values(regionCatalog).map(info => info.homeAutoGroup).filter(Boolean);
 
+  // 地区查询辅助：统一生成地区自动链、家宽链与原始节点列表。
   function getRegionAuto(name) {
+
     return regionAutoMap[name] || null;
   }
   function getRegionHomeAuto(name) {
@@ -837,12 +960,17 @@ function main(config) {
   function makeChoicePool(first, ...poolParts) {
     return makeOrderedChoices(first, buildChoiceList(...poolParts));
   }
-
+  // 全局家宽池：从全部节点中抽出住宅线路，供风控 / 支付 / 登录等敏感业务优先选择。
   const globalHomeNodes = unique(residentialProxies.map(p => p.name));
 
+  // 可见地区链：把地区自动组与家宽自动组统一并入手动候选菜单。
   const fusionVisibleRegions = unique(regionAutoNames.concat(regionHomeAutoNames));
+
+  // 全局兜底地区顺序：用于自动兜底组，优先尝试更常用出口地区。
   const AUTO_FALLBACK_REGION_ORDER = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '俄罗斯', '其他地区'];
   const autoFallbackNodes = unique(buildRegionChain(AUTO_FALLBACK_REGION_ORDER));
+
+  // 区域故障转移定义：把高相关地区打包成可复用 fallback 组。
   const REGION_FAILOVER_DEFS = [
     { name: '港台故障转移', regions: ['香港', '台湾'], icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Available_1.png' },
     { name: '日韩故障转移', regions: ['日本', '韩国'], icon: qIcon('JP') },
@@ -852,6 +980,7 @@ function main(config) {
 
 
   // YouTube无广策略：Google 广告投放基于出口 IP 的 GeoIP 归属。
+
   // Google 认为你在广告区 → 有广告；认为你在非广告区（中国大陆/俄罗斯等）→ 无广告。
   // 注意：脚本层面无法做真实 GeoIP 探测（那是运行时网络请求），只能靠节点名特征推断。
   // 送中信号分为三档：
@@ -886,6 +1015,7 @@ function main(config) {
 
   const cnLandingStrongNodes = allProxyNames.filter(name => isCnLanding(name));
   const cnLandingWeakNodes = allProxyNames.filter(name => !isCnLanding(name) && isCnLandingWeak(name));
+  // YouTube 无广候选池：按“送中强信号 → 弱信号 → 经验低广告地区”顺序组织。
   const youtubeFallbackNodes = buildChoiceList(
     cnLandingStrongNodes,                                            // 🅰️ 明确送中 → 极大概率无广
     cnLandingWeakNodes,                                              // 🅱️ 中国线路标记 → 较大概率无广
@@ -899,16 +1029,22 @@ function main(config) {
     regionGroups['日本'],
     regionGroups['美国']
   );
+
+  // AI 候选池：优先放入对海外 AI 服务兼容性通常更稳定的地区自动组。
   const aiFallbackNodes = buildChoiceList(
     buildRegionChain(['台湾', '美国', '日本', '新加坡', '韩国', '其他地区'])
   );
+
+  // Cloudflare 候选：优先自动组与欧美出口，并允许显式 Cloudflare / WARP 节点参与。
   const cloudflareGroupChoices = buildChoiceList(
     ['自动选择', '欧美故障转移', '全球直连', '全球手动'],
     buildNodeChain([/cloudflare/i, /\bCF\b/i, /WARP/i, /1\.1\.1\.1/]),
     buildRegionChain(['美国', '新加坡', '日本', '香港', '台湾', '欧盟'])
   );
 
+  // 下载分区定义：按地区生成 load-balance 组，适合大文件 / CDN 拉取类业务。
   const DOWNLOAD_REGION_DEFS = [
+
     { key: '香港', groupName: '香港下载', icon: regionIconMap['香港'] || qIcon('HK') },
     { key: '台湾', groupName: '台湾下载', icon: regionIconMap['台湾'] || qIcon('TW') },
     { key: '日本', groupName: '日本下载', icon: regionIconMap['日本'] || qIcon('JP') },
@@ -942,16 +1078,21 @@ function main(config) {
     () => ({ interval: 600 })
   );
 
+  // 下载候选池：优先给下载类业务提供负载均衡入口与地区下载组。
   const downloadGroupChoices = buildChoiceList(['负载均衡', '自动选择'], downloadRegionGroups.map(group => group.name));
 
   // 候选池装配：将通用节点、故障转移与特殊策略组组合成业务分流可选项。
+  // 特殊 fallback 组：为 YouTube 无广、海外 AI 等敏感业务提供专用故障转移入口。
   const excludedFallbackChoices = ['YouTube无广节点优先组', '国外AI故障转移'];
   const SPECIAL_FALLBACK_DEFS = [
     { name: 'YouTube无广节点优先组', icon: iconMap.youtubeFallback, nodes: youtubeFallbackNodes, extraDefaults: ['自动兜底'], options: { interval: 300, tolerance: 180, lazy: true } },
     { name: '国外AI故障转移', icon: iconMap.aiFallback, nodes: aiFallbackNodes, extraDefaults: ['自动兜底'], options: { interval: 300, tolerance: 180, lazy: true } }
 
   ];
+
+  // fallback 组总装：包含全局兜底、区域故障转移与特殊业务故障转移。
   const fallbackGroups = [
+
     makeFallbackGroup('自动兜底', iconMap.fallbackFinal, autoFallbackNodes, [], {
       interval: FALLBACK_INTERVAL,
       tolerance: FALLBACK_TOLERANCE,
@@ -970,10 +1111,12 @@ function main(config) {
     buildRegionHomeChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟'])
 
   ));
+  // 负载均衡组：一个面向全局通用，一个面向谷歌商店下载 / 分发链路。
   const loadBalanceGroups = [
     makeLoadBalanceGroup('负载均衡', iconMap.balance, ensureGroupList(allProxyNames, [])),
     makeLoadBalanceGroup('谷歌商店负载均衡', iconMap.playstore, ensureGroupList(playStoreBalanceNodes, ['自动选择']))
   ].filter(Boolean);
+
   // 特殊聚合组：为家宽、倍率、流媒体等高频特征提供独立聚合入口。
   const globalHomeGroup = globalHomeNodes.length
 
@@ -981,7 +1124,9 @@ function main(config) {
     : null;
 
 
+  // 倍率聚合：先按识别出的倍率值排序，再派生低倍率节点池。
   const globalMultiplierNodes = unique(multiplierProxies.map(p => p.name)).sort((a, b) => {
+
     const aInfo = getMultiplierSortInfo(a);
     const bInfo = getMultiplierSortInfo(b);
     const diff = aInfo.value - bInfo.value;
@@ -1009,7 +1154,7 @@ function main(config) {
     globalMultiplierGroup ? ['全球倍率'] : [],
     globalStreamingGroup ? ['全球流媒体'] : []
   );
-
+  // 候选菜单总索引：把 fallback、负载均衡、特征组、地区组与原始节点拼成通用候选池。
   const fallbackNames = fallbackGroups.map(group => group.name);
   const loadBalanceNames = loadBalanceGroups.map(group => group.name);
   const commonLoadBalanceNames = loadBalanceNames.filter(name => name !== '谷歌商店负载均衡');
@@ -1028,6 +1173,7 @@ function main(config) {
     .concat(proxies.map(p => p.name));
 
   // ===== 分流候选池 =====
+
   const commonChoices = buildChoiceList(['节点选择'], baseChoices.filter(name => !excludedFallbackChoices.includes(name)));
   const youtubeOnlyChoices = buildChoiceList(['节点选择', 'YouTube无广节点优先组'], baseChoices.filter(name => name !== '国外AI故障转移'));
   const aiOnlyChoices = buildChoiceList(['节点选择', '国外AI故障转移'], baseChoices.filter(name => name !== 'YouTube无广节点优先组'));
