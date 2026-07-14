@@ -120,6 +120,9 @@ function main(config) {
   config.hosts['services.googleapis.cn'] = 'services.googleapis.com';
   config.hosts['google.cn'] = 'google.com';
   config.hosts['cn.bing.com'] = 'global.bing.com';
+  // Telegram t.me 兼容映射：优先采用域名别名方式，避免直接写死 IP。
+  config.hosts['t.me'] = 'telegram.me';
+
   // DNS 基础资源：分离本地解析、国内 DoH、可信境外 DoH 与广告过滤 DNS。
   const localDns = ['223.6.6.6', '119.29.29.29'];
   const cnDns = ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'];
@@ -215,6 +218,8 @@ function main(config) {
     ])
   });
   // DNS 分流策略：按私有网络 / 国内 / 境外 / 广告 / 特殊业务域名分别指定解析器。
+  // nameserver-policy 维护提示：键必须保持 Mihomo 可识别的 geosite / 域名模式，值必须是一维 DNS 列表。
+  // 若把值误改成对象或二维数组，常见后果是导入失败或策略静默失效。
   config.dns['nameserver-policy'] = Object.assign(config.dns['nameserver-policy'] || {}, {
     // 私有网络与国内站点：优先走本地 DNS / 国内 DoH，减少绕路与污染概率。
     'geosite:private': localDns,
@@ -699,6 +704,7 @@ function main(config) {
   for (const proxy of cleanProxies) {
     regionGroups[matchRegion(proxy.name)].push(proxy.name);
   }
+  // 运行期参数镜像：后续建组函数统一读取这些局部常量；如需调参，优先修改上方常量定义。
   const testUrl = TEST_URL;
   const testInterval = TEST_INTERVAL;
   const testTolerance = TEST_TOLERANCE;
@@ -708,6 +714,7 @@ function main(config) {
   const fallbackLazy = true;
   const regionUrlTestInterval = REGION_TEST_INTERVAL;
   const regionUrlTestTolerance = REGION_TEST_TOLERANCE;
+
   // 分组构造工具：负责保留旧顺序、补默认项，并统一生成各类策略组。
   // 保留用户顺序：若旧配置已有同名 select 组，则尽量继承其代理顺序，减少每次刷新后的选项跳动。
   function preserveGroup(group) {
@@ -724,6 +731,7 @@ function main(config) {
   }
 
   // 代理列表兜底：合并用户列表和默认项，若最终为空则至少返回 DIRECT。
+  // 列表兜底约定：这里只能返回一维字符串数组；若改成对象/嵌套数组，会直接影响 Clash 配置反序列化。
   function ensureGroupList(list, extraDefaults) {
     const merged = unique([].concat(list || [], extraDefaults || []));
     return merged.length ? merged : ['DIRECT'];
@@ -790,6 +798,7 @@ function main(config) {
   }
 
   // 最终分组去重：过滤空项，并按组名去重，防止重复定义覆盖不明。
+  // 分组终态去重：以组名为唯一键；若后面出现同名组，后者会被丢弃，因此新增组名时必须保证唯一。
   function finalizeGroupList(groups) {
     return uniqueBy((groups || []).filter(Boolean), group => group && group.name);
   }
@@ -1179,11 +1188,13 @@ function main(config) {
   const aiOnlyChoices = buildChoiceList(['节点选择', '国外AI故障转移'], baseChoices.filter(name => name !== 'YouTube无广节点优先组'));
 
   // ===== 通用候选构造器 =====
+  // 候选顺序合成：把 first 视为强优先项，其余候选按原池顺序补齐；不要随意改成排序逻辑。
   function makeOrderedChoices(first, pool) {
     const source = pool || baseChoices;
 
     return first.concat(source.filter(name => first.indexOf(name) === -1));
   }
+
   // ===== 业务分组候选项 =====
   const domesticChoices = directChoices.concat(fusionVisibleRegions);
   const taiwanAutoChoice = getRegionAuto('台湾');
@@ -1340,6 +1351,11 @@ function main(config) {
   };
 
   // 最终分组装配：拍平、隐藏辅助组并保留旧分组选项顺序。
+  // 最终分组装配警示：这里的 flat/filter/map 顺序不要随意调整。
+  // - flat: 先展开分区，确保后续处理面对的是线性组列表；
+  // - filter(Boolean): 提前剔除空组，避免 hidden/preserve 处理空值；
+  // - hidden 标记: 只隐藏辅助组，不改变其被其他组引用的能力；
+  // - preserveGroup: 必须放在末尾，保证最终候选顺序基于已清洗后的组数据。
   const proxyGroups = Object.values(coreProxyGroupSections)
 
     .flat()
