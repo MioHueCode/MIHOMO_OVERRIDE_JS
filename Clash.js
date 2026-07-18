@@ -1172,7 +1172,7 @@ function main(config) {
     ...regionFallbackNames.filter(name => fallbackNames.includes(name)),
     '家宽故障转移',
     '自动兜底',
-    ...fallbackNames.filter(name => !regionFallbackNames.includes(name) && name !== '家宽故障转移' && name !== '自动兜底')
+    ...fallbackNames.filter(name => !regionFallbackNames.includes(name) && name !== '家宽故障转移' && name !== '自动兜底' && !excludedFallbackChoices.includes(name))
   ]);
   const baseChoices = ['自动选择', '负载均衡', '全球手动']
     .concat(orderedFallbackNames)
@@ -1283,6 +1283,12 @@ function main(config) {
     fallbackNames.filter(name => !excludedFallbackChoices.includes(name)),
     fusionVisibleRegions
   );
+  const overseasChoices = makeChoicePool(
+    ['自动选择', '全球手动'],
+    orderedFallbackNames,
+    globalFeatureChoices,
+    fusionVisibleRegions
+  );
 
   // ===== 附加显示组 =====
   const visibleRegionAutoGroups = regionAutoOrder
@@ -1322,8 +1328,9 @@ function main(config) {
   const utilityGroupDefs = [
     { name: '下载专用组', icon: iconMap.download || iconMap.fallback, choices: downloadGroupChoices.filter(name => name !== 'DIRECT') },
     { name: '广告拦截', icon: iconMap.adblock, choices: ['REJECT', 'REJECT-DROP', 'PASS'], extraDefaults: ['REJECT-DROP'] },
-    { name: '漏网之鱼', icon: iconMap.final, choices: finalFallbackChoices },
-    { name: '全球直连', icon: iconMap.direct, choices: ['DIRECT'], extraDefaults: [] }
+    { name: '跟踪分析', icon: qIcon('Reject'), choices: ['REJECT', 'DIRECT', '自动选择'], extraDefaults: ['REJECT'] },
+    { name: '全球直连', icon: iconMap.direct, choices: ['DIRECT'], extraDefaults: [] },
+    { name: '漏网之鱼', icon: iconMap.final, choices: finalFallbackChoices }
   ];
   const coreProxyGroupSections = {
     entry: [
@@ -1412,7 +1419,12 @@ function main(config) {
     'PROCESS-NAME,com.google.android.gsf,Google',
     'PROCESS-NAME,com.google.android.apps.maps,Google',
     'PROCESS-NAME,com.deepl.mobiletranslator,Google',
+    'PROCESS-NAME,com.deniscerri.ytdl,下载专用组',
+    'PROCESS-NAME,com.deniscerri.ytdlnis,下载专用组',
+    'PROCESS-NAME,io.github.deniscerri.ytdlnis,下载专用组',
+
   ];
+
   // 翻译服务规则：集中处理 Google Translate 与 DeepL 相关域名。
   const RULES_TRANSLATION = [
 
@@ -1673,6 +1685,28 @@ function main(config) {
     'DOMAIN-SUFFIX,discordstatus.com,风控安全',
     'DOMAIN-SUFFIX,githubstatus.com,风控安全',
     'DOMAIN-SUFFIX,meta.com,风控安全',
+  ];
+  // 跟踪分析规则：覆盖 Tracker、遥测、统计与分析域名。
+  const RULES_TRACKER = [
+
+    'GEOSITE,tracker,跟踪分析',
+    'DOMAIN-KEYWORD,tracker,跟踪分析',
+    'DOMAIN-KEYWORD,analytics,跟踪分析',
+    'DOMAIN-KEYWORD,telemetry,跟踪分析',
+    'DOMAIN-KEYWORD,metrics,跟踪分析',
+    'DOMAIN-KEYWORD,logging,跟踪分析',
+    'DOMAIN-KEYWORD,heatmap,跟踪分析',
+    'DOMAIN-KEYWORD,segment,跟踪分析',
+    'DOMAIN-KEYWORD,amplitude,跟踪分析',
+    'DOMAIN-KEYWORD,mixpanel,跟踪分析',
+    'DOMAIN-KEYWORD,sentry,跟踪分析',
+    'DOMAIN-KEYWORD,datadog,跟踪分析',
+    'DOMAIN-KEYWORD,newrelic,跟踪分析',
+    'DOMAIN-SUFFIX,google-analytics.com,跟踪分析',
+    'DOMAIN-SUFFIX,googletagmanager.com,跟踪分析',
+    'DOMAIN-SUFFIX,googletagservices.com,跟踪分析',
+    'DOMAIN-SUFFIX,doubleclick.net,跟踪分析',
+    'DOMAIN,incoming.telemetry.mozilla.org,跟踪分析',
   ];
   // 风控与系统规则：覆盖 FCM、Play Store、Google AI、下载与高敏感登录链路。
   const RULES_RISK_CONTROL = [
@@ -2513,10 +2547,11 @@ function main(config) {
     'DOMAIN,connect.facebook.net,社交信息流',
     'DOMAIN,graph.facebook.com,社交信息流'
   ];
-  // 兜底规则：国内 IP 直连，其余流量进入最终兜底组。
+  // 兜底规则：国内 IP 直连，非国内 IP 进入国外网站组，剩余流量进入最终兜底组。
   const RULES_DIRECT_AND_FALLBACK = [
 
     'GEOIP,CN,全球直连',
+    'GEOIP,!CN,自动选择',
     'MATCH,漏网之鱼'
   ];
   // 组合规则：将规则内容定义与装配顺序分离，便于后续维护优先级。
@@ -2525,6 +2560,7 @@ function main(config) {
     { name: 'APP_PROCESS', rules: RULES_APP_PROCESS },
     { name: 'TRANSLATION', rules: RULES_TRANSLATION },
     { name: 'ADBLOCK', rules: RULES_ADBLOCK },
+    { name: 'TRACKER', rules: RULES_TRACKER },
     { name: 'RISK_CONTROL', rules: RULES_RISK_CONTROL },
     { name: 'AI_TIKTOK_EXTRA', rules: RULES_AI_TIKTOK_EXTRA },
     { name: 'DOMESTIC', rules: RULES_DOMESTIC },
@@ -2556,6 +2592,7 @@ function main(config) {
     'APP_PROCESS',
     'TRANSLATION',
     'ADBLOCK',
+    'TRACKER',
     'RISK_CONTROL',
     'AI_TIKTOK_EXTRA',
     'DOMESTIC',
