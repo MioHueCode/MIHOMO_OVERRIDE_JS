@@ -62,11 +62,13 @@ function main(config) {
   config['unified-delay'] = true;
   config['find-process-mode'] = 'strict';
   config['global-client-fingerprint'] = config['global-client-fingerprint'] || 'chrome';
+  // 实验特性：统一关闭 GSO/ECN，保持与常见客户端兼容。
   config['experimental'] = Object.assign({}, config['experimental'] || {}, {
     'quic-go-disable-gso': true,
     'quic-go-disable-ecn': true,
-    'dialer-ip4p-convert': false
+    'dialer-ip4p-convert': false,
   });
+
   // 嗅探模块：为 HTTPS / QUIC / 纯 IP 连接补足域名感知，便于后续规则命中。
   if (!config.sniffer || typeof config.sniffer !== 'object') config.sniffer = {};
   config.sniffer['force-dns-mapping'] = true;
@@ -124,21 +126,132 @@ function main(config) {
   config.hosts['t.me'] = 'telegram.me';
 
   // DNS 基础资源：分离本地解析、国内 DoH、可信境外 DoH 与广告过滤 DNS。
-  const localDns = ['223.6.6.6', '119.29.29.29'];
-  const cnDns = ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'];
+  const DNS_ENDPOINTS = {
+    local: ['223.6.6.6', '119.29.29.29'],
+    cn: ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'],
+    trust: ['https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
+    adguard: ['https://dns.adguard-dns.com/dns-query']
+  };
+  const localDns = DNS_ENDPOINTS.local;
+  const cnDns = DNS_ENDPOINTS.cn;
+  const trustDns = DNS_ENDPOINTS.trust;
+  const adguardDns = DNS_ENDPOINTS.adguard;
 
-  const trustDns = ['https://1.1.1.1/dns-query', 'https://dns.google/dns-query'];
-  const adguardDns = ['https://dns.adguard-dns.com/dns-query'];
   // 测速常量：统一控制自动选择、故障转移和地区测速组的探测参数。
   const TEST_URL = 'https://www.gstatic.com/generate_204';
   const TEST_INTERVAL = 360;
-
   const TEST_TOLERANCE = 80;
   const FALLBACK_INTERVAL = 300;
   const FALLBACK_TOLERANCE = 80;
   const REGION_TEST_INTERVAL = 480;
   const REGION_TEST_TOLERANCE = 160;
-  const directChoices = ['🇨🇳 直连 | IPv4优先', '🇨🇳 直连 | IPv6优先', '🇨🇳 直连 | 双栈', '全球直连'];
+  const directChoices = [
+    '🇨🇳 直连 | IPv4优先',
+    '🇨🇳 直连 | IPv6优先',
+    '🇨🇳 直连 | 双栈',
+    '全球直连',
+  ];
+
+  const DNS_POLICY_DOMAIN_SETS = {
+    adguard: [
+      '+.pglstatp-toutiao.com', '+.pangolin-sdk-toutiao.com', '+.pangolin.snssdk.com', '+.sgsnssdk.com', '+.unionadjs.com',
+      '+.adkwai.com', '+.e.kuaishou.com', '+.adukwai.com', '+.tanx.com', '+.alimama.com', '+.mmstat.com', '+.gdt.qq.com',
+      '+.e.qq.com', '+.guanggao.qq.com', '+.adnet.qq.com', '+.iadmatvideo.nosdn.127.net', '+.iadmusicmatvideo.nosdn.127.net',
+      '+.mi.gdt.qq.com', '+.bdxiguaimg.com', '+.adsame.com', '+.bdplus.baidu.com', '+.pos.baidu.com', '+.union.baidu.com',
+      '+.cb.baidu.com', '+.dup.baidustatic.com', '+.cpro.baidu.com', '+.afd.baidu.com', '+.als.baidu.com', '+.nsclick.baidu.com',
+      '+.mobads.baidu.com', '+.eclick.baidu.com', '+.wanfeng1.baidu.com', '+.wm.baidu.com', '+.duclick.baidu.com', '+.adimg.uve.weibo.com',
+      '+.alitui.weibo.com', '+.biz.weibo.com', '+.game.weibo.cn', '+.sax.sina.com.cn', '+.adbox.sina.com.cn', '+.adview.cn',
+      '+.miaozhen.com', '+.irs01.com', '+.admaster.com.cn', '+.adpush.cn', '+.cnxad.com', '+.adkmob.com', '+.adobe-identity.omtrdc.net',
+      '+.omtrdc.net', '+.2mdn.net', '+.googlesyndication.com', '+.googleadservices.com', '+.googleadsserving.cn', '+.googletagservices.com',
+      '+.doubleclick.net', '+.google-analytics.com', '+.analytics.google.com', '+.ads.google.com'
+    ],
+    tiktok: [
+      '+.tiktok.com', '+.tiktokv.com', '+.tiktokcdn.com', '+.tiktokcdn-us.com', '+.tiktokcdn-eu.com',
+      '+.musical.ly', '+.ibyteimg.com', '+.ibytedtos.com', '+.byteoversea.com', '+.bytefcdn-oversea.com'
+    ],
+    adguardService: ['+.adtidy.org', '+.adguard.com', '+.adguard.org', '+.adguard-dns.io'],
+    browserRisk: [
+      '+.addons.mozilla.org', '+.addons.cdn.mozilla.net', 'api.ipify.org', 'fpjs.checkout.com', 'fpjscache.checkout.com',
+      'risk.checkout.com', '+.online-metrix.net', 'volatile-pa.googleapis.com', 'settings-win.data.microsoft.com'
+    ],
+    openaiRealtime: [
+      '+.auth0.openai.com', '+.oaistatic.com', '+.oaiusercontent.com', '+.files.oaiusercontent.com', '+.cdn.openai.com',
+      '+.livekit.cloud', '+.statsigapi.net'
+    ],
+    google: [
+      '+.google.com', '+.googleapis.com', '+.googleapis.cn', '+.services.googleapis.cn', '+.gstatic.com', '+.googleusercontent.com',
+      '+.gvt1.com', '+.gvt2.com', '+.gvt3.com', '+.recaptcha.net', '+.recaptcha-cn.net'
+    ],
+    aiFinanceRisk: [
+      '+.chatgpt.com', '+.openai.com', '+.metamask.io', '+.neverless.com', '+.noones.com', 'noonessupport.zendesk.com',
+      '+.okx.com', '+.okx.ac', '+.okx.cab', '+.xlayer.tech', '+.ifastgb.com', '+.fundsupermart.com', 'stest.zimperium.com',
+      '+.giffgaff.com', 'cdn-eu.dynamicyield.com', 'privacyportal-uk.onetrust.com', 'mobile-data.onetrust.io', '+.anthropic.com',
+      '+.claude.ai', '+.perplexity.ai', '+.poe.com', '+.cohere.com', '+.huggingface.co', '+.replicate.com', '+.cursor.sh'
+    ],
+    mainstreamOverseas: [
+      '+.netflix.com', '+.nflxvideo.net', '+.disneyplus.com', '+.primevideo.com', '+.spotify.com', '+.discord.com',
+      '+.discordapp.com', '+.reddit.com', '+.telegram.org', '+.t.me', '+.github.com', '+.githubusercontent.com', '+.steamcommunity.com',
+      '+.steampowered.com', '+.epicgames.com', '+.roblox.com'
+    ],
+    youtubeMedia: [
+      'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com', '+.googlevideo.com', '+.ytimg.com', '+.ggpht.com'
+    ]
+  };
+  const DNS_FALLBACK_FILTER_DOMAIN_SETS = {
+    baseOverseas: ['+.google.com', '+.youtube.com', '+.twitter.com', '+.x.com', '+.telegram.org', '+.t.me'],
+    meta: ['+.facebook.com', '+.fbcdn.net', '+.instagram.com', '+.whatsapp.com', '+.whatsapp.net'],
+    ai: ['+.openai.com', '+.chatgpt.com', '+.claude.ai', '+.anthropic.com', '+.perplexity.ai', '+.poe.com', '+.midjourney.com', '+.character.ai', '+.c.ai', '+.groq.com', '+.mistral.ai', '+.x.ai'],
+    devCommunity: ['+.github.com', '+.githubusercontent.com', '+.discord.com', '+.reddit.com', '+.reddit.map.fastly.net'],
+    tiktok: ['+.tiktok.com', '+.tiktokv.com', '+.byteoversea.com', '+.ibytedtos.com', '+.tiktokcdn.com', '+.tiktokcdn-us.com', '+.tiktokcdn-eu.com', '+.tiktokrow-cdn.com', '+.tiktokv.us', '+.ibyteimg.com', '+.muscdn.com'],
+    productivity: ['+.cloudflare.com', '+.notion.so', '+.dropbox.com'],
+    crypto: ['+.binance.com', '+.coinbase.com', '+.okx.com', '+.bybit.com', '+.kucoin.com', '+.metamask.io', '+.trustwallet.com', '+.walletconnect.com', '+.oklink.com', '+.okx-dns.com', '+.okx-dns1.com', '+.okx-dns2.com', '+.byapis.com', '+.bycsi.com', '+.bybit-global.com', '+.bybitglobal.com', '+.bnbstatic.com', '+.binanceapi.com'],
+    finance: ['+.paypal.com', '+.stripe.com', '+.wise.com', '+.revolut.com', '+.card.io', '+.paypalhere.com', '+.venmo.com', '+.xoom.com', '+.stripe.network', '+.stripe-terminal-local-reader.net', '+.link.com'],
+    streaming: ['+.netflix.com', '+.disneyplus.com', '+.hulu.com', '+.hbomax.com', '+.primevideo.com', '+.spotify.com', '+.twitch.tv', '+.twtrdns.net'],
+    gaming: ['+.steamcommunity.com', '+.steampowered.com', '+.epicgames.com', '+.roblox.com', '+.battle.net', '+.blizzard.com', '+.blizzardentertainment.com', '+.battlenet.com.cn', '+.ea.com', '+.origin.com', '+.uplay.com', '+.nintendo.com', '+.playstation.com', '+.xbox.com', '+.xboxlive.com', '+.supercell.com', '+.supercell.net'],
+    bigTech: ['+.apple.com', '+.icloud.com', '+.microsoft.com', '+.live.com', '+.amazon.com', '+.aws.amazon.com'],
+    infra: ['+.dns.google', '+.dns.google.com', '+.api2.branch.io', '+.cdn.branch.io'],
+    youtubeMedia: ['+.youtubei.googleapis.com', '+.youtube.googleapis.com', 'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com', '+.googlevideo.com', '+.ytimg.com', '+.ggpht.com']
+  };
+
+  const DNS_FAKE_IP_FILTER_SETS = {
+    lan: [
+      '*.lan', '*.local', '*.localdomain', '*.home.arpa', '*.internal'
+    ],
+    connectivityCheck: [
+      'localhost.ptlogin2.qq.com', 'msftconnecttest.com', 'msftncsi.com',
+      'connectivitycheck.android.com', 'connectivitycheck.gstatic.com', 'connect.rom.miui.com',
+      'captive.apple.com', 'www.msftconnecttest.com', 'www.msftncsi.com'
+    ],
+    timeSync: [
+      'time.windows.com', 'time.apple.com', 'time.android.com', 'pool.ntp.org', 'ntp.*.com', 'ntp.*.cn'
+    ],
+    routerGateway: [
+      'router.asus.com', 'routerlogin.net', 'www.routerlogin.com', 'tplogin.cn', 'tplinkwifi.net',
+      'miwifi.com', 'router.miwifi.com', 'my.router', 'fritz.box', 'dlinkrouter.local', 'orbilogin.com'
+    ],
+    realtimeRelay: [
+      'stun.*', 'stun.*.*', 'stun.*.*.*', 'turn.*', 'turn.*.*', 'relay.*'
+    ],
+    consoleAuth: [
+      'cable.auth.com', '*.srv.nintendo.net', '*.stun.playstation.net',
+      'xbox.*.microsoft.com', '*.xboxlive.com', '*.xbox.com', '*.xboxservices.com',
+      '*.playstation.net', '*.playstation.com', 'psnprofiles.com',
+      '*.nintendo.com', '*.nintendo.net', '*.nintendo.co.jp'
+    ],
+    gamingPlatforms: [
+      '*.battle.net', '*.battlenet.com.cn', '*.wotgame.cn', '*.wggames.cn', '*.wowsgame.cn', '*.wargaming.net',
+      '*.blizzard.com', '*.blizzardentertainment.com', '*.roblox.com', '*.rbxcdn.com', '*.minecraft.net', '*.mojang.com',
+      '*.mojangstudios.com', '*.epicgames.com', '*.unrealengine.com', '*.epicgames-download1.akamaized.net', '*.riotgames.com',
+      '*.leagueoflegends.com', '*.playvalorant.com', '*.riotcdn.net', '*.lol.secure.dyn.riotcdn.net', '*.ea.com', '*.origin.com',
+      '*.origin-a.akamaihd.net', '*.ubisoft.com', '*.uplay.com', '*.cdn.ubisoft.com', '*.rockstargames.com', '*.gog.com',
+      '*.steamcommunity.com', '*.steampowered.com', '*.steamstatic.com', '*.steamcdn-a.akamaihd.net', '*.steamcontent.com',
+      '*.supercell.com', '*.supercell.net', '*.piston-meta.mojang.com', '*.launcher.mojang.com'
+    ],
+    cloudflareChallenge: [
+      'challenges.cloudflare.com', 'turnstile.cloudflare.com', 'assets.cloudflare.com', '*.cloudflare.com'
+    ]
+  };
+
   // DNS 主配置：负责 fake-ip、nameserver、hosts 与策略分流的统一落盘。
   config.dns = Object.assign({}, config.dns || {}, {
     enable: true,
@@ -158,48 +271,28 @@ function main(config) {
       ...asArray(config.dns && config.dns['fake-ip-filter']),
 
       // 局域网 / 本地域名：这类地址通常用于内网发现与本地服务，不适合 fake-ip。
-      '*.lan', '*.local', '*.localdomain', '*.home.arpa', '*.internal',
+      ...DNS_FAKE_IP_FILTER_SETS.lan,
 
       // 连通性检测：系统用来判断网络状态，使用 fake-ip 容易触发误判。
-      'localhost.ptlogin2.qq.com', 'msftconnecttest.com', 'msftncsi.com',
-      'connectivitycheck.android.com', 'connectivitycheck.gstatic.com', 'connect.rom.miui.com',
-      'captive.apple.com', 'www.msftconnecttest.com', 'www.msftncsi.com',
+      ...DNS_FAKE_IP_FILTER_SETS.connectivityCheck,
 
       // 时间同步：NTP / 校时域名应返回真实地址，避免时钟同步异常。
-      'time.windows.com', 'time.apple.com', 'time.android.com', 'pool.ntp.org', 'ntp.*.com', 'ntp.*.cn',
+      ...DNS_FAKE_IP_FILTER_SETS.timeSync,
 
       // 路由器 / 网关管理地址：管理页和本地路由器域名不应走 fake-ip。
-      'router.asus.com', 'routerlogin.net', 'www.routerlogin.com', 'tplogin.cn', 'tplinkwifi.net',
-      'miwifi.com', 'router.miwifi.com', 'my.router', 'fritz.box', 'dlinkrouter.local', 'orbilogin.com',
+      ...DNS_FAKE_IP_FILTER_SETS.routerGateway,
 
       // STUN / TURN / Relay：实时通信协商依赖真实地址，fake-ip 容易破坏打洞与中继。
-      'stun.*', 'stun.*.*', 'stun.*.*.*', 'turn.*', 'turn.*.*', 'relay.*',
+      ...DNS_FAKE_IP_FILTER_SETS.realtimeRelay,
 
       // 主机平台 / 家用设备联机认证：保持真实解析，减少 NAT / 联机检测异常。
-      'cable.auth.com', '*.srv.nintendo.net', '*.stun.playstation.net',
-      'xbox.*.microsoft.com', '*.xboxlive.com',
-      '*.xbox.com', '*.xboxservices.com',
-      '*.playstation.net', '*.playstation.com', 'psnprofiles.com',
-      '*.nintendo.com', '*.nintendo.net', '*.nintendo.co.jp',
+      ...DNS_FAKE_IP_FILTER_SETS.consoleAuth,
 
       // 海外 PC / 主机游戏平台：下载器、认证、联机与反作弊链路尽量保留真实 IP。
-      '*.battle.net', '*.battlenet.com.cn',
-      '*.wotgame.cn', '*.wggames.cn', '*.wowsgame.cn', '*.wargaming.net',
-      '*.blizzard.com', '*.blizzardentertainment.com',
-      '*.roblox.com', '*.rbxcdn.com',
-      '*.minecraft.net', '*.mojang.com', '*.mojangstudios.com',
-      '*.epicgames.com', '*.unrealengine.com', '*.epicgames-download1.akamaized.net',
-      '*.riotgames.com', '*.leagueoflegends.com', '*.playvalorant.com', '*.riotcdn.net', '*.lol.secure.dyn.riotcdn.net',
-      '*.ea.com', '*.origin.com', '*.origin-a.akamaihd.net',
-      '*.ubisoft.com', '*.uplay.com', '*.cdn.ubisoft.com',
-      '*.rockstargames.com',
-      '*.gog.com',
-      '*.steamcommunity.com', '*.steampowered.com', '*.steamstatic.com', '*.steamcdn-a.akamaihd.net', '*.steamcontent.com',
-      '*.supercell.com', '*.supercell.net',
-      '*.piston-meta.mojang.com', '*.launcher.mojang.com',
+      ...DNS_FAKE_IP_FILTER_SETS.gamingPlatforms,
 
       // Cloudflare 挑战 / 验证资源：验证码与挑战链路对真实地址更敏感。
-      'challenges.cloudflare.com', 'turnstile.cloudflare.com', 'assets.cloudflare.com', '*.cloudflare.com'
+      ...DNS_FAKE_IP_FILTER_SETS.cloudflareChallenge
     ]),
 
     nameserver: uniqList([
@@ -230,171 +323,34 @@ function main(config) {
 
     // 广告与追踪域名：交给 AdGuard DNS，尽量在解析层先做拦截。
     'geosite:category-ads-all': adguardDns,
-    '+.pglstatp-toutiao.com': adguardDns,
-    '+.pangolin-sdk-toutiao.com': adguardDns,
-    '+.pangolin.snssdk.com': adguardDns,
-    '+.sgsnssdk.com': adguardDns,
-    '+.unionadjs.com': adguardDns,
-    '+.adkwai.com': adguardDns,
-    '+.e.kuaishou.com': adguardDns,
-    '+.adukwai.com': adguardDns,
-    '+.tanx.com': adguardDns,
-    '+.alimama.com': adguardDns,
-    '+.mmstat.com': adguardDns,
-    '+.gdt.qq.com': adguardDns,
-    '+.e.qq.com': adguardDns,
-    '+.guanggao.qq.com': adguardDns,
-    '+.adnet.qq.com': adguardDns,
-    '+.iadmatvideo.nosdn.127.net': adguardDns,
-    '+.iadmusicmatvideo.nosdn.127.net': adguardDns,
-    '+.mi.gdt.qq.com': adguardDns,
-    '+.bdxiguaimg.com': adguardDns,
-    '+.adsame.com': adguardDns,
-    '+.bdplus.baidu.com': adguardDns,
-    '+.pos.baidu.com': adguardDns,
-    '+.union.baidu.com': adguardDns,
-    '+.cb.baidu.com': adguardDns,
-    '+.dup.baidustatic.com': adguardDns,
-    '+.cpro.baidu.com': adguardDns,
-    '+.afd.baidu.com': adguardDns,
-    '+.als.baidu.com': adguardDns,
-    '+.nsclick.baidu.com': adguardDns,
-    '+.mobads.baidu.com': adguardDns,
-    '+.eclick.baidu.com': adguardDns,
-    '+.wanfeng1.baidu.com': adguardDns,
-    '+.wm.baidu.com': adguardDns,
-    '+.duclick.baidu.com': adguardDns,
-    '+.adimg.uve.weibo.com': adguardDns,
-    '+.alitui.weibo.com': adguardDns,
-    '+.biz.weibo.com': adguardDns,
-    '+.game.weibo.cn': adguardDns,
-    '+.sax.sina.com.cn': adguardDns,
-    '+.adbox.sina.com.cn': adguardDns,
-    '+.adview.cn': adguardDns,
-    '+.miaozhen.com': adguardDns,
-    '+.irs01.com': adguardDns,
-    '+.admaster.com.cn': adguardDns,
-    '+.adpush.cn': adguardDns,
-    '+.cnxad.com': adguardDns,
-    '+.adkmob.com': adguardDns,
-    '+.adobe-identity.omtrdc.net': adguardDns,
-    '+.omtrdc.net': adguardDns,
-    '+.2mdn.net': adguardDns,
-    '+.googlesyndication.com': adguardDns,
-    '+.googleadservices.com': adguardDns,
-    '+.googleadsserving.cn': adguardDns,
-    '+.googletagservices.com': adguardDns,
-    '+.doubleclick.net': adguardDns,
-    '+.google-analytics.com': adguardDns,
-    '+.analytics.google.com': adguardDns,
-    '+.ads.google.com': adguardDns,
+    ...Object.fromEntries(DNS_POLICY_DOMAIN_SETS.adguard.map(domain => [domain, adguardDns])),
 
     // TikTok / 字节海外链路：单独指定可信境外 DNS，避免区域解析偏移。
-    '+.tiktok.com': trustDns,
-    '+.tiktokv.com': trustDns,
-    '+.tiktokcdn.com': trustDns,
-    '+.tiktokcdn-us.com': trustDns,
-    '+.tiktokcdn-eu.com': trustDns,
-    '+.musical.ly': trustDns,
-    '+.ibyteimg.com': trustDns,
-    '+.ibytedtos.com': trustDns,
-    '+.byteoversea.com': trustDns,
-    '+.bytefcdn-oversea.com': trustDns,
+    ...Object.fromEntries(DNS_POLICY_DOMAIN_SETS.tiktok.map(domain => [domain, trustDns])),
 
     // 广告过滤服务自身：避免过滤器域名走到被过滤 DNS 造成自指问题。
-    '+.adtidy.org': trustDns,
-    '+.adguard.com': trustDns,
-    '+.adguard.org': trustDns,
-    '+.adguard-dns.io': trustDns,
+    ...Object.fromEntries(DNS_POLICY_DOMAIN_SETS.adguardService.map(domain => [domain, trustDns])),
 
     // 浏览器扩展 / 指纹 / 风控基础设施：优先境外可信解析，减少误判与校验失败。
-    '+.addons.mozilla.org': trustDns,
-    '+.addons.cdn.mozilla.net': trustDns,
-    'api.ipify.org': trustDns,
-    'fpjs.checkout.com': trustDns,
-    'fpjscache.checkout.com': trustDns,
-    'risk.checkout.com': trustDns,
-    '+.online-metrix.net': trustDns,
-    'volatile-pa.googleapis.com': trustDns,
-    'settings-win.data.microsoft.com': trustDns,
+    ...Object.fromEntries(DNS_POLICY_DOMAIN_SETS.browserRisk.map(domain => [domain, trustDns])),
 
     // OpenAI / AI 实时服务：保证登录、静态资源与实时链路解析稳定。
-    '+.auth0.openai.com': trustDns,
-    '+.oaistatic.com': trustDns,
-    '+.oaiusercontent.com': trustDns,
-    '+.files.oaiusercontent.com': trustDns,
-    '+.cdn.openai.com': trustDns,
-    '+.livekit.cloud': trustDns,
-    '+.statsigapi.net': trustDns,
+    ...Object.fromEntries(DNS_POLICY_DOMAIN_SETS.openaiRealtime.map(domain => [domain, trustDns])),
 
     // 国内 DoH 服务自身：强制回落本地 DNS，避免解析自循环。
     'dns.alidns.com': localDns,
 
     // Google 主生态：搜索、接口、静态资源与验证码统一走境外可信 DNS。
-    '+.google.com': trustDns,
-    '+.googleapis.com': trustDns,
-    '+.googleapis.cn': trustDns,
-    '+.services.googleapis.cn': trustDns,
-    '+.gstatic.com': trustDns,
-    '+.googleusercontent.com': trustDns,
-    '+.gvt1.com': trustDns,
-    '+.gvt2.com': trustDns,
-    '+.gvt3.com': trustDns,
-    '+.recaptcha.net': trustDns,
-    '+.recaptcha-cn.net': trustDns,
+    ...Object.fromEntries(DNS_POLICY_DOMAIN_SETS.google.map(domain => [domain, trustDns])),
 
     // 通用海外 AI / 钱包 / 风控站点：避免被国内解析劫持或区域收敛。
-    '+.chatgpt.com': trustDns,
-    '+.openai.com': trustDns,
-    '+.metamask.io': trustDns,
-    '+.neverless.com': trustDns,
-    '+.noones.com': trustDns,
-    'noonessupport.zendesk.com': trustDns,
-    '+.okx.com': trustDns,
-    '+.okx.ac': trustDns,
-    '+.okx.cab': trustDns,
-    '+.xlayer.tech': trustDns,
-    '+.ifastgb.com': trustDns,
-    '+.fundsupermart.com': trustDns,
-    'stest.zimperium.com': trustDns,
-    '+.giffgaff.com': trustDns,
-    'cdn-eu.dynamicyield.com': trustDns,
-    'privacyportal-uk.onetrust.com': trustDns,
-    'mobile-data.onetrust.io': trustDns,
-    '+.anthropic.com': trustDns,
-    '+.claude.ai': trustDns,
-    '+.perplexity.ai': trustDns,
-    '+.poe.com': trustDns,
-    '+.cohere.com': trustDns,
-    '+.huggingface.co': trustDns,
-    '+.replicate.com': trustDns,
-    '+.cursor.sh': trustDns,
+    ...Object.fromEntries(DNS_POLICY_DOMAIN_SETS.aiFinanceRisk.map(domain => [domain, trustDns])),
 
     // 主流海外内容 / 社交 / 开发 / 游戏站点：统一使用可信境外 DNS 维持地域一致性。
-    '+.netflix.com': trustDns,
-    '+.nflxvideo.net': trustDns,
-    '+.disneyplus.com': trustDns,
-    '+.primevideo.com': trustDns,
-    '+.spotify.com': trustDns,
-    '+.discord.com': trustDns,
-    '+.discordapp.com': trustDns,
-    '+.reddit.com': trustDns,
-    '+.telegram.org': trustDns,
-    '+.t.me': trustDns,
-    '+.github.com': trustDns,
-    '+.githubusercontent.com': trustDns,
-    '+.steamcommunity.com': trustDns,
-    '+.steampowered.com': trustDns,
-    '+.epicgames.com': trustDns,
-    '+.roblox.com': trustDns,
+    ...Object.fromEntries(DNS_POLICY_DOMAIN_SETS.mainstreamOverseas.map(domain => [domain, trustDns])),
 
     // YouTube 视频资源链路：单独点名，避免视频域名被错误落到国内 DNS。
-    'jnn-pa.googleapis.com': trustDns,
-    'youtubeembeddedplayer.googleapis.com': trustDns,
-    'video.google.com': trustDns,
-    '+.googlevideo.com': trustDns,
-    '+.ytimg.com': trustDns,
-    '+.ggpht.com': trustDns,
+    ...Object.fromEntries(DNS_POLICY_DOMAIN_SETS.youtubeMedia.map(domain => [domain, trustDns])),
   });
   // fallback 过滤器：决定哪些域名 / IP 结果需要优先参考 fallback DNS。
   config.dns['fallback-filter'] = {
@@ -408,43 +364,43 @@ function main(config) {
     // 域名白名单：这些域名即使初始解析有结果，也允许 fallback DNS 参与校验。
     domain: [
       // Google / YouTube / Twitter / Telegram 等基础海外平台。
-      '+.google.com', '+.youtube.com', '+.twitter.com', '+.x.com', '+.telegram.org', '+.t.me',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.baseOverseas,
 
       // Meta 社交生态。
-      '+.facebook.com', '+.fbcdn.net', '+.instagram.com', '+.whatsapp.com', '+.whatsapp.net',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.meta,
 
       // 海外 AI 服务。
-      '+.openai.com', '+.chatgpt.com', '+.claude.ai', '+.anthropic.com', '+.perplexity.ai', '+.poe.com', '+.midjourney.com', '+.character.ai', '+.c.ai', '+.groq.com', '+.mistral.ai', '+.x.ai',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.ai,
 
       // 开发 / 社区服务。
-      '+.github.com', '+.githubusercontent.com', '+.discord.com', '+.reddit.com', '+.reddit.map.fastly.net',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.devCommunity,
 
       // TikTok / 字节海外链路。
-      '+.tiktok.com', '+.tiktokv.com', '+.byteoversea.com', '+.ibytedtos.com', '+.tiktokcdn.com', '+.tiktokcdn-us.com', '+.tiktokcdn-eu.com', '+.tiktokrow-cdn.com', '+.tiktokv.us', '+.ibyteimg.com', '+.muscdn.com',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok,
 
       // 云平台与生产力服务。
-      '+.cloudflare.com', '+.notion.so', '+.dropbox.com',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.productivity,
 
       // 交易所 / 钱包 / 加密资产基础设施。
-      '+.binance.com', '+.coinbase.com', '+.okx.com', '+.bybit.com', '+.kucoin.com', '+.metamask.io', '+.trustwallet.com', '+.walletconnect.com', '+.oklink.com', '+.okx-dns.com', '+.okx-dns1.com', '+.okx-dns2.com', '+.byapis.com', '+.bycsi.com', '+.bybit-global.com', '+.bybitglobal.com', '+.bnbstatic.com', '+.binanceapi.com',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto,
 
       // 金融支付与风控敏感域名。
-      '+.paypal.com', '+.stripe.com', '+.wise.com', '+.revolut.com', '+.card.io', '+.paypalhere.com', '+.venmo.com', '+.xoom.com', '+.stripe.network', '+.stripe-terminal-local-reader.net', '+.link.com',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.finance,
 
       // 流媒体与内容分发平台。
-      '+.netflix.com', '+.disneyplus.com', '+.hulu.com', '+.hbomax.com', '+.primevideo.com', '+.spotify.com', '+.twitch.tv', '+.twtrdns.net',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.streaming,
 
       // 海外游戏平台与发行生态。
-      '+.steamcommunity.com', '+.steampowered.com', '+.epicgames.com', '+.roblox.com', '+.battle.net', '+.blizzard.com', '+.blizzardentertainment.com', '+.battlenet.com.cn', '+.ea.com', '+.origin.com', '+.uplay.com', '+.nintendo.com', '+.playstation.com', '+.xbox.com', '+.xboxlive.com', '+.supercell.com', '+.supercell.net',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.gaming,
 
       // Apple / Microsoft / Amazon 等大厂主域名。
-      '+.apple.com', '+.icloud.com', '+.microsoft.com', '+.live.com', '+.amazon.com', '+.aws.amazon.com',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.bigTech,
 
       // 特殊基础设施域名。
-      '+.dns.google', '+.dns.google.com', '+.api2.branch.io', '+.cdn.branch.io',
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.infra,
 
       // YouTube 视频与媒体资源链路。
-      '+.youtubei.googleapis.com', '+.youtube.googleapis.com', 'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com', '+.googlevideo.com', '+.ytimg.com', '+.ggpht.com'
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.youtubeMedia
     ]
   };
 
@@ -596,51 +552,108 @@ function main(config) {
   const regionGroups = {
     '香港': [],
     '台湾': [],
-
     '日本': [],
     '新加坡': [],
     '美国': [],
     '韩国': [],
     '俄罗斯': [],
     '欧盟': [],
-    '其他地区': []
+    '其他地区': [],
   };
 
   // 关键词映射：覆盖常见中文写法、英文国名、城市名、机场三字码 / 两字码缩写。
-  const keywordMap = {
-
-    '香港': ['香港', 'hk', 'hong kong', 'hongkong', 'hkg', 'kowloon', 'tsim sha tsui'],
-    '台湾': ['台湾', '台灣', 'tw', 'taiwan', 'taipei', 'taichung', 'kaohsiung', 'hsinchu', 'tainan'],
-    '日本': ['日本', 'jp', 'japan', 'tokyo', 'osaka', 'nagoya', 'saitama', 'yokohama', 'fukuoka', 'kawasaki', 'chiba', 'sapporo', 'okinawa'],
-    '新加坡': ['新加坡', 'sg', 'singapore', 'sgp'],
-    '美国': ['美国', 'us', 'usa', 'united states', 'america', 'los angeles', 'san jose', 'seattle', 'chicago', 'new york', 'silicon valley', 'las vegas', 'phoenix', 'dallas', 'miami', 'atlanta', 'denver', 'boston', 'ashburn', 'portland'],
-    '韩国': ['韩国', '南韩', 'kr', 'korea', 'seoul', 'busan', 'incheon', 'daejeon'],
-    '俄罗斯': ['俄罗斯', 'ru', 'russia', 'moscow', 'moskva', 'saint petersburg', 'st. petersburg', 'novosibirsk'],
-    '欧盟': ['英国', 'gb', 'uk', 'britain', 'united kingdom', 'london', 'manchester', '德国', 'de', 'germany', 'frankfurt', 'berlin', 'munich', '法国', 'fr', 'france', 'paris', 'marseille', '荷兰', 'nl', 'netherlands', 'amsterdam', 'rotterdam', '土耳其', 'tr', 'turkey', 'istanbul', '意大利', 'italy', 'milan', 'rome', '西班牙', 'es', 'spain', 'madrid', 'barcelona', '瑞典', 'sweden', 'stockholm', '波兰', 'pl', 'poland', 'warsaw', '瑞士', 'ch', 'switzerland', 'zurich', '奥地利', 'austria', 'vienna', '比利时', 'belgium', 'brussels', '丹麦', 'dk', 'denmark', 'copenhagen', '芬兰', 'fi', 'finland', 'helsinki', '挪威', 'norway', 'oslo', '欧盟', '欧洲', 'europe', 'european union'], 
-    '其他地区': ['印度', 'india', 'in', '马来西亚', 'malaysia', 'my', '越南', 'vietnam', 'vn', '加拿大', 'canada', 'ca', '澳大利亚', '澳洲', 'australia', 'au', '悉尼', 'sydney', '墨尔本', 'melbourne', '新西兰', 'new zealand', 'nz', '奥克兰', 'auckland', '阿联酋', 'uae', 'dubai', '迪拜', '泰国', 'thailand', 'th', '曼谷', 'bangkok', '菲律宾', 'philippines', 'ph', '马尼拉', 'manila', '印度尼西亚', '印尼', 'indonesia', 'id', '雅加达', 'jakarta']
+  const REGION_KEYWORD_MAP = {
+    '香港': [
+      '香港', 'hk', 'hong kong', 'hongkong', 'hkg', 'kowloon', 'tsim sha tsui'
+    ],
+    '台湾': [
+      '台湾', '台灣', 'tw', 'taiwan', 'taipei', 'taichung', 'kaohsiung', 'hsinchu', 'tainan'
+    ],
+    '日本': [
+      '日本', 'jp', 'japan', 'tokyo', 'osaka', 'nagoya', 'saitama', 'yokohama', 'fukuoka', 'kawasaki', 'chiba', 'sapporo', 'okinawa'
+    ],
+    '新加坡': [
+      '新加坡', 'sg', 'singapore', 'sgp'
+    ],
+    '美国': [
+      '美国', 'us', 'usa', 'united states', 'america', 'los angeles', 'san jose', 'seattle', 'chicago', 'new york',
+      'silicon valley', 'las vegas', 'phoenix', 'dallas', 'miami', 'atlanta', 'denver', 'boston', 'ashburn', 'portland'
+    ],
+    '韩国': [
+      '韩国', '南韩', 'kr', 'korea', 'seoul', 'busan', 'incheon', 'daejeon'
+    ],
+    '俄罗斯': [
+      '俄罗斯', 'ru', 'russia', 'moscow', 'moskva', 'saint petersburg', 'st. petersburg', 'novosibirsk'
+    ],
+    '欧盟': [
+      '英国', 'gb', 'uk', 'britain', 'united kingdom', 'london', 'manchester',
+      '德国', 'de', 'germany', 'frankfurt', 'berlin', 'munich',
+      '法国', 'fr', 'france', 'paris', 'marseille',
+      '荷兰', 'nl', 'netherlands', 'amsterdam', 'rotterdam',
+      '土耳其', 'tr', 'turkey', 'istanbul',
+      '意大利', 'italy', 'milan', 'rome',
+      '西班牙', 'es', 'spain', 'madrid', 'barcelona',
+      '瑞典', 'sweden', 'stockholm',
+      '波兰', 'pl', 'poland', 'warsaw',
+      '瑞士', 'ch', 'switzerland', 'zurich',
+      '奥地利', 'austria', 'vienna',
+      '比利时', 'belgium', 'brussels',
+      '丹麦', 'dk', 'denmark', 'copenhagen',
+      '芬兰', 'fi', 'finland', 'helsinki',
+      '挪威', 'norway', 'oslo',
+      '欧盟', '欧洲', 'europe', 'european union'
+    ],
+    '其他地区': [
+      '印度', 'india', 'in',
+      '马来西亚', 'malaysia', 'my',
+      '越南', 'vietnam', 'vn',
+      '加拿大', 'canada', 'ca',
+      '澳大利亚', '澳洲', 'australia', 'au', '悉尼', 'sydney', '墨尔本', 'melbourne',
+      '新西兰', 'new zealand', 'nz', '奥克兰', 'auckland',
+      '阿联酋', 'uae', 'dubai', '迪拜',
+      '泰国', 'thailand', 'th', '曼谷', 'bangkok',
+      '菲律宾', 'philippines', 'ph', '马尼拉', 'manila',
+      '印度尼西亚', '印尼', 'indonesia', 'id', '雅加达', 'jakarta'
+    ],
   };
   // 匹配优先级：当前面多个地区关键词可能冲突时，按这个顺序先命中更常见主区域。
-  const regionPriority = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '欧盟', '其他地区'];
+  const REGION_PRIORITY = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '欧盟', '其他地区'];
 
   // 旗帜优先：节点名带国旗时，直接作为最高置信度地区信号。
-  const regionFlagMap = [
-    ['香港', /🇭🇰/], ['台湾', /🇹🇼/], ['日本', /🇯🇵/], ['新加坡', /🇸🇬/],
-    ['美国', /🇺🇸/], ['韩国', /🇰🇷/], ['俄罗斯', /🇷🇺/],
-    ['欧盟', /🇪🇺|🇬🇧|🇩🇪|🇫🇷|🇳🇱|🇮🇹|🇪🇸|🇸🇪|🇵🇱|🇨🇭|🇦🇹|🇧🇪|🇩🇰|🇫🇮|🇳🇴|🇹🇷/]
+  const REGION_FLAG_MAP = [
+    ['香港', /🇭🇰/],
+    ['台湾', /🇹🇼/],
+    ['日本', /🇯🇵/],
+    ['新加坡', /🇸🇬/],
+    ['美国', /🇺🇸/],
+    ['韩国', /🇰🇷/],
+    ['俄罗斯', /🇷🇺/],
+    ['欧盟', /🇪🇺|🇬🇧|🇩🇪|🇫🇷|🇳🇱|🇮🇹|🇪🇸|🇸🇪|🇵🇱|🇨🇭|🇦🇹|🇧🇪|🇩🇰|🇫🇮|🇳🇴|🇹🇷/],
+  ];
+  const REGION_RECOVERY_PATTERNS = [
+    ['香港', /(香港|hong\s?kong|hongkong|\bhk\b|\bhkg\b)/i],
+    ['台湾', /(台湾|台灣|taiwan|taipei|taichung|kaohsiung|\btw\b)/i],
+    ['日本', /(日本|japan|tokyo|osaka|nagoya|\bjp\b)/i],
+    ['新加坡', /(新加坡|singapore|\bsg\b|\bsgp\b)/i],
+    ['美国', /(美国|united states|america|los angeles|san jose|new york|\bus\b|\busa\b)/i],
+    ['韩国', /(韩国|南韩|korea|seoul|busan|\bkr\b)/i],
+    ['俄罗斯', /(俄罗斯|russia|moscow|moskva|saint petersburg|st\. petersburg|\bru\b)/i],
+    ['欧盟', /(英国|德国|法国|荷兰|土耳其|欧盟|欧洲|united kingdom|britain|england|germany|france|netherlands|turkey|europe|\buk\b|\bgb\b|\bde\b|\bfr\b|\bnl\b|\btr\b)/i],
+    ['其他地区', /(加拿大|canada|\bca\b|澳大利亚|澳洲|australia|\bau\b|悉尼|sydney|墨尔本|melbourne|新西兰|new zealand|\bnz\b|奥克兰|auckland|阿联酋|\buae\b|迪拜|dubai|泰国|thailand|\bth\b|曼谷|bangkok|菲律宾|philippines|\bph\b|马尼拉|manila|印度尼西亚|印尼|indonesia|\bid\b|雅加达|jakarta)/i]
   ];
 
   const normalizeCache = new Map();
 
   // 噪声关键词：去掉套餐属性、业务标签、机场营销词，尽量只保留地区相关信息。
   const noiseKeywords = [
-
-    'vip','svip','倍率','x\\d+','iepl','iplc','bgp','cn2','gia',
-    'game','games','gaming','stream','media','unlock','nf','奈飞',
-    'netflix','disney','hbo','max','prime','chatgpt','gpt','ai',
-    'home','residential','station','server','node','premium','traffic',
-    'test','testing','expire','plan','used','aws','hy2','anytls'
+    'vip', 'svip', '倍率', 'x\\d+', 'iepl', 'iplc', 'bgp', 'cn2', 'gia',
+    'game', 'games', 'gaming', 'stream', 'media', 'unlock', 'nf', '奈飞',
+    'netflix', 'disney', 'hbo', 'max', 'prime', 'chatgpt', 'gpt', 'ai',
+    'home', 'residential', 'station', 'server', 'node', 'premium', 'traffic',
+    'test', 'testing', 'expire', 'plan', 'used', 'aws', 'hy2', 'anytls',
   ];
   const noisePattern = new RegExp('\\b(' + noiseKeywords.join('|') + ')\\b', 'gi');
+
   // 名称标准化：先去旗帜、符号和营销噪声，降低地区匹配误伤率。
   function normalizeRegionName(name) {
     const key = String(name || '');
@@ -661,7 +674,7 @@ function main(config) {
   function matchRegion(name) {
 
     const rawName = String(name || '');
-    for (const [regionName, flagPattern] of regionFlagMap) {
+    for (const [regionName, flagPattern] of REGION_FLAG_MAP) {
       if (flagPattern.test(rawName)) return regionName;
     }
     const normalized = normalizeRegionName(rawName);
@@ -669,8 +682,8 @@ function main(config) {
 
     const compact = normalized.replace(/\s+/g, '');
 
-    for (const regionName of regionPriority) {
-      const keywords = keywordMap[regionName] || [];
+    for (const regionName of REGION_PRIORITY) {
+      const keywords = REGION_KEYWORD_MAP[regionName] || [];
       for (const keyword of keywords) {
         const lowerKeyword = String(keyword).toLowerCase();
         if (/^[a-z]{2,3}$/.test(lowerKeyword)) {
@@ -681,20 +694,7 @@ function main(config) {
       }
     }
     // 兜底匹配：在关键词和旗帜均未命中时，用宽松正则做最后一次地区恢复。
-    const recoveryPatterns = [
-      ['香港', /(香港|hong\s?kong|hongkong|\bhk\b|\bhkg\b)/i],
-      ['台湾', /(台湾|台灣|taiwan|taipei|taichung|kaohsiung|\btw\b)/i],
-
-      ['日本', /(日本|japan|tokyo|osaka|nagoya|\bjp\b)/i],
-      ['新加坡', /(新加坡|singapore|\bsg\b|\bsgp\b)/i],
-      ['美国', /(美国|united states|america|los angeles|san jose|new york|\bus\b|\busa\b)/i],
-      ['韩国', /(韩国|南韩|korea|seoul|busan|\bkr\b)/i],
-      ['俄罗斯', /(俄罗斯|russia|moscow|moskva|saint petersburg|st\. petersburg|\bru\b)/i],
-      ['欧盟', /(英国|德国|法国|荷兰|土耳其|欧盟|欧洲|united kingdom|britain|england|germany|france|netherlands|turkey|europe|\buk\b|\bgb\b|\bde\b|\bfr\b|\bnl\b|\btr\b)/i],
-      ['其他地区', /(加拿大|canada|\bca\b|澳大利亚|澳洲|australia|\bau\b|悉尼|sydney|墨尔本|melbourne|新西兰|new zealand|\bnz\b|奥克兰|auckland|阿联酋|\buae\b|迪拜|dubai|泰国|thailand|\bth\b|曼谷|bangkok|菲律宾|philippines|\bph\b|马尼拉|manila|印度尼西亚|印尼|indonesia|\bid\b|雅加达|jakarta)/i]
-    ];
-
-    for (const [regionName, pattern] of recoveryPatterns) {
+    for (const [regionName, pattern] of REGION_RECOVERY_PATTERNS) {
       if (pattern.test(normalized)) return regionName;
     }
 
@@ -708,10 +708,8 @@ function main(config) {
   const testUrl = TEST_URL;
   const testInterval = TEST_INTERVAL;
   const testTolerance = TEST_TOLERANCE;
-  const testLazy = true;
   const fallbackInterval = FALLBACK_INTERVAL;
   const fallbackTolerance = FALLBACK_TOLERANCE;
-  const fallbackLazy = true;
   const regionUrlTestInterval = REGION_TEST_INTERVAL;
   const regionUrlTestTolerance = REGION_TEST_TOLERANCE;
 
@@ -751,7 +749,7 @@ function main(config) {
       url: testUrl,
       interval: normalizedInterval,
       tolerance: normalizedTolerance,
-      lazy: testLazy,
+      lazy: true,
       proxies
     };
   }
@@ -771,7 +769,7 @@ function main(config) {
       url: options.url || testUrl,
       interval: options.interval || fallbackInterval,
       tolerance: options.tolerance || fallbackTolerance,
-      lazy: typeof options.lazy === 'boolean' ? options.lazy : fallbackLazy,
+      lazy: typeof options.lazy === 'boolean' ? options.lazy : true,
       proxies
     };
   }
@@ -796,12 +794,11 @@ function main(config) {
     const ruleSetMap = buildRuleSetMap(defs);
     return order.flatMap(name => asArray(ruleSetMap[name]));
   }
-
-  // 最终分组去重：过滤空项，并按组名去重，防止重复定义覆盖不明。
-  // 分组终态去重：以组名为唯一键；若后面出现同名组，后者会被丢弃，因此新增组名时必须保证唯一。
+  // 最终分组去重：过滤空项，并以组名为键去重，同名组保留首次定义。
   function finalizeGroupList(groups) {
     return uniqueBy((groups || []).filter(Boolean), group => group && group.name);
   }
+
 
   // 图标映射：地区图标与功能图标分离，便于后续扩展和替换。
   const regionIconMap = {
@@ -820,7 +817,6 @@ function main(config) {
     // 基础 / 通用
     rocket: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Rocket.png',
     auto: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Auto.png',
-    proxy: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Proxy.png',
     select: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Static.png',
     balance: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Round_Robin.png',
     direct: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png',
@@ -829,19 +825,18 @@ function main(config) {
 
     // 故障转移 / 特殊用途
     fallback: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png',
-    fallbackFinal: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png',
+    fallbackFinal: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Airport.png',
     flare: 'https://api.iconify.design/tabler:flame-filled.svg?color=%2300d1b2',
     lowMultiplier: 'https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b',
     multiplier: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Filter.png',
     home: 'https://api.iconify.design/tabler:home-filled.svg',
-    homeRegion: 'https://api.iconify.design/tabler:home-filled.svg',
 
     // 平台 / 服务
     youtube: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/YouTube.png',
     youtubeFallback: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Streaming.png',
     tiktok: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/TikTok.png',
-    meta: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/meta.svg',
-    twitter: 'https://api.iconify.design/simple-icons:x.svg',
+    meta: 'https://api.iconify.design/simple-icons:meta.svg?color=%231877F2',
+    twitter: 'https://api.iconify.design/logos:twitter.svg?color=%231DA1F2',
     telegram: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Telegram.png',
     google: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Google_Search.png',
     playstore: 'https://api.iconify.design/logos:google-play-icon.svg',
@@ -858,15 +853,15 @@ function main(config) {
     streamingGlobal: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Media.png',
     netflix: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Netflix.png',
     spotify: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Spotify.png',
-    twitch: 'https://api.iconify.design/simple-icons:twitch.svg',
-    niconico: 'https://api.iconify.design/simple-icons:niconico.svg',
+    twitch: 'https://api.iconify.design/simple-icons:twitch.svg?color=%239146FF',
+    niconico: 'https://api.iconify.design/simple-icons:niconico.svg?color=%23EAB20C',
     taiwanMedia: 'https://ani.gamer.com.tw/favicon.ico',
-    social: 'https://api.iconify.design/simple-icons:reddit.svg',
+    social: 'https://api.iconify.design/simple-icons:reddit.svg?color=%23FF4500',
     reddit: 'https://api.iconify.design/simple-icons:reddit.svg',
     discord: 'https://api.iconify.design/simple-icons:discord.svg',
     bluesky: 'https://api.iconify.design/simple-icons:bluesky.svg',
     mastodon: 'https://api.iconify.design/simple-icons:mastodon.svg',
-    decentralized: 'https://api.iconify.design/simple-icons:bluesky.svg',
+    decentralized: 'https://api.iconify.design/simple-icons:bluesky.svg?color=%230380B0',
 
     // 地区 / 其他
     china: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/China_Map.png',
@@ -981,9 +976,9 @@ function main(config) {
 
   // 区域故障转移定义：把高相关地区打包成可复用 fallback 组。
   const REGION_FAILOVER_DEFS = [
-    { name: '港台故障转移', regions: ['香港', '台湾'], icon: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Available_1.png' },
-    { name: '日韩故障转移', regions: ['日本', '韩国'], icon: qIcon('JP') },
-    { name: '欧美故障转移', regions: ['美国', '欧盟'], icon: iconMap.global }
+{ name: '港台故障转移', regions: ['香港', '台湾'], icon: qIcon('Star') },
+    { name: '日韩故障转移', regions: ['日本', '韩国'], icon: qIcon('Heart') },
+    { name: '欧美故障转移', regions: ['美国', '欧盟'], icon: qIcon('Magic') }
   ];
   const regionFallbackNodeMap = createNamedChoiceMap(REGION_FAILOVER_DEFS, def => buildRegionNodeList(def.regions));
 
@@ -1072,7 +1067,7 @@ function main(config) {
       url: options.url || testUrl,
       interval: options.interval || testInterval,
       strategy: options.strategy || 'consistent-hashing',
-      lazy: typeof options.lazy === 'boolean' ? options.lazy : testLazy,
+      lazy: typeof options.lazy === 'boolean' ? options.lazy : true,
       proxies
     };
   }
@@ -1179,13 +1174,14 @@ function main(config) {
     .concat(commonLoadBalanceNames)
     .concat(globalFeatureChoices)
     .concat(fusionVisibleRegions)
-    .concat(proxies.map(p => p.name));
+    .concat(allProxyNames);
 
   // ===== 分流候选池 =====
-
-  const commonChoices = buildChoiceList(['节点选择'], baseChoices.filter(name => !excludedFallbackChoices.includes(name)));
-  const youtubeOnlyChoices = buildChoiceList(['节点选择', 'YouTube无广节点优先组'], baseChoices.filter(name => name !== '国外AI故障转移'));
-  const aiOnlyChoices = buildChoiceList(['节点选择', '国外AI故障转移'], baseChoices.filter(name => name !== 'YouTube无广节点优先组'));
+  const CHOICE_POOLS = {
+    common: buildChoiceList(['节点选择'], baseChoices.filter(name => !excludedFallbackChoices.includes(name))),
+    youtubeOnly: buildChoiceList(['节点选择', 'YouTube无广节点优先组'], baseChoices.filter(name => name !== '国外AI故障转移')),
+    aiOnly: buildChoiceList(['节点选择', '国外AI故障转移'], baseChoices.filter(name => name !== 'YouTube无广节点优先组'))
+  };
 
   // ===== 通用候选构造器 =====
   // 候选顺序合成：把 first 视为强优先项，其余候选按原池顺序补齐；不要随意改成排序逻辑。
@@ -1199,46 +1195,69 @@ function main(config) {
   const domesticChoices = directChoices.concat(fusionVisibleRegions);
   const taiwanAutoChoice = getRegionAuto('台湾');
   const BUSINESS_CHOICE_DEFS = [
-    { key: 'Meta', first: ['自动选择'], pool: commonChoices },
-    { key: 'Telegram', first: ['自动选择'], pool: commonChoices },
-    { key: 'Twitch', first: ['自动选择'], pool: commonChoices },
-    { key: '国外游戏', first: ['自动选择'], pool: commonChoices },
-    { key: 'Twitter', first: ['自动选择'], pool: commonChoices },
-    { key: '社交信息流', first: ['自动选择'], pool: commonChoices },
-    { key: 'GitHub', first: ['自动选择'], pool: commonChoices },
-    { key: 'YouTube', first: ['YouTube无广节点优先组', '节点选择'], pool: youtubeOnlyChoices },
-    { key: 'Spotify', first: ['港台故障转移'], pool: commonChoices },
-    { key: 'Google', first: ['港台故障转移'], pool: commonChoices },
-    { key: 'TikTok', first: ['港台故障转移'], pool: commonChoices },
-    { key: '日韩生态区', first: ['日韩故障转移'], pool: commonChoices },
-    { key: 'Niconico', first: ['日韩故障转移'], pool: commonChoices },
-    { key: '去中心化平台', first: ['欧美故障转移'], pool: commonChoices },
-    { key: '微软服务', first: ['自动选择', '全球直连'], pool: commonChoices },
-    { key: '谷歌商店', first: ['谷歌商店负载均衡', '负载均衡', '自动选择'], pool: commonChoices },
-    { key: 'AI', first: ['国外AI故障转移', '节点选择'], pool: aiOnlyChoices }
+    { key: 'Meta', first: ['自动选择'], pool: CHOICE_POOLS.common },
+    { key: 'Telegram', first: ['自动选择'], pool: CHOICE_POOLS.common },
+    { key: 'Twitch', first: ['自动选择'], pool: CHOICE_POOLS.common },
+    { key: '国外游戏', first: ['自动选择'], pool: CHOICE_POOLS.common },
+    { key: 'Twitter', first: ['自动选择'], pool: CHOICE_POOLS.common },
+    { key: '社交信息流', first: ['自动选择'], pool: CHOICE_POOLS.common },
+    { key: 'GitHub', first: ['自动选择'], pool: CHOICE_POOLS.common },
+    { key: 'YouTube', first: ['YouTube无广节点优先组', '节点选择'], pool: CHOICE_POOLS.youtubeOnly },
+    { key: 'Spotify', first: ['港台故障转移'], pool: CHOICE_POOLS.common },
+    { key: 'Google', first: ['港台故障转移'], pool: CHOICE_POOLS.common },
+    { key: 'TikTok', first: ['港台故障转移'], pool: CHOICE_POOLS.common },
+    { key: '日韩生态区', first: ['日韩故障转移'], pool: CHOICE_POOLS.common },
+    { key: 'Niconico', first: ['日韩故障转移'], pool: CHOICE_POOLS.common },
+    { key: '去中心化平台', first: ['欧美故障转移'], pool: CHOICE_POOLS.common },
+    { key: '微软服务', first: ['自动选择', '全球直连'], pool: CHOICE_POOLS.common },
+    { key: '谷歌商店', first: ['谷歌商店负载均衡', '负载均衡', '自动选择'], pool: CHOICE_POOLS.common },
+    { key: 'AI', first: ['国外AI故障转移', '节点选择'], pool: CHOICE_POOLS.aiOnly }
+  ];
+  const BUSINESS_SERVICE_ICON_DEFS = [
+    ['YouTube', iconMap.youtube],
+    ['TikTok', iconMap.tiktok],
+    ['Meta', iconMap.meta],
+    ['Twitter', iconMap.twitter],
+    ['Niconico', iconMap.niconico],
+    ['日韩生态区', iconMap.jpkr],
+    ['Spotify', iconMap.spotify],
+    ['Telegram', iconMap.telegram],
+    ['Google', iconMap.google],
+    ['谷歌商店', iconMap.playstore],
+    ['微软服务', iconMap.microsoft],
+    ['Twitch', iconMap.twitch],
+    ['GitHub', iconMap.github],
+    ['AI', iconMap.ai],
+    ['国外游戏', iconMap.game],
+    ['社交信息流', iconMap.social],
+    ['去中心化平台', iconMap.decentralized]
   ];
   const businessChoiceMap = makeBusinessChoiceMap(BUSINESS_CHOICE_DEFS);
+  const businessServiceGroupDefs = BUSINESS_SERVICE_ICON_DEFS
+    .map(([name, icon]) => ({ name, icon, choices: businessChoiceMap[name] }));
 
-  const streamingChoices = globalStreamingGroup
-    ? makeOrderedChoices(['全球流媒体', '自动选择'], commonChoices)
-    : makeOrderedChoices(['自动选择'], commonChoices);
-  const taiwanMediaChoices = makeOrderedChoices(
-    unique(['港台故障转移', taiwanAutoChoice, '自动选择'].filter(Boolean)),
-    commonChoices
-  );
-  const riskControlChoices = unique([
-    '家宽故障转移',
-    globalHomeGroup ? '全球家宽' : null,
-    '全球手动',
-    ...regionHomeAutoNames.filter(name => name !== '全球家宽'),
-    '港台故障转移',
-    '日韩故障转移',
-    '欧美故障转移',
-    '自动兜底',
-    '节点选择',
-    '自动选择',
-    '全球直连'
-  ].filter(Boolean));
+  const CHOICE_GROUPS = {
+    streaming: globalStreamingGroup
+      ? makeOrderedChoices(['全球流媒体', '自动选择'], CHOICE_POOLS.common)
+      : makeOrderedChoices(['自动选择'], CHOICE_POOLS.common),
+    taiwanMedia: makeOrderedChoices(
+      unique(['港台故障转移', taiwanAutoChoice, '自动选择'].filter(Boolean)),
+      CHOICE_POOLS.common
+    ),
+    riskControl: unique([
+      '家宽故障转移',
+      globalHomeGroup ? '全球家宽' : null,
+      '全球手动',
+      ...regionHomeAutoNames.filter(name => name !== '全球家宽'),
+      '港台故障转移',
+      '日韩故障转移',
+      '欧美故障转移',
+      '自动兜底',
+      '节点选择',
+      '自动选择',
+      '全球直连'
+    ].filter(Boolean))
+  };
 
   const preferredHomeFailover = [
     '香港家宽自动',
@@ -1262,33 +1281,31 @@ function main(config) {
 
   // ===== 主分组候选项 =====
   // 主候选集：为入口组、系统服务组和兜底组准备最终可展示选项。
-  const nodeSelectionChoices = makeChoicePool(
-    ['自动选择', '负载均衡', '全球手动'],
-    fallbackNames,
-    globalFeatureChoices,
-    fusionVisibleRegions
-  );
-  const systemServiceChoices = makeChoicePool(
-    ['自动选择', '节点选择', '全球手动', '全球直连'],
-    fusionVisibleRegions,
-    allProxyNames
-  );
-  const domesticServiceChoices = makeChoicePool(
-    ['全球直连'],
-    directChoices.filter(x => x !== '全球直连'),
-    domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x))
-  );
-  const finalFallbackChoices = makeChoicePool(
-    ['自动选择', '全球手动'],
-    fallbackNames.filter(name => !excludedFallbackChoices.includes(name)),
-    fusionVisibleRegions
-  );
-  const overseasChoices = makeChoicePool(
-    ['自动选择', '全球手动'],
-    orderedFallbackNames,
-    globalFeatureChoices,
-    fusionVisibleRegions
-  );
+  const MAIN_CHOICE_POOLS = {
+    nodeSelection: makeChoicePool(
+      ['自动选择', '负载均衡', '全球手动'],
+      fallbackNames,
+      globalFeatureChoices,
+      fusionVisibleRegions
+    ),
+    systemService: makeChoicePool(
+      ['自动选择', '节点选择', '全球手动', '全球直连'],
+      fusionVisibleRegions,
+      allProxyNames
+    ),
+    domesticService: makeChoicePool(
+      ['全球直连'],
+      directChoices.filter(x => x !== '全球直连'),
+      domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x))
+    ),
+    // 最终兜底候选：供 MATCH / 未命中流量使用，优先自动选择，其次允许手动接管与地区兜底。
+    finalFallback: makeChoicePool(
+      ['自动选择', '全球手动'],
+      fallbackNames.filter(name => !excludedFallbackChoices.includes(name)),
+      fusionVisibleRegions
+    )
+  };
+
 
   // ===== 附加显示组 =====
   const visibleRegionAutoGroups = regionAutoOrder
@@ -1296,55 +1313,52 @@ function main(config) {
     .filter(Boolean);
   const specialFeatureGroups = [globalHomeGroup, lowMultiplierGroup, globalMultiplierGroup, globalStreamingGroup].filter(Boolean);
   // 服务分流：统一声明业务组名称、图标与候选池，后续批量生成 select 组。
-  const serviceGroupDefs = [
-    { name: '风控安全', icon: iconMap.riskControl, choices: riskControlChoices, extraDefaults: [] },
-
-    ...[
-      ['YouTube', iconMap.youtube],
-      ['TikTok', iconMap.tiktok],
-      ['Meta', iconMap.meta],
-      ['Twitter', iconMap.twitter],
-      ['Niconico', iconMap.niconico],
-      ['日韩生态区', iconMap.jpkr],
-      ['Spotify', iconMap.spotify],
-      ['Telegram', iconMap.telegram],
-      ['Google', iconMap.google],
-      ['谷歌商店', iconMap.playstore],
-      ['微软服务', iconMap.microsoft],
-      ['Twitch', iconMap.twitch],
-      ['GitHub', iconMap.github],
-      ['AI', iconMap.ai],
-      ['国外游戏', iconMap.game],
-      ['社交信息流', iconMap.social],
-      ['去中心化平台', iconMap.decentralized]
-    ].map(([name, icon]) => ({ name, icon, choices: businessChoiceMap[name] })),
-    { name: '国内服务', icon: iconMap.china, choices: domesticServiceChoices },
-    { name: '流媒体', icon: iconMap.streaming, choices: streamingChoices },
-    { name: '台湾媒体', icon: iconMap.taiwanMedia, choices: taiwanMediaChoices },
-    { name: 'FCM', icon: iconMap.fcm, choices: systemServiceChoices },
-    { name: 'Apple', icon: iconMap.apple, choices: systemServiceChoices },
+  const SERVICE_GROUP_BASE_DEFS = [
+    { name: '风控安全', icon: iconMap.riskControl, choices: CHOICE_GROUPS.riskControl, extraDefaults: [] },
+    { name: '国内服务', icon: iconMap.china, choices: MAIN_CHOICE_POOLS.domesticService },
+    { name: '流媒体', icon: iconMap.streaming, choices: CHOICE_GROUPS.streaming },
+    { name: '台湾媒体', icon: iconMap.taiwanMedia, choices: CHOICE_GROUPS.taiwanMedia },
+    { name: 'FCM', icon: iconMap.fcm, choices: MAIN_CHOICE_POOLS.systemService },
+    { name: 'Apple', icon: iconMap.apple, choices: MAIN_CHOICE_POOLS.systemService },
     { name: 'Cloudflare', icon: iconMap.cloudflare || iconMap.global, choices: cloudflareGroupChoices }
   ];
-  const utilityGroupDefs = [
-    { name: '下载专用组', icon: iconMap.download || iconMap.fallback, choices: downloadGroupChoices.filter(name => name !== 'DIRECT') },
+  const serviceGroupDefs = [
+    SERVICE_GROUP_BASE_DEFS[0],
+    ...businessServiceGroupDefs,
+    ...SERVICE_GROUP_BASE_DEFS.slice(1)
+  ];
+  // 工具组约定：
+  // - 全球直连固定只暴露 DIRECT；
+  // - 漏网之鱼用于承接最终 MATCH 流量，因此保留在工具组末尾，便于与规则语义对应。
+  const UTILITY_GROUP_PRESET_DEFS = [
     { name: '广告拦截', icon: iconMap.adblock, choices: ['REJECT', 'REJECT-DROP', 'PASS'], extraDefaults: ['REJECT-DROP'] },
     { name: '跟踪分析', icon: qIcon('Reject'), choices: ['REJECT', 'DIRECT', '自动选择'], extraDefaults: ['REJECT'] },
     { name: '全球直连', icon: iconMap.direct, choices: ['DIRECT'], extraDefaults: [] },
-    { name: '漏网之鱼', icon: iconMap.final, choices: finalFallbackChoices }
+    { name: '漏网之鱼', icon: iconMap.final, choices: MAIN_CHOICE_POOLS.finalFallback }
   ];
+  const utilityGroupDefs = [
+    { name: '下载专用组', icon: iconMap.download || iconMap.fallback, choices: downloadGroupChoices.filter(name => name !== 'DIRECT') },
+    ...UTILITY_GROUP_PRESET_DEFS
+  ];
+
+  const CORE_ENTRY_GROUPS = [
+    makeSelectGroup('节点选择', iconMap.rocket, MAIN_CHOICE_POOLS.nodeSelection)
+  ];
+  const CORE_AUTO_GROUPS = [
+    makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50),
+    ...loadBalanceGroups,
+    makeSelectGroup('全球手动', iconMap.select, allProxyNames)
+  ];
+  const CORE_FAILOVER_GROUPS = [
+    ...fallbackGroups,
+    makeFallbackGroup('家宽故障转移', iconMap.flare, homeFailoverChoices, ['自动兜底'])
+  ];
+
   const coreProxyGroupSections = {
-    entry: [
-      makeSelectGroup('节点选择', iconMap.rocket, nodeSelectionChoices)
-    ],
-    auto: [
-      makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50),
-      ...loadBalanceGroups,
-      makeSelectGroup('全球手动', iconMap.select, allProxyNames)
-    ],
-    failover: [
-      ...fallbackGroups,
-      makeFallbackGroup('家宽故障转移', iconMap.flare, homeFailoverChoices, ['自动兜底'])
-    ],
+    entry: CORE_ENTRY_GROUPS,
+    auto: CORE_AUTO_GROUPS,
+    failover: CORE_FAILOVER_GROUPS,
+
     service: makeSelectGroupsFromDefs(serviceGroupDefs),
     utility: [
       ...makeSelectGroupsFromDefs(utilityGroupDefs),
@@ -2547,46 +2561,57 @@ function main(config) {
     'DOMAIN,connect.facebook.net,社交信息流',
     'DOMAIN,graph.facebook.com,社交信息流'
   ];
-  // 兜底规则：国内 IP 直连，非国内 IP 进入国外网站组，剩余流量进入最终兜底组。
+  /**
+   * 最终兜底出口说明：
+   * - GEOIP,CN -> 全球直连
+   * - GEOIP,!CN -> 自动选择
+   * - MATCH -> 漏网之鱼
+   *
+   * 维护提示：
+   * 1. 删除或重命名分组时，必须同步检查这里的规则引用；
+   * 2. UI 中隐藏或调整分组顺序，不等于规则引用已经移除；
+   * 3. 这里应始终只引用实际存在的分组名。
+   */
   const RULES_DIRECT_AND_FALLBACK = [
-
+ 
     'GEOIP,CN,全球直连',
     'GEOIP,!CN,自动选择',
     'MATCH,漏网之鱼'
   ];
+
   // 组合规则：将规则内容定义与装配顺序分离，便于后续维护优先级。
-  const RULE_SET_DEFS = [
-    { name: 'YOUTUBE', rules: RULES_YOUTUBE },
-    { name: 'APP_PROCESS', rules: RULES_APP_PROCESS },
-    { name: 'TRANSLATION', rules: RULES_TRANSLATION },
-    { name: 'ADBLOCK', rules: RULES_ADBLOCK },
-    { name: 'TRACKER', rules: RULES_TRACKER },
-    { name: 'RISK_CONTROL', rules: RULES_RISK_CONTROL },
-    { name: 'AI_TIKTOK_EXTRA', rules: RULES_AI_TIKTOK_EXTRA },
-    { name: 'DOMESTIC', rules: RULES_DOMESTIC },
-    { name: 'APPLE', rules: RULES_APPLE },
-    { name: 'AI_GLOBAL', rules: RULES_AI_GLOBAL },
-    { name: 'DECENTRALIZED_AND_CLOUDFLARE', rules: RULES_DECENTRALIZED_AND_CLOUDFLARE },
-    { name: 'DOWNLOAD', rules: RULES_DOWNLOAD },
-    { name: 'GLOBAL_GAMING', rules: RULES_GLOBAL_GAMING },
-    { name: 'GITHUB', rules: RULES_GITHUB },
-    { name: 'MICROSOFT', rules: RULES_MICROSOFT },
-    { name: 'STREAMING', rules: RULES_STREAMING },
-    { name: 'TAIWAN_MEDIA', rules: RULES_TAIWAN_MEDIA },
-    { name: 'TWITCH', rules: RULES_TWITCH },
-    { name: 'META', rules: RULES_META },
-    { name: 'SPOTIFY', rules: RULES_SPOTIFY },
-    { name: 'TELEGRAM', rules: RULES_TELEGRAM },
-    { name: 'GOOGLE', rules: RULES_GOOGLE },
-    { name: 'TWITTER', rules: RULES_TWITTER },
-    { name: 'SOCIAL_FEED', rules: RULES_SOCIAL_FEED },
-    { name: 'DECENTRALIZED_SUPPLEMENT', rules: RULES_DECENTRALIZED_SUPPLEMENT },
-    { name: 'TIKTOK', rules: RULES_TIKTOK },
-    { name: 'JP_KR_ECOSYSTEM', rules: RULES_JP_KR_ECOSYSTEM },
-    { name: 'NICONICO', rules: RULES_NICONICO },
-    { name: 'SOCIAL_FEED_SUPPLEMENT', rules: RULES_SOCIAL_FEED_SUPPLEMENT },
-    { name: 'DIRECT_AND_FALLBACK', rules: RULES_DIRECT_AND_FALLBACK }
-  ];
+  const RULE_SET_MAP = {
+    YOUTUBE: RULES_YOUTUBE,
+    APP_PROCESS: RULES_APP_PROCESS,
+    TRANSLATION: RULES_TRANSLATION,
+    ADBLOCK: RULES_ADBLOCK,
+    TRACKER: RULES_TRACKER,
+    RISK_CONTROL: RULES_RISK_CONTROL,
+    AI_TIKTOK_EXTRA: RULES_AI_TIKTOK_EXTRA,
+    DOMESTIC: RULES_DOMESTIC,
+    APPLE: RULES_APPLE,
+    AI_GLOBAL: RULES_AI_GLOBAL,
+    DECENTRALIZED_AND_CLOUDFLARE: RULES_DECENTRALIZED_AND_CLOUDFLARE,
+    DOWNLOAD: RULES_DOWNLOAD,
+    GLOBAL_GAMING: RULES_GLOBAL_GAMING,
+    GITHUB: RULES_GITHUB,
+    MICROSOFT: RULES_MICROSOFT,
+    STREAMING: RULES_STREAMING,
+    TAIWAN_MEDIA: RULES_TAIWAN_MEDIA,
+    TWITCH: RULES_TWITCH,
+    META: RULES_META,
+    SPOTIFY: RULES_SPOTIFY,
+    TELEGRAM: RULES_TELEGRAM,
+    GOOGLE: RULES_GOOGLE,
+    TWITTER: RULES_TWITTER,
+    SOCIAL_FEED: RULES_SOCIAL_FEED,
+    DECENTRALIZED_SUPPLEMENT: RULES_DECENTRALIZED_SUPPLEMENT,
+    TIKTOK: RULES_TIKTOK,
+    JP_KR_ECOSYSTEM: RULES_JP_KR_ECOSYSTEM,
+    NICONICO: RULES_NICONICO,
+    SOCIAL_FEED_SUPPLEMENT: RULES_SOCIAL_FEED_SUPPLEMENT,
+    DIRECT_AND_FALLBACK: RULES_DIRECT_AND_FALLBACK
+  };
   const RULE_ASSEMBLY_ORDER = [
     'YOUTUBE',
     'APP_PROCESS',
@@ -2619,6 +2644,8 @@ function main(config) {
     'SOCIAL_FEED_SUPPLEMENT',
     'DIRECT_AND_FALLBACK'
   ];
+  const RULE_SET_DEFS = RULE_ASSEMBLY_ORDER
+    .map(name => ({ name, rules: RULE_SET_MAP[name] }));
 
   // 规则落盘：按优先级顺序合并所有规则，并做最终去重。
   config.rules = mergeRuleSets(collectRuleSets(RULE_SET_DEFS, RULE_ASSEMBLY_ORDER));
