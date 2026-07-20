@@ -19,7 +19,6 @@
  * - 若修改节点识别逻辑，请同步检查地区组、故障转移组和业务候选池。
  */
 function buildConfig(config) {
-
   if (!config || !Array.isArray(config.proxies)) return config;
 
   // 运行上下文：保留旧分组选项顺序，便于脚本重载后延续用户选择。
@@ -181,16 +180,18 @@ function buildConfig(config) {
 
   const DNS_POLICY_DOMAIN_SETS = {
     adguard: [
-      '+.pglstatp-toutiao.com', '+.pangolin-sdk-toutiao.com', '+.pangolin.snssdk.com', '+.sgsnssdk.com', '+.unionadjs.com',
+      '+.pglstatp-toutiao.com', '+.pglstatp.com', '+.pangolin-sdk-toutiao.com', '+.pangolin.snssdk.com', '+.sgsnssdk.com', '+.unionadjs.com',
       '+.adkwai.com', '+.e.kuaishou.com', '+.adukwai.com', '+.tanx.com', '+.alimama.com', '+.mmstat.com', '+.gdt.qq.com',
-      '+.e.qq.com', '+.guanggao.qq.com', '+.adnet.qq.com', '+.iadmatvideo.nosdn.127.net', '+.iadmusicmatvideo.nosdn.127.net',
-      '+.mi.gdt.qq.com', '+.bdxiguaimg.com', '+.adsame.com', '+.bdplus.baidu.com', '+.pos.baidu.com', '+.union.baidu.com',
-      '+.cb.baidu.com', '+.dup.baidustatic.com', '+.cpro.baidu.com', '+.afd.baidu.com', '+.als.baidu.com', '+.nsclick.baidu.com',
-      '+.mobads.baidu.com', '+.eclick.baidu.com', '+.wanfeng1.baidu.com', '+.wm.baidu.com', '+.duclick.baidu.com', '+.adimg.uve.weibo.com',
-      '+.alitui.weibo.com', '+.biz.weibo.com', '+.game.weibo.cn', '+.sax.sina.com.cn', '+.adbox.sina.com.cn', '+.adview.cn',
-      '+.miaozhen.com', '+.irs01.com', '+.admaster.com.cn', '+.adpush.cn', '+.cnxad.com', '+.adkmob.com', '+.adobe-identity.omtrdc.net',
-      '+.omtrdc.net', '+.2mdn.net', '+.googlesyndication.com', '+.googleadservices.com', '+.googleadsserving.cn', '+.googletagservices.com',
-      '+.doubleclick.net', '+.google-analytics.com', '+.analytics.google.com', '+.ads.google.com'
+      '+.e.qq.com', '+.adsmind.gdtimg.com', '+.pgdt.gtimg.cn', '+.guanggao.qq.com', '+.adnet.qq.com', '+.iadmatvideo.nosdn.127.net', '+.iadmusicmatvideo.nosdn.127.net',
+      '+.mi.gdt.qq.com', '+.ad.xiaomi.com', '+.api.ad.xiaomi.com', '+.data.mistat.xiaomi.com', '+.tracking.miui.com', '+.umeng.com', '+.umengcloud.com', '+.mob.com',
+      '+.bdxiguaimg.com', '+.adsame.com', '+.bdplus.baidu.com', '+.pos.baidu.com', '+.union.baidu.com', '+.cb.baidu.com', '+.dup.baidustatic.com', '+.cpro.baidu.com',
+      '+.afd.baidu.com', '+.als.baidu.com', '+.nsclick.baidu.com', '+.mobads.baidu.com', '+.eclick.baidu.com', '+.wanfeng1.baidu.com', '+.wm.baidu.com', '+.duclick.baidu.com',
+      '+.adimg.uve.weibo.com', '+.alitui.weibo.com', '+.biz.weibo.com', '+.game.weibo.cn', '+.sax.sina.com.cn', '+.adbox.sina.com.cn', '+.adview.cn',
+      '+.miaozhen.com', '+.irs01.com', '+.admaster.com.cn', '+.adpush.cn', '+.cnxad.com', '+.adkmob.com', '+.adobe-identity.omtrdc.net', '+.omtrdc.net', '+.2mdn.net',
+      '+.admob.com', '+.admob-sdk.doubleclick.net', '+.app-measurement.com', '+.googlesyndication.com', '+.googleadservices.com', '+.googleadsserving.cn',
+      '+.adservice.google.com', '+.adservice.google.com.hk', '+.pagead2.googlesyndication.com', '+.tpc.googlesyndication.com', '+.googletagservices.com', '+.doubleclick.net',
+      '+.adsrvr.org', '+.criteo.com', '+.criteo.net', '+.taboola.com', '+.taboolasyndication.com', '+.outbrain.com', '+.analytics.google.com', '+.ads.google.com'
+
     ],
     tiktok: [
       '+.tiktok.com', '+.tiktokv.com', '+.tiktokcdn.com', '+.tiktokcdn-us.com', '+.tiktokcdn-eu.com',
@@ -199,8 +200,10 @@ function buildConfig(config) {
     adguardService: ['+.adtidy.org', '+.adguard.com', '+.adguard.org', '+.adguard-dns.io'],
     browserRisk: [
       '+.addons.mozilla.org', '+.addons.cdn.mozilla.net', 'api.ipify.org', 'fpjs.checkout.com', 'fpjscache.checkout.com',
-      'risk.checkout.com', '+.online-metrix.net', 'volatile-pa.googleapis.com', 'settings-win.data.microsoft.com'
+      'risk.checkout.com', 'challenges.cloudflare.com', 'turnstile.cloudflare.com', 'assets.cloudflare.com', 'hcaptcha.com', 'newassets.hcaptcha.com',
+      '+.online-metrix.net', 'volatile-pa.googleapis.com', 'settings-win.data.microsoft.com'
     ],
+
     openaiRealtime: [
       '+.auth0.openai.com', '+.oaistatic.com', '+.oaiusercontent.com', '+.files.oaiusercontent.com', '+.cdn.openai.com',
       '+.livekit.cloud', '+.statsigapi.net'
@@ -228,14 +231,19 @@ function buildConfig(config) {
     baseOverseas: ['+.google.com', '+.youtube.com', '+.twitter.com', '+.x.com', '+.telegram.org', '+.t.me'],
     meta: ['+.facebook.com', '+.fbcdn.net', '+.instagram.com', '+.whatsapp.com', '+.whatsapp.net'],
     ai: ['+.openai.com', '+.chatgpt.com', '+.claude.ai', '+.anthropic.com', '+.perplexity.ai', '+.poe.com', '+.midjourney.com', '+.character.ai', '+.c.ai', '+.groq.com', '+.mistral.ai', '+.x.ai'],
-    devCommunity: ['+.github.com', '+.githubusercontent.com', '+.discord.com', '+.reddit.com', '+.reddit.map.fastly.net'],
+    devCommunity: ['+.github.com', '+.githubusercontent.com', '+.reddit.com', '+.reddit.map.fastly.net'],
+    discord: ['+.discord.com', '+.discord.gg', '+.discord.gift', '+.discord.new', '+.discordapp.com', '+.discordapp.net', '+.discordcdn.com', '+.discord.media', '+.discordsays.com', '+.dis.gd'],
+
     tiktok: ['+.tiktok.com', '+.tiktokv.com', '+.byteoversea.com', '+.ibytedtos.com', '+.tiktokcdn.com', '+.tiktokcdn-us.com', '+.tiktokcdn-eu.com', '+.tiktokrow-cdn.com', '+.tiktokv.us', '+.ibyteimg.com', '+.muscdn.com'],
-    productivity: ['+.cloudflare.com', '+.notion.so', '+.dropbox.com'],
+    productivity: ['+.cloudflare.com'],
+
     crypto: ['+.binance.com', '+.coinbase.com', '+.okx.com', '+.bybit.com', '+.kucoin.com', '+.metamask.io', '+.trustwallet.com', '+.walletconnect.com', '+.oklink.com', '+.okx-dns.com', '+.okx-dns1.com', '+.okx-dns2.com', '+.byapis.com', '+.bycsi.com', '+.bybit-global.com', '+.bybitglobal.com', '+.bnbstatic.com', '+.binanceapi.com'],
-    finance: ['+.paypal.com', '+.stripe.com', '+.wise.com', '+.revolut.com', '+.card.io', '+.paypalhere.com', '+.venmo.com', '+.xoom.com', '+.stripe.network', '+.stripe-terminal-local-reader.net', '+.link.com'],
+    finance: ['+.paypal.com', '+.stripe.com', '+.wise.com', '+.revolut.com', '+.card.io', '+.paypalhere.com', '+.venmo.com', '+.xoom.com', '+.stripe.network', '+.stripe-terminal-local-reader.net', '+.checkout.com', '+.checkoutcdn.com', '+.checkoutshopper.com', '+.payoneer.com', '+.airwallex.com', '+.worldpay.com', '+.skrill.com', '+.neteller.com', '+.authy.com', 'hcaptcha.com', 'newassets.hcaptcha.com'],
+
     streaming: ['+.netflix.com', '+.disneyplus.com', '+.hulu.com', '+.hbomax.com', '+.primevideo.com', '+.spotify.com', '+.twitch.tv', '+.twtrdns.net'],
     gaming: ['+.steamcommunity.com', '+.steampowered.com', '+.epicgames.com', '+.roblox.com', '+.battle.net', '+.blizzard.com', '+.blizzardentertainment.com', '+.battlenet.com.cn', '+.ea.com', '+.origin.com', '+.uplay.com', '+.nintendo.com', '+.playstation.com', '+.xbox.com', '+.xboxlive.com', '+.supercell.com', '+.supercell.net'],
-    bigTech: ['+.apple.com', '+.icloud.com', '+.microsoft.com', '+.live.com', '+.amazon.com', '+.aws.amazon.com'],
+    bigTech: ['+.apple.com', '+.icloud.com', '+.microsoft.com', '+.live.com', '+.aws.amazon.com', 'account.amazon.com', 'payments.amazon.com'],
+
     infra: ['+.dns.google', '+.dns.google.com', '+.api2.branch.io', '+.cdn.branch.io'],
     youtubeMedia: ['+.youtubei.googleapis.com', '+.youtube.googleapis.com', 'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com', '+.googlevideo.com', '+.ytimg.com', '+.ggpht.com']
   };
@@ -398,11 +406,14 @@ function buildConfig(config) {
 
       // 海外 AI 服务。
       ...DNS_FALLBACK_FILTER_DOMAIN_SETS.ai,
-
       // 开发 / 社区服务。
       ...DNS_FALLBACK_FILTER_DOMAIN_SETS.devCommunity,
-
+ 
+      // Discord 实时通信 / 邀请 / 资源链路。
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.discord,
+ 
       // TikTok / 字节海外链路。
+
       ...DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok,
 
       // 云平台与生产力服务。
@@ -458,8 +469,8 @@ function buildConfig(config) {
     return !invalidProxyNamePatterns.some(re => re.test(text));
   }
 
-
   perfStart('proxy_filter');
+
   const proxies = config.proxies.filter(p => p && p.name && isRealProxyName(p.name));
   perfEnd('proxy_filter');
 
@@ -771,8 +782,8 @@ function buildConfig(config) {
 
   // 地区匹配主流程：旗帜优先，其次关键词，最后再走宽松恢复匹配。
   function matchRegion(name) {
-
     const rawName = String(name || '');
+
     for (const [regionName, flagPattern] of REGION_FLAG_MAP) {
       if (flagPattern.test(rawName)) return regionName;
     }
@@ -860,8 +871,8 @@ function buildConfig(config) {
     return { ...group, proxies: oldProxies.concat(remaining) };
   }
 
-
   // 代理列表兜底：合并用户列表和默认项，若最终为空则至少返回 DIRECT。
+
   // 列表兜底约定：这里只能返回一维字符串数组；若改成对象/嵌套数组，会直接影响 Clash 配置反序列化。
   function ensureGroupList(list, extraDefaults) {
     const merged = [];
@@ -963,8 +974,8 @@ function buildConfig(config) {
     return merged.filter(Boolean);
   }
 
-
   // 规则映射表：将 { name, rules } 定义转成按名称索引的查询结构。
+
   function buildRuleSetMap(defs) {
     const map = Object.create(null);
     for (let i = 0; i < defs.length; i++) {
@@ -1000,8 +1011,8 @@ function buildConfig(config) {
     return finalized;
   }
 
-
   // 图标映射：地区图标与功能图标分离，便于后续扩展和替换。
+
   const regionIconMap = {
     '香港': qIcon('Hong_Kong'),
     '台湾': qIcon('Taiwan'),
@@ -1059,8 +1070,10 @@ function buildConfig(config) {
     taiwanMedia: 'https://ani.gamer.com.tw/favicon.ico',
     social: 'https://api.iconify.design/simple-icons:reddit.svg?color=%23FF4500',
     reddit: 'https://api.iconify.design/simple-icons:reddit.svg',
-    discord: 'https://api.iconify.design/simple-icons:discord.svg',
+    discord: 'https://api.iconify.design/simple-icons:discord.svg?color=%235865F2',
+    translate: 'https://api.iconify.design/material-symbols:translate-rounded.svg?color=%234285F4',
     bluesky: 'https://api.iconify.design/simple-icons:bluesky.svg',
+
     mastodon: 'https://api.iconify.design/simple-icons:mastodon.svg',
     decentralized: 'https://api.iconify.design/simple-icons:bluesky.svg?color=%230380B0',
 
@@ -1087,8 +1100,8 @@ function buildConfig(config) {
 
   // 地区目录构建：为每个已存在节点的地区生成 自动 / 家宽自动 及其元数据。
   const regionCatalog = regionAutoOrder.reduce((acc, regionName) => {
-
     const regionNodes = unique(regionGroups[regionName] || []);
+
     if (!regionNodes.length) return acc;
 
     const names = makeFusionRegionGroupNames(regionName);
@@ -1307,11 +1320,11 @@ function buildConfig(config) {
   ];
 
   const regionFallbackNodeMap = createNamedChoiceMap(REGION_FAILOVER_DEFS, def => buildRegionNodeList(def.regions));
-
   // YouTube无广策略：Google 广告投放基于出口 IP 的 GeoIP 归属。
-
   // Google 认为你在广告区 → 有广告；认为你在非广告区（中国大陆/俄罗斯等）→ 无广告。
+
   // 注意：脚本层面无法做真实 GeoIP 探测（那是运行时网络请求），只能靠节点名特征推断。
+
   // 送中信号分为三档：
   //   🅰️ 强信号（节点名明确写了送中/回国/CN落地）
   //   🅱️ 弱信号（节点名含 CN2/GIA/CTG/163/CMI/CT/CU/CM 等中国线路标记）
@@ -1373,8 +1386,8 @@ function buildConfig(config) {
 
   // 下载分区定义：按地区生成 load-balance 组，适合大文件 / CDN 拉取类业务。
   const DOWNLOAD_REGION_DEFS = [
-
     { key: '香港', groupName: '香港下载', icon: regionIconMap['香港'] || qIcon('HK') },
+
     { key: '台湾', groupName: '台湾下载', icon: regionIconMap['台湾'] || qIcon('TW') },
     { key: '日本', groupName: '日本下载', icon: regionIconMap['日本'] || qIcon('JP') },
     { key: '韩国', groupName: '韩国下载', icon: regionIconMap['韩国'] || qIcon('KR') },
@@ -1416,13 +1429,12 @@ function buildConfig(config) {
   const SPECIAL_FALLBACK_DEFS = [
     { name: 'YouTube无广节点优先组', icon: iconMap.youtubeFallback, nodes: youtubeFallbackNodes, extraDefaults: ['自动兜底'], options: { interval: 300, tolerance: 180, lazy: true } },
     { name: '国外AI故障转移', icon: iconMap.aiFallback, nodes: aiFallbackNodes, extraDefaults: ['自动兜底'], options: { interval: 300, tolerance: 180, lazy: true } }
-
   ];
 
   // fallback 组总装：包含全局兜底、区域故障转移与特殊业务故障转移。
   const fallbackGroups = [
-
     makeFallbackGroup('自动兜底', iconMap.fallbackFinal, autoFallbackNodes, [], {
+
       interval: FALLBACK_INTERVAL,
       tolerance: FALLBACK_TOLERANCE,
       lazy: true
@@ -1451,8 +1463,8 @@ function buildConfig(config) {
     ? makeUrlTestGroup('全球家宽', iconMap.home, globalHomeNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
 
-
   // 倍率聚合：先按识别出的倍率值排序，再派生低倍率节点池。
+
   const globalMultiplierNodes = multiplierProxyNames.slice().sort((a, b) => {
     const aInfo = getMultiplierSortInfo(a);
     const bInfo = getMultiplierSortInfo(b);
@@ -1537,8 +1549,10 @@ function buildConfig(config) {
     { key: 'Twitch', first: ['自动选择'], pool: CHOICE_POOLS.common },
     { key: '国外游戏', first: ['自动选择'], pool: CHOICE_POOLS.common },
     { key: 'Twitter', first: ['自动选择'], pool: CHOICE_POOLS.common },
+    { key: 'Discord', first: ['自动选择'], pool: CHOICE_POOLS.common },
     { key: '社交信息流', first: ['自动选择'], pool: CHOICE_POOLS.common },
     { key: 'GitHub', first: ['自动选择'], pool: CHOICE_POOLS.common },
+    { key: '翻译服务', first: ['自动选择'], pool: CHOICE_POOLS.common },
     { key: 'YouTube', first: ['YouTube无广节点优先组', '节点选择'], pool: CHOICE_POOLS.youtubeOnly },
     { key: 'Spotify', first: ['港台故障转移'], pool: CHOICE_POOLS.common },
     { key: 'Google', first: ['港台故障转移'], pool: CHOICE_POOLS.common },
@@ -1550,7 +1564,7 @@ function buildConfig(config) {
     { key: '谷歌商店', first: ['谷歌商店负载均衡', '负载均衡', '自动选择'], pool: CHOICE_POOLS.common },
     { key: 'AI', first: ['国外AI故障转移', '节点选择'], pool: CHOICE_POOLS.aiOnly }
   ];
-  const BUSINESS_SERVICE_ICON_DEFS = [
+  const BUSINESS_SERVICE_HEAD = [
     ['YouTube', iconMap.youtube],
     ['TikTok', iconMap.tiktok],
     ['Meta', iconMap.meta],
@@ -1561,14 +1575,20 @@ function buildConfig(config) {
     ['Telegram', iconMap.telegram],
     ['Google', iconMap.google],
     ['谷歌商店', iconMap.playstore],
-    ['微软服务', iconMap.microsoft],
+    ['微软服务', iconMap.microsoft]
+  ];
+  const BUSINESS_SERVICE_TAIL = [
+    ['翻译服务', iconMap.translate],
     ['Twitch', iconMap.twitch],
     ['GitHub', iconMap.github],
     ['AI', iconMap.ai],
     ['国外游戏', iconMap.game],
     ['社交信息流', iconMap.social],
-    ['去中心化平台', iconMap.decentralized]
+    ['去中心化平台', iconMap.decentralized],
+    ['Discord', iconMap.discord]
   ];
+  const BUSINESS_SERVICE_ICON_DEFS = BUSINESS_SERVICE_HEAD.concat(BUSINESS_SERVICE_TAIL);
+
   const businessChoiceMap = makeBusinessChoiceMap(BUSINESS_CHOICE_DEFS);
   const businessServiceGroupDefs = [];
   for (let i = 0; i < BUSINESS_SERVICE_ICON_DEFS.length; i++) {
@@ -1647,17 +1667,15 @@ function buildConfig(config) {
       fusionVisibleRegions
     )
   };
-
-
   // ===== 附加显示组 =====
+
   const regionAutoGroupMap = Object.create(null);
+
   for (let i = 0; i < regionAutoGroups.length; i++) {
     const group = regionAutoGroups[i];
     if (group && group.name) regionAutoGroupMap[group.name] = group;
   }
-
   const visibleRegionAutoGroups = [];
-
   for (let i = 0; i < regionAutoOrder.length; i++) {
     const groupName = regionAutoMap[regionAutoOrder[i]] || '';
     const group = regionAutoGroupMap[groupName];
@@ -1670,9 +1688,12 @@ function buildConfig(config) {
   if (globalStreamingGroup) specialFeatureGroups.push(globalStreamingGroup);
   // 服务分流：统一声明业务组名称、图标与候选池，后续批量生成 select 组。
 
+  const RISK_CONTROL_SERVICE_GROUP = { name: '风控安全', icon: iconMap.riskControl, choices: CHOICE_GROUPS.riskControl, extraDefaults: [] };
+
+  const DOMESTIC_SERVICE_GROUP = { name: '国内服务', icon: iconMap.china, choices: MAIN_CHOICE_POOLS.domesticService };
   const SERVICE_GROUP_BASE_DEFS = [
-    { name: '风控安全', icon: iconMap.riskControl, choices: CHOICE_GROUPS.riskControl, extraDefaults: [] },
-    { name: '国内服务', icon: iconMap.china, choices: MAIN_CHOICE_POOLS.domesticService },
+    RISK_CONTROL_SERVICE_GROUP,
+    DOMESTIC_SERVICE_GROUP,
     { name: '流媒体', icon: iconMap.streaming, choices: CHOICE_GROUPS.streaming },
     { name: '台湾媒体', icon: iconMap.taiwanMedia, choices: CHOICE_GROUPS.taiwanMedia },
     { name: 'FCM', icon: iconMap.fcm, choices: MAIN_CHOICE_POOLS.systemService },
@@ -1680,10 +1701,13 @@ function buildConfig(config) {
     { name: 'Cloudflare', icon: iconMap.cloudflare || iconMap.global, choices: cloudflareGroupChoices }
   ];
   const serviceGroupDefs = [
-    SERVICE_GROUP_BASE_DEFS[0],
-    ...businessServiceGroupDefs,
-    ...SERVICE_GROUP_BASE_DEFS.slice(1)
+    RISK_CONTROL_SERVICE_GROUP,
+    ...businessServiceGroupDefs.slice(0, BUSINESS_SERVICE_HEAD.length),
+    DOMESTIC_SERVICE_GROUP,
+    ...businessServiceGroupDefs.slice(BUSINESS_SERVICE_HEAD.length),
+    ...SERVICE_GROUP_BASE_DEFS.slice(2)
   ];
+
   // 工具组约定：
   // - 全球直连固定只暴露 DIRECT；
   // - 漏网之鱼用于承接最终 MATCH 流量，因此保留在工具组末尾，便于与规则语义对应。
@@ -1720,15 +1744,14 @@ function buildConfig(config) {
 
   const serviceGroups = makeSelectGroupsFromDefs(serviceGroupDefs);
   const utilityGroups = makeSelectGroupsFromDefs(utilityGroupDefs);
-
   const coreProxyGroupSections = {
     entry: CORE_ENTRY_GROUPS,
     auto: CORE_AUTO_GROUPS,
     failover: CORE_FAILOVER_GROUPS,
-
     service: serviceGroups,
     utility: [
       ...utilityGroups,
+
       ...downloadRegionGroups
     ],
     visibleExtra: [
@@ -2092,7 +2115,8 @@ function buildConfig(config) {
     'PROCESS-NAME,com.google.android.gms,Google',
     'PROCESS-NAME,com.google.android.gsf,Google',
     'PROCESS-NAME,com.google.android.apps.maps,Google',
-    'PROCESS-NAME,com.deepl.mobiletranslator,Google',
+    'PROCESS-NAME,com.deepl.mobiletranslator,翻译服务',
+
     'PROCESS-NAME,com.deniscerri.ytdl,下载专用组',
     'PROCESS-NAME,com.deniscerri.ytdlnis,下载专用组',
     'PROCESS-NAME,io.github.deniscerri.ytdlnis,下载专用组',
@@ -2101,27 +2125,28 @@ function buildConfig(config) {
 
   // 翻译服务规则：集中处理 Google Translate 与 DeepL 相关域名。
   const RULES_TRANSLATION = [
-
-    'DOMAIN,translate.googleapis.com,Google',
-    'DOMAIN-SUFFIX,translate.googleapis.com,Google',
-    'DOMAIN,translation.googleapis.com,Google',
-    'DOMAIN-SUFFIX,translation.googleapis.com,Google',
-    'DOMAIN,translate-pa.googleapis.com,Google',
-    'DOMAIN-SUFFIX,translate-pa.googleapis.com,Google',
-    'DOMAIN,translate.google.com,Google',
-    'DOMAIN-SUFFIX,translate.google.com,Google',
-    'DOMAIN,translate.google.cn,Google',
-    'DOMAIN-SUFFIX,translate.google.cn,Google',
-    'DOMAIN,www.deepl.com,Google',
-    'DOMAIN,api.deepl.com,Google',
-    'DOMAIN,www2.deepl.com,Google',
-    'DOMAIN,dict.deepl.com,Google',
-    'DOMAIN,static.deepl.com,Google',
-    'DOMAIN-SUFFIX,deepl.com,Google',
-    'DOMAIN-SUFFIX,deeplpro.com,Google',
-    'DOMAIN-SUFFIX,deeplusercontent.com,Google',
-    'DOMAIN-SUFFIX,linguee.com,Google',
+ 
+    'DOMAIN,translate.googleapis.com,翻译服务',
+    'DOMAIN-SUFFIX,translate.googleapis.com,翻译服务',
+    'DOMAIN,translation.googleapis.com,翻译服务',
+    'DOMAIN-SUFFIX,translation.googleapis.com,翻译服务',
+    'DOMAIN,translate-pa.googleapis.com,翻译服务',
+    'DOMAIN-SUFFIX,translate-pa.googleapis.com,翻译服务',
+    'DOMAIN,translate.google.com,翻译服务',
+    'DOMAIN-SUFFIX,translate.google.com,翻译服务',
+    'DOMAIN,translate.google.cn,翻译服务',
+    'DOMAIN-SUFFIX,translate.google.cn,翻译服务',
+    'DOMAIN,www.deepl.com,翻译服务',
+    'DOMAIN,api.deepl.com,翻译服务',
+    'DOMAIN,www2.deepl.com,翻译服务',
+    'DOMAIN,dict.deepl.com,翻译服务',
+    'DOMAIN,static.deepl.com,翻译服务',
+    'DOMAIN-SUFFIX,deepl.com,翻译服务',
+    'DOMAIN-SUFFIX,deeplpro.com,翻译服务',
+    'DOMAIN-SUFFIX,deeplusercontent.com,翻译服务',
+    'DOMAIN-SUFFIX,linguee.com,翻译服务',
   ];
+
   // 广告拦截规则：覆盖广告、遥测、追踪与部分已知推广 SDK 域名。
   // 维护约定：
   // - 这里优先放“强动作”规则（如 REJECT-DROP / REJECT）；
@@ -2154,8 +2179,8 @@ function buildConfig(config) {
     'DOMAIN-KEYWORD,popunder,广告拦截',
     'DOMAIN-KEYWORD,clickhubs,广告拦截',
     'DOMAIN-KEYWORD,adriver,广告拦截',
-
     'DOMAIN-SUFFIX,pglstatp-toutiao.com,广告拦截',
+    'DOMAIN-SUFFIX,pglstatp.com,广告拦截',
     'DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,广告拦截',
     'DOMAIN-SUFFIX,pangolin.snssdk.com,广告拦截',
     'DOMAIN-SUFFIX,sgsnssdk.com,广告拦截',
@@ -2165,8 +2190,18 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,mmstat.com,广告拦截',
     'DOMAIN-SUFFIX,gdt.qq.com,广告拦截',
     'DOMAIN-SUFFIX,e.qq.com,广告拦截',
+    'DOMAIN-SUFFIX,adsmind.gdtimg.com,广告拦截',
+    'DOMAIN-SUFFIX,pgdt.gtimg.cn,广告拦截',
     'DOMAIN-SUFFIX,guanggao.qq.com,广告拦截',
     'DOMAIN-SUFFIX,adnet.qq.com,广告拦截',
+    'DOMAIN-SUFFIX,ad.xiaomi.com,广告拦截',
+    'DOMAIN-SUFFIX,api.ad.xiaomi.com,广告拦截',
+    'DOMAIN-SUFFIX,data.mistat.xiaomi.com,广告拦截',
+    'DOMAIN-SUFFIX,tracking.miui.com,广告拦截',
+    'DOMAIN-SUFFIX,umeng.com,广告拦截',
+    'DOMAIN-SUFFIX,umengcloud.com,广告拦截',
+    'DOMAIN-SUFFIX,mob.com,广告拦截',
+
     'DOMAIN-SUFFIX,iadmatvideo.nosdn.127.net,广告拦截',
     'DOMAIN-SUFFIX,iadmusicmatvideo.nosdn.127.net,广告拦截',
     'DOMAIN-SUFFIX,mi.gdt.qq.com,广告拦截',
@@ -2203,12 +2238,25 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,omtrdc.net,广告拦截',
     // 第 4 层：全球广告/追踪补充
     'DOMAIN-SUFFIX,2mdn.net,广告拦截',
+    'DOMAIN-SUFFIX,admob.com,广告拦截',
+    'DOMAIN-SUFFIX,admob-sdk.doubleclick.net,广告拦截',
+    'DOMAIN-SUFFIX,app-measurement.com,广告拦截',
     'DOMAIN-SUFFIX,googlesyndication.com,广告拦截',
     'DOMAIN-SUFFIX,googleadservices.com,广告拦截',
     'DOMAIN-SUFFIX,googleadsserving.cn,广告拦截',
+    'DOMAIN-SUFFIX,adservice.google.com,广告拦截',
+    'DOMAIN-SUFFIX,adservice.google.com.hk,广告拦截',
+    'DOMAIN-SUFFIX,pagead2.googlesyndication.com,广告拦截',
+    'DOMAIN-SUFFIX,tpc.googlesyndication.com,广告拦截',
     'DOMAIN-SUFFIX,googletagservices.com,广告拦截',
     'DOMAIN-SUFFIX,doubleclick.net,广告拦截',
-    'DOMAIN-SUFFIX,google-analytics.com,广告拦截',
+    'DOMAIN-SUFFIX,adsrvr.org,广告拦截',
+    'DOMAIN-SUFFIX,criteo.com,广告拦截',
+    'DOMAIN-SUFFIX,criteo.net,广告拦截',
+    'DOMAIN-SUFFIX,taboola.com,广告拦截',
+    'DOMAIN-SUFFIX,taboolasyndication.com,广告拦截',
+    'DOMAIN-SUFFIX,outbrain.com,广告拦截',
+
     // 第 5 层：TikTok 广告/遥测补充 + 浏览器扩展追踪
     // 已在规则前部以 REJECT / REJECT-DROP 强动作处理，这里不再重复放弱动作版本。
 
@@ -2231,18 +2279,19 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,notifications.google.com,风控安全',
     'DOMAIN-SUFFIX,recaptcha.net,风控安全',
     'DOMAIN-SUFFIX,recaptcha-enterprise.google.com,风控安全',
-    'DOMAIN-SUFFIX,console.anthropic.com,风控安全',
-    'DOMAIN-SUFFIX,amazon.com,风控安全',
+    'DOMAIN-SUFFIX,hcaptcha.com,风控安全',
+    'DOMAIN-SUFFIX,newassets.hcaptcha.com,风控安全',
+    'DOMAIN-SUFFIX,account.amazon.com,风控安全',
+    'DOMAIN-SUFFIX,payments.amazon.com,风控安全',
     'DOMAIN-SUFFIX,aws.amazon.com,风控安全',
+
     'PROCESS-NAME,com.instagram.android,Meta',
     'PROCESS-NAME,com.facebook.katana,Meta',
     'PROCESS-NAME,com.facebook.orca,Meta',
     'PROCESS-NAME,com.facebook.lite,Meta',
     'PROCESS-NAME,com.instagram.barcelona,Meta',
-    'DOMAIN-SUFFIX,slack.com,风控安全',
-    'DOMAIN-SUFFIX,notion.so,风控安全',
-    'DOMAIN-SUFFIX,dropbox.com,风控安全',
     'DOMAIN-SUFFIX,twttr.com,风控安全',
+
     'DOMAIN-SUFFIX,twtrdns.net,风控安全',
     'DOMAIN-SUFFIX,redditmail.com,风控安全',
     'DOMAIN-SUFFIX,reddit.app.link,风控安全',
@@ -2263,12 +2312,20 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,xoom.com,风控安全',
     'DOMAIN-SUFFIX,stripe.com,风控安全',
     'DOMAIN-SUFFIX,stripe.network,风控安全',
-    'DOMAIN-SUFFIX,link.com,风控安全',
     'DOMAIN-SUFFIX,stripe-terminal-local-reader.net,风控安全',
+
+    'DOMAIN-SUFFIX,checkout.com,风控安全',
+    'DOMAIN-SUFFIX,checkoutcdn.com,风控安全',
+    'DOMAIN-SUFFIX,checkoutshopper.com,风控安全',
+    'DOMAIN-SUFFIX,payoneer.com,风控安全',
+    'DOMAIN-SUFFIX,airwallex.com,风控安全',
+    'DOMAIN-SUFFIX,worldpay.com,风控安全',
+    'DOMAIN-SUFFIX,skrill.com,风控安全',
+    'DOMAIN-SUFFIX,neteller.com,风控安全',
     'DOMAIN-SUFFIX,wise.com,风控安全',
     'DOMAIN-SUFFIX,transferwise.com,风控安全',
-    'DOMAIN-SUFFIX,tradingview.com,风控安全',
     'DOMAIN-SUFFIX,hsbc.com,风控安全',
+
     'DOMAIN-SUFFIX,interactivebrokers.com,风控安全',
     'DOMAIN-SUFFIX,adyen.com,风控安全',
     'DOMAIN-SUFFIX,visa.com,风控安全',
@@ -2282,9 +2339,8 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,bnbstatic.com,风控安全',
     'DOMAIN-SUFFIX,binanceapi.com,风控安全',
     'DOMAIN-SUFFIX,coinbase.com,风控安全',
-    'DOMAIN-SUFFIX,coingecko.com,风控安全',
-    'DOMAIN-SUFFIX,coinmarketcap.com,风控安全',
     'DOMAIN-SUFFIX,okx.com,风控安全',
+
     'DOMAIN-SUFFIX,oklink.com,风控安全',
     'DOMAIN-SUFFIX,okx-dns.com,风控安全',
     'DOMAIN-SUFFIX,okx-dns1.com,风控安全',
@@ -2347,7 +2403,8 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,assets.cloudflare.com,风控安全',
     'DOMAIN-SUFFIX,discordstatus.com,风控安全',
     'DOMAIN-SUFFIX,githubstatus.com,风控安全',
-    'DOMAIN-SUFFIX,meta.com,风控安全',
+    'DOMAIN-SUFFIX,authy.com,风控安全',
+
   ];
   // 跟踪分析规则：覆盖 Tracker、遥测、统计与分析域名。
   // 维护约定：
@@ -2372,8 +2429,7 @@ function buildConfig(config) {
     'DOMAIN-KEYWORD,newrelic,跟踪分析',
     'DOMAIN-SUFFIX,google-analytics.com,跟踪分析',
     'DOMAIN-SUFFIX,googletagmanager.com,跟踪分析',
-    'DOMAIN-SUFFIX,googletagservices.com,跟踪分析',
-    'DOMAIN-SUFFIX,doubleclick.net,跟踪分析',
+
   ];
   // 风控与系统规则：覆盖 FCM、Play Store、Google AI、下载与高敏感登录链路。
   // 维护约定：
@@ -2426,7 +2482,7 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,dl.googleusercontent.com,下载专用组',
     'DOMAIN-SUFFIX,redirector.gvt1.com,下载专用组',
     'DOMAIN-SUFFIX,update.googleapis.com,下载专用组',
-    'DOMAIN-SUFFIX,connectivitycheck.gstatic.com,下载专用组',
+
   ];
   const RULES_RISK_CONTROL = [
     ...RULES_RISK_CONTROL_FCM,
@@ -2666,8 +2722,8 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,openaiusercontent.com,AI',
     'DOMAIN-SUFFIX,chatgpt.livekit.cloud,AI',
     'DOMAIN-SUFFIX,openaiapi-site.azureedge.net,AI',
-    'DOMAIN-SUFFIX,identrust.com,AI',
     'DOMAIN-SUFFIX,ai.com,AI',
+
     'DOMAIN-SUFFIX,claude.ai,AI',
     'DOMAIN-SUFFIX,claudeusercontent.com,AI',
     'DOMAIN-SUFFIX,anthropiccdn.com,AI',
@@ -2678,8 +2734,8 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,grok.com,AI',
     'DOMAIN-SUFFIX,x.ai,AI',
     'DOMAIN-SUFFIX,api.x.ai,AI',
-    'DOMAIN-SUFFIX,braze.com,AI',
     'DOMAIN-SUFFIX,mistral.ai,AI',
+
     'DOMAIN-SUFFIX,lechat.ai,AI',
     'DOMAIN-SUFFIX,poe.com,AI',
     'DOMAIN-SUFFIX,poecdn.net,AI',
@@ -3009,12 +3065,12 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,calendar.google.com,Google',
     'DOMAIN-SUFFIX,contacts.google.com,Google',
     'DOMAIN-SUFFIX,keep.google.com,Google',
-    'DOMAIN-SUFFIX,translate.google.com,Google',
     'DOMAIN-SUFFIX,earth.google.com,Google'
   ];
+
   // Twitter / X 规则：覆盖主站、静态资源与直播相关域名。
   const RULES_TWITTER = [
-
+ 
     'DOMAIN-SUFFIX,x.com,Twitter',
     'DOMAIN-SUFFIX,twitter.com,Twitter',
     'DOMAIN-SUFFIX,twimg.com,Twitter',
@@ -3022,9 +3078,24 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,pscp.tv,Twitter',
     'DOMAIN-SUFFIX,periscope.tv,Twitter'
   ];
-  // 社交信息流规则：覆盖 Reddit、Discord 及相关静态 / 邀请 / 资源域名。
+  // Discord 规则：覆盖主站、邀请、资源分发与客户端相关域名。
+  const RULES_DISCORD = [
+ 
+    'PROCESS-NAME,com.discord,Discord',
+    'DOMAIN-SUFFIX,discord.com,Discord',
+    'DOMAIN-SUFFIX,discord.gg,Discord',
+    'DOMAIN-SUFFIX,discord.gift,Discord',
+    'DOMAIN-SUFFIX,discord.new,Discord',
+    'DOMAIN-SUFFIX,discordapp.com,Discord',
+    'DOMAIN-SUFFIX,discordapp.net,Discord',
+    'DOMAIN-SUFFIX,discordcdn.com,Discord',
+    'DOMAIN-SUFFIX,discord.media,Discord',
+    'DOMAIN-SUFFIX,discordsays.com,Discord',
+    'DOMAIN-SUFFIX,dis.gd,Discord'
+  ];
+  // 社交信息流规则：覆盖 Reddit 及相关静态 / 资源域名。
   const RULES_SOCIAL_FEED = [
-
+ 
     'DOMAIN-SUFFIX,reddit.com,社交信息流',
     'DOMAIN-SUFFIX,redditinc.com,社交信息流',
     'DOMAIN-SUFFIX,redditmedia.com,社交信息流',
@@ -3032,18 +3103,9 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,redditspace.com,社交信息流',
     'DOMAIN-SUFFIX,redd.it,社交信息流',
     'DOMAIN,reddit.map.fastly.net,社交信息流',
-    'DOMAIN-SUFFIX,discord.com,社交信息流',
-    'DOMAIN-SUFFIX,discord.gg,社交信息流',
-    'DOMAIN-SUFFIX,discord.gift,社交信息流',
-    'DOMAIN-SUFFIX,discord.new,社交信息流',
-    'DOMAIN-SUFFIX,discordapp.com,社交信息流',
-    'DOMAIN-SUFFIX,discordapp.net,社交信息流',
-    'DOMAIN-SUFFIX,discordcdn.com,社交信息流',
-    'DOMAIN-SUFFIX,discord.media,社交信息流',
-    'DOMAIN-SUFFIX,discordsays.com,社交信息流',
-    'DOMAIN-SUFFIX,dis.gd,社交信息流',
     'DOMAIN-SUFFIX,flr.app,社交信息流'
   ];
+
   // 去中心化补充规则：覆盖 Bluesky、Mastodon、Misskey、Lemmy、Nostr 等联邦生态。
   const RULES_DECENTRALIZED_SUPPLEMENT = [
 
@@ -3060,8 +3122,8 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,atproto.blue,去中心化平台',
     'DOMAIN-SUFFIX,atproto.plus,去中心化平台',
     'DOMAIN-SUFFIX,brid.gy,去中心化平台',
-    'DOMAIN-SUFFIX,buffer.com,去中心化平台',
     'DOMAIN-SUFFIX,mastodon.social,去中心化平台',
+
     'DOMAIN-SUFFIX,mastodon.online,去中心化平台',
     'DOMAIN-SUFFIX,mastodon.cloud,去中心化平台',
     'DOMAIN-SUFFIX,mastodon.green,去中心化平台',
@@ -3214,10 +3276,28 @@ function buildConfig(config) {
   ];
   // 社交补充规则：补齐 Facebook 连接与图谱接口等遗漏链路。
   const RULES_SOCIAL_FEED_SUPPLEMENT = [
-
-    'DOMAIN,connect.facebook.net,社交信息流',
-    'DOMAIN,graph.facebook.com,社交信息流'
+    'DOMAIN,connect.facebook.net,Meta',
+    'DOMAIN,graph.facebook.com,Meta'
   ];
+  const RULES_TARGET_SANITY = [
+    'DOMAIN-SUFFIX,deepl.com,翻译服务',
+    'DOMAIN-SUFFIX,deeplpro.com,翻译服务',
+    'DOMAIN-SUFFIX,deeplusercontent.com,翻译服务',
+    'DOMAIN-SUFFIX,linguee.com,翻译服务',
+    'DOMAIN-SUFFIX,translate.google.com,翻译服务',
+    'DOMAIN-SUFFIX,translate.google.cn,翻译服务',
+    'DOMAIN-SUFFIX,translate.googleapis.com,翻译服务',
+    'DOMAIN-SUFFIX,translation.googleapis.com,翻译服务',
+    'DOMAIN-SUFFIX,translate-pa.googleapis.com,翻译服务',
+    'DOMAIN-SUFFIX,discord.com,Discord',
+
+    'DOMAIN-SUFFIX,discord.gg,Discord',
+    'DOMAIN-SUFFIX,discordapp.com,Discord',
+    'DOMAIN-SUFFIX,discordapp.net,Discord',
+    'DOMAIN-SUFFIX,discordcdn.com,Discord'
+  ];
+
+
   /**
    * 最终兜底出口说明：
    * - GEOIP,CN -> 全球直连
@@ -3261,14 +3341,18 @@ function buildConfig(config) {
     TELEGRAM: RULES_TELEGRAM,
     GOOGLE: RULES_GOOGLE,
     TWITTER: RULES_TWITTER,
+    DISCORD: RULES_DISCORD,
     SOCIAL_FEED: RULES_SOCIAL_FEED,
     DECENTRALIZED_SUPPLEMENT: RULES_DECENTRALIZED_SUPPLEMENT,
+
     TIKTOK: RULES_TIKTOK,
     JP_KR_ECOSYSTEM: RULES_JP_KR_ECOSYSTEM,
     NICONICO: RULES_NICONICO,
     SOCIAL_FEED_SUPPLEMENT: RULES_SOCIAL_FEED_SUPPLEMENT,
+    TARGET_SANITY: RULES_TARGET_SANITY,
     DIRECT_AND_FALLBACK: RULES_DIRECT_AND_FALLBACK
   };
+
   const RULE_ASSEMBLY_ORDER = [
     // 主业务优先：视频、应用进程、翻译
     'YOUTUBE',
@@ -3297,14 +3381,18 @@ function buildConfig(config) {
     'TELEGRAM',
     'GOOGLE',
     'TWITTER',
+    'DISCORD',
     'SOCIAL_FEED',
+
     'DECENTRALIZED_SUPPLEMENT',
     'TIKTOK',
     'JP_KR_ECOSYSTEM',
     'NICONICO',
     'SOCIAL_FEED_SUPPLEMENT',
+    'TARGET_SANITY',
     'DIRECT_AND_FALLBACK'
   ];
+
   const RULE_SET_DEFS = RULE_ASSEMBLY_ORDER
     .map(name => ({ name, rules: RULE_SET_MAP[name] }));
   // 规则落盘：按优先级顺序合并所有规则，并做最终去重。
@@ -3393,9 +3481,10 @@ function validateOutputConfig(config) {
   if (!config.dns || typeof config.dns !== 'object') {
     throw new Error('output dns is not an object');
   }
-  if (!config.rules.some(rule => typeof rule === 'string' && rule.startsWith('MATCH,'))) {
+  if (!config.rules.some(rule => typeof rule === 'string' && /^MATCH\s*,/i.test(rule))) {
     throw new Error('output rules missing MATCH fallback');
   }
+
   return config;
 }
 
