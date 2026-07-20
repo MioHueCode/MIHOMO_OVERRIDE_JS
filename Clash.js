@@ -1396,6 +1396,7 @@ function buildConfig(config) {
     return map;
   }
   function makeBusinessChoiceMap(defs, templateMap = null) {
+
     return createNamedValueMap(defs, 'key', def => {
       const pool = def.poolKey && templateMap ? templateMap[def.poolKey] : def.pool;
       return makeOrderedChoices(def.first, pool);
@@ -1417,6 +1418,7 @@ function buildConfig(config) {
 
   function makeGroupNameSet(groups) {
     const set = new Set();
+
     const list = asArray(groups);
     for (let i = 0; i < list.length; i++) {
       const group = list[i];
@@ -1680,12 +1682,59 @@ function buildConfig(config) {
     '自动兜底',
     ...fallbackNames.filter(name => !regionFallbackNames.includes(name) && name !== '家宽故障转移' && name !== '自动兜底' && !excludedFallbackChoiceSet.has(name))
   ]);
-  const baseChoices = ['自动选择', '负载均衡', '全球手动']
-    .concat(orderedFallbackNames)
-    .concat(commonLoadBalanceNames)
-    .concat(globalFeatureChoices)
-    .concat(fusionVisibleRegions)
-    .concat(allProxyNames);
+  const STATIC_CHOICE_HINTS = unique([
+    '节点选择',
+    '自动选择',
+    '全球手动',
+    '全球直连',
+    '负载均衡',
+    '谷歌商店负载均衡',
+    '家宽故障转移',
+    '自动兜底',
+    ...regionFallbackNames,
+    ...fallbackNames,
+    ...loadBalanceNames,
+    ...downloadRegionGroupArtifacts.names,
+    ...globalFeatureChoices,
+    ...regionAutoNames,
+    ...regionHomeAutoNames
+  ]);
+  const usableChoiceNameSet = makeNameSet(STATIC_CHOICE_HINTS.concat(allProxyNames));
+
+  for (const name of BUILTIN_CHOICE_NAMES) usableChoiceNameSet.add(name);
+  function filterUsableChoiceNames(list) {
+    const filtered = [];
+    const seen = new Set();
+    const source = asArray(list);
+    for (let i = 0; i < source.length; i++) {
+      const item = source[i];
+      if (!item || seen.has(item)) continue;
+      if (!BUILTIN_CHOICE_NAMES.has(item) && !usableChoiceNameSet.has(item)) continue;
+      seen.add(item);
+      filtered.push(item);
+    }
+    return filtered;
+  }
+  function usableChoices(...parts) {
+    return filterUsableChoiceNames(buildChoiceList(...parts));
+  }
+  function usableChoiceDef(key, first, ...parts) {
+    return { key, first: usableChoices(first), parts: parts.map(part => usableChoices(part)) };
+  }
+  function makeSelectGroupDef(name, icon, choices, extraDefaults) {
+    return { name, icon, choices: usableChoices(choices), extraDefaults: usableChoices(extraDefaults) };
+  }
+  function makeSelectGroupDefList(entries) {
+    const defs = [];
+    const list = asArray(entries);
+    for (let i = 0; i < list.length; i++) {
+      const entry = list[i];
+      if (!entry || !entry.name) continue;
+      defs.push(makeSelectGroupDef(entry.name, entry.icon, entry.choices, entry.extraDefaults));
+    }
+    return defs;
+  }
+  const baseChoices = usableChoices(['自动选择', '负载均衡', '全球手动'], orderedFallbackNames, commonLoadBalanceNames, globalFeatureChoices, fusionVisibleRegions, allProxyNames);
   const commonBaseChoices = baseChoices.filter(name => !excludedFallbackChoiceSet.has(name));
   const youtubeOnlyBaseChoices = baseChoices.filter(name => name !== '国外AI故障转移');
   const aiOnlyBaseChoices = baseChoices.filter(name => name !== 'YouTube无广节点优先组');
@@ -1709,20 +1758,21 @@ function buildConfig(config) {
       seen.add(item);
       merged.push(item);
     }
-    return merged;
+    return filterUsableChoiceNames(merged);
   }
+
   // ===== 业务分组候选项 =====
   const domesticChoices = directChoices.concat(fusionVisibleRegions);
   const taiwanAutoChoice = getRegionAuto('台湾');
 
   // ===== 分流候选池 =====
   const CHOICE_POOL_DEFS = [
-    { key: 'common', first: ['节点选择'], parts: [commonBaseChoices] },
-    { key: 'youtubeOnly', first: ['节点选择', 'YouTube无广节点优先组'], parts: [youtubeOnlyBaseChoices] },
-    { key: 'aiOnly', first: ['节点选择', '国外AI故障转移'], parts: [aiOnlyBaseChoices] },
-    { key: 'streaming', first: globalStreamingGroup ? ['全球流媒体', '自动选择'] : ['自动选择'], parts: [commonBaseChoices] },
-    { key: 'taiwanMedia', first: unique(['港台故障转移', taiwanAutoChoice, '自动选择'].filter(Boolean)), parts: [commonBaseChoices] },
-    { key: 'riskControl', first: ['家宽故障转移'], parts: [[
+    usableChoiceDef('common', ['节点选择'], commonBaseChoices),
+    usableChoiceDef('youtubeOnly', ['节点选择', 'YouTube无广节点优先组'], youtubeOnlyBaseChoices),
+    usableChoiceDef('aiOnly', ['节点选择', '国外AI故障转移'], aiOnlyBaseChoices),
+    usableChoiceDef('streaming', globalStreamingGroup ? ['全球流媒体', '自动选择'] : ['自动选择'], commonBaseChoices),
+    usableChoiceDef('taiwanMedia', unique(['港台故障转移', taiwanAutoChoice, '自动选择'].filter(Boolean)), commonBaseChoices),
+    usableChoiceDef('riskControl', ['家宽故障转移'], [
       globalHomeGroup ? '全球家宽' : null,
       '全球手动',
       ...regionHomeAutoNames.filter(name => name !== '全球家宽'),
@@ -1733,11 +1783,13 @@ function buildConfig(config) {
       '节点选择',
       '自动选择',
       '全球直连'
-    ].filter(Boolean)] }
+    ])
   ];
+
   const CHOICE_POOLS = buildChoicePoolsFromDefs(CHOICE_POOL_DEFS);
 
   const BUSINESS_CHOICE_DEFS = [
+
     { key: 'Meta', first: ['自动选择'], poolKey: 'common' },
     { key: 'Telegram', first: ['自动选择'], poolKey: 'common' },
     { key: 'Twitch', first: ['自动选择'], poolKey: 'common' },
@@ -1783,20 +1835,18 @@ function buildConfig(config) {
   ];
   const BUSINESS_SERVICE_ICON_DEFS = BUSINESS_SERVICE_HEAD.concat(BUSINESS_SERVICE_TAIL);
   const businessChoiceMap = makeBusinessChoiceMap(BUSINESS_CHOICE_DEFS, CHOICE_POOLS);
-
-  const businessServiceGroupDefs = [];
-  for (let i = 0; i < BUSINESS_SERVICE_ICON_DEFS.length; i++) {
-    const entry = BUSINESS_SERVICE_ICON_DEFS[i];
-    const name = entry[0];
-    const icon = entry[1];
-    businessServiceGroupDefs.push({ name, icon, choices: businessChoiceMap[name] });
-  }
+  const businessServiceGroupDefs = makeSelectGroupDefList(BUSINESS_SERVICE_ICON_DEFS.map(entry => ({
+    name: entry[0],
+    icon: entry[1],
+    choices: businessChoiceMap[entry[0]]
+  })));
 
   const CHOICE_GROUPS = {
-    streaming: CHOICE_POOLS.streaming,
-    taiwanMedia: CHOICE_POOLS.taiwanMedia,
-    riskControl: CHOICE_POOLS.riskControl
+    streaming: usableChoices(CHOICE_POOLS.streaming),
+    taiwanMedia: usableChoices(CHOICE_POOLS.taiwanMedia),
+    riskControl: usableChoices(CHOICE_POOLS.riskControl)
   };
+
 
   const preferredHomeFailover = [
     '香港家宽自动',
@@ -1821,32 +1871,15 @@ function buildConfig(config) {
   // ===== 主分组候选项 =====
   // 主候选集：为入口组、系统服务组和兜底组准备最终可展示选项。
   const MAIN_CHOICE_POOL_DEFS = [
-    {
-      key: 'nodeSelection',
-      first: ['自动选择', '负载均衡', '全球手动'],
-      parts: [fallbackNames, globalFeatureChoices, fusionVisibleRegions]
-    },
-    {
-      key: 'systemService',
-      first: ['自动选择', '节点选择', '全球手动', '全球直连'],
-      parts: [fusionVisibleRegions, allProxyNames]
-    },
-    {
-      key: 'domesticService',
-      first: ['全球直连'],
-      parts: [
-        directChoices.filter(x => x !== '全球直连'),
-        domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x))
-      ]
-    },
+    usableChoiceDef('nodeSelection', ['自动选择', '负载均衡', '全球手动'], fallbackNames, globalFeatureChoices, fusionVisibleRegions),
+    usableChoiceDef('systemService', ['自动选择', '节点选择', '全球手动', '全球直连'], fusionVisibleRegions, allProxyNames),
+    usableChoiceDef('domesticService', ['全球直连'], directChoices.filter(x => x !== '全球直连'), domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x))),
     // 最终兜底候选：供 MATCH / 未命中流量使用，优先自动选择，其次允许手动接管与地区兜底。
-    {
-      key: 'finalFallback',
-      first: ['自动选择', '全球手动'],
-      parts: [fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name)), fusionVisibleRegions]
-    }
+    usableChoiceDef('finalFallback', ['自动选择', '全球手动'], fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name)), fusionVisibleRegions)
   ];
+
   const MAIN_CHOICE_POOLS = buildChoicePoolsFromDefs(MAIN_CHOICE_POOL_DEFS);
+
   // ===== 附加显示组 =====
 
   const regionAutoGroupMap = Object.create(null);
@@ -1867,11 +1900,10 @@ function buildConfig(config) {
   if (globalMultiplierGroup) specialFeatureGroups.push(globalMultiplierGroup);
   if (globalStreamingGroup) specialFeatureGroups.push(globalStreamingGroup);
   // 服务分流：统一声明业务组名称、图标与候选池，后续批量生成 select 组。
+  const RISK_CONTROL_SERVICE_GROUP = makeSelectGroupDef('风控安全', iconMap.riskControl, CHOICE_GROUPS.riskControl, []);
 
-  const RISK_CONTROL_SERVICE_GROUP = { name: '风控安全', icon: iconMap.riskControl, choices: CHOICE_GROUPS.riskControl, extraDefaults: [] };
-
-  const DOMESTIC_SERVICE_GROUP = { name: '国内服务', icon: iconMap.china, choices: MAIN_CHOICE_POOLS.domesticService };
-  const SERVICE_GROUP_BASE_DEFS = [
+  const DOMESTIC_SERVICE_GROUP = makeSelectGroupDef('国内服务', iconMap.china, MAIN_CHOICE_POOLS.domesticService);
+  const SERVICE_GROUP_BASE_DEFS = makeSelectGroupDefList([
     RISK_CONTROL_SERVICE_GROUP,
     DOMESTIC_SERVICE_GROUP,
     { name: '流媒体', icon: iconMap.streaming, choices: CHOICE_GROUPS.streaming },
@@ -1879,37 +1911,38 @@ function buildConfig(config) {
     { name: 'FCM', icon: iconMap.fcm, choices: MAIN_CHOICE_POOLS.systemService },
     { name: 'Apple', icon: iconMap.apple, choices: MAIN_CHOICE_POOLS.systemService },
     { name: 'Cloudflare', icon: iconMap.cloudflare || iconMap.global, choices: cloudflareGroupChoices }
-  ];
-  const serviceGroupDefs = [
+  ]);
+
+  const serviceGroupDefs = makeSelectGroupDefList([
     RISK_CONTROL_SERVICE_GROUP,
     ...businessServiceGroupDefs.slice(0, BUSINESS_SERVICE_HEAD.length),
     DOMESTIC_SERVICE_GROUP,
     ...businessServiceGroupDefs.slice(BUSINESS_SERVICE_HEAD.length),
     ...SERVICE_GROUP_BASE_DEFS.slice(2)
-  ];
+  ]);
 
   // 工具组约定：
   // - 全球直连固定只暴露 DIRECT；
   // - 漏网之鱼用于承接最终 MATCH 流量，因此保留在工具组末尾，便于与规则语义对应。
-  const UTILITY_GROUP_PRESET_DEFS = [
+  const UTILITY_GROUP_PRESET_DEFS = makeSelectGroupDefList([
     { name: '广告拦截', icon: iconMap.adblock, choices: ['REJECT', 'REJECT-DROP', 'PASS'], extraDefaults: ['REJECT-DROP'] },
     { name: '跟踪分析', icon: qIcon('Reject'), choices: ['REJECT', 'DIRECT', '自动选择'], extraDefaults: ['REJECT'] },
     { name: '全球直连', icon: iconMap.direct, choices: ['DIRECT'], extraDefaults: [] },
     { name: '漏网之鱼', icon: iconMap.final, choices: MAIN_CHOICE_POOLS.finalFallback }
-  ];
-  const utilityGroupDefs = [
+  ]);
+  const utilityGroupDefs = makeSelectGroupDefList([
     { name: '下载专用组', icon: iconMap.download || iconMap.fallback, choices: downloadGroupChoices.filter(name => name !== 'DIRECT') },
     ...UTILITY_GROUP_PRESET_DEFS
-  ];
+  ]);
 
   const defaultAutoGroup = makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50);
   const autoGroup = defaultAutoGroup || {
     name: '自动选择',
     type: 'select',
     icon: iconMap.auto,
-    proxies: sanitizeChoiceList(allProxyNames, ['全球手动', 'DIRECT'])
+    proxies: sanitizeChoiceList(usableChoices(allProxyNames), usableChoices(['全球手动', 'DIRECT']))
   };
-  const homeFailoverGroup = makeFallbackGroup('家宽故障转移', iconMap.flare, homeFailoverChoices, ['自动兜底']);
+  const homeFailoverGroup = makeFallbackGroup('家宽故障转移', iconMap.flare, usableChoices(homeFailoverChoices), usableChoices(['自动兜底']));
 
   const CORE_ENTRY_GROUPS = [
     makeSelectGroup('节点选择', iconMap.rocket, MAIN_CHOICE_POOLS.nodeSelection)
@@ -2002,7 +2035,6 @@ function buildConfig(config) {
     // 只要候选中还存在一个真实节点，就说明这个组不需要走语义兜底。
     return asArray(list).some(name => realProxyNameSet.has(name));
   }
-
   function finalizeGroupProxies(group, candidates) {
     // candidates 是已经过基础过滤后的候选列表；这里再按组类型决定最终落盘形式。
     const proxies = asArray(candidates);
@@ -2016,60 +2048,103 @@ function buildConfig(config) {
     // fallback 组只保留构建阶段明确给它的候选；这里不额外补“自动选择”。
     // 如果清洗后彻底为空，ensureGroupList(..., []) 会退到 DIRECT，至少保证配置仍可导入。
     if (group.type === 'fallback') return ensureGroupList(proxies, []);
-    // 自动选择 / url-test / load-balance 这类“自动型”组，必须优先依赖真实节点工作。
-    // 只有在真实节点被清空时，才允许回退到它们各自的最小兜底项。
-    if (group.name === '自动选择' || group.type === 'url-test' || group.type === 'load-balance') {
+    // 只有主自动选择组允许在没有真实节点时走语义兜底。
+    if (group.name === '自动选择') {
       return hasRealChoices ? proxies : ensureGroupList(proxies, fallbackChoices);
+    }
+    // 其他 url-test / load-balance 组如果没有真实节点，应直接视为空组，后续删除。
+    // 不能降级成 DIRECT，否则会出现“地区自动组/下载组明明无节点却伪装成直连”的假组。
+    if (group.type === 'url-test' || group.type === 'load-balance') {
+      return hasRealChoices ? proxies : [];
     }
     // 其余 select / 行为组：有真实节点就直接保留；没真实节点才走语义兜底。
     return hasRealChoices ? proxies : sanitizeChoiceList(proxies, fallbackChoices);
   }
 
-  // 第一层清洗：
-  // - 删除不存在的候选名；
-  // - 删除 self reference（组引用自己）；
-  // - 删除重复项；
-  // - 然后按组类型收口成最终候选。
-  const sanitizedProxyGroups = finalizedProxyGroups.map(group => {
-    if (!group || !Array.isArray(group.proxies) || !group.name) return group;
-    const filteredProxies = filterDynamicChoices(group.proxies, availableChoiceNames, group.name);
-    return Object.assign({}, group, { proxies: finalizeGroupProxies(group, filteredProxies) });
-  });
-
-  // 建立组名到组对象的映射，供第二层“切环”时快速查询目标组内容。
-  const sanitizedGroupMap = Object.create(null);
-  for (let i = 0; i < sanitizedProxyGroups.length; i++) {
-    const group = sanitizedProxyGroups[i];
-    if (group && group.name) sanitizedGroupMap[group.name] = group;
+  function shouldDropEmptyGroup(group) {
+    if (!group || !group.name) return true;
+    if (!Array.isArray(group.proxies)) return false;
+    if (group.name === '自动选择' || group.name === '全球手动' || group.name === '全球直连') return false;
+    if (group.type === 'url-test' || group.type === 'load-balance') {
+      return !hasRealProxyChoices(group.proxies);
+    }
+    return false;
+  }
+  function collectAvailableChoiceNamesFromGroups(groups) {
+    const names = makeNameSet(allProxyNames);
+    const list = asArray(groups);
+    for (let i = 0; i < list.length; i++) {
+      const group = list[i];
+      if (group && group.name) names.add(group.name);
+    }
+    for (const name of BUILTIN_CHOICE_NAMES) names.add(name);
+    return names;
   }
 
-  // 第二层清洗：切掉显式环引用。
-  // 当前只处理两类高频问题：
-  // 1) 自环：A -> A
-  // 2) 二元互环：A -> B 且 B -> A
-  // 这一步放在第一层之后，是因为必须基于“已经清洗过一次的最终候选关系”再判断一次。
-  config['proxy-groups'] = sanitizedProxyGroups.map(group => {
-    if (!group || !Array.isArray(group.proxies) || !group.name) return group;
-    const nextProxies = [];
-    for (let i = 0; i < group.proxies.length; i++) {
-      const proxyName = group.proxies[i];
-      const targetGroup = sanitizedGroupMap[proxyName];
-      // 目标不是组，或者目标组没有 proxies，就把它当普通候选直接保留。
-      if (!targetGroup || !Array.isArray(targetGroup.proxies)) {
-        nextProxies.push(proxyName);
-        continue;
-      }
-      // A -> A：直接丢掉。
-      if (targetGroup.name === group.name) continue;
-      // A -> B 且 B -> A：视为显式互环，直接丢掉当前这条引用。
-      if (targetGroup.proxies.includes(group.name)) continue;
-      nextProxies.push(proxyName);
+  function runProxyGroupCleanupPass(groups, availableNames) {
+    const cleanedGroups = asArray(groups).map(group => {
+      if (!group || !Array.isArray(group.proxies) || !group.name) return group;
+      const filteredProxies = filterDynamicChoices(group.proxies, availableNames, group.name);
+      return Object.assign({}, group, { proxies: finalizeGroupProxies(group, filteredProxies) });
+    }).filter(group => !shouldDropEmptyGroup(group));
+
+    const groupMap = Object.create(null);
+    for (let i = 0; i < cleanedGroups.length; i++) {
+      const group = cleanedGroups[i];
+      if (group && group.name) groupMap[group.name] = group;
     }
-    // 切环后再按组类型收口一次，避免某些组因为去环而被清空。
-    return Object.assign({}, group, { proxies: finalizeGroupProxies(group, nextProxies) });
-  });
+
+    return cleanedGroups.map(group => {
+      if (!group || !Array.isArray(group.proxies) || !group.name) return group;
+      const nextProxies = [];
+      for (let i = 0; i < group.proxies.length; i++) {
+        const proxyName = group.proxies[i];
+        const targetGroup = groupMap[proxyName];
+        // 目标不是组，或者目标组没有 proxies，就把它当普通候选直接保留。
+        if (!targetGroup || !Array.isArray(targetGroup.proxies)) {
+          nextProxies.push(proxyName);
+          continue;
+        }
+        // A -> A：直接丢掉。
+        if (targetGroup.name === group.name) continue;
+        // A -> B 且 B -> A：视为显式互环，直接丢掉当前这条引用。
+        if (targetGroup.proxies.includes(group.name)) continue;
+        nextProxies.push(proxyName);
+      }
+      // 切环后再按组类型收口一次，避免某些组因为去环而被清空。
+      return Object.assign({}, group, { proxies: finalizeGroupProxies(group, nextProxies) });
+    }).filter(group => !shouldDropEmptyGroup(group));
+  }
+
+  function getProxyGroupSignature(groups) {
+    return JSON.stringify(asArray(groups).map(group => {
+      if (!group || !group.name) return null;
+      return {
+        name: group.name,
+        type: group.type || '',
+        proxies: Array.isArray(group.proxies) ? group.proxies.slice() : null
+      };
+    }));
+  }
+
+  // 稳定化清洗：反复执行“删失效引用 -> 切环 -> 删空自动组”，直到分组关系不再变化。
+  // 这样即使存在 A 引用 B、B 删除后又影响 C 的级联场景，也不会残留 not found。
+  let stabilizedProxyGroups = finalizedProxyGroups.slice();
+  let previousSignature = '';
+  for (let round = 0; round < 8; round++) {
+    const availableNames = collectAvailableChoiceNamesFromGroups(stabilizedProxyGroups);
+    stabilizedProxyGroups = runProxyGroupCleanupPass(stabilizedProxyGroups, availableNames);
+    const nextAvailableNames = collectAvailableChoiceNamesFromGroups(stabilizedProxyGroups);
+    stabilizedProxyGroups = runProxyGroupCleanupPass(stabilizedProxyGroups, nextAvailableNames);
+    const signature = getProxyGroupSignature(stabilizedProxyGroups);
+    if (signature === previousSignature) break;
+    previousSignature = signature;
+  }
+  config['proxy-groups'] = stabilizedProxyGroups;
 
   // 规则目标校验：规则里引用的策略名必须真的存在。
+
+
   // 这是规则区最常见的维护事故之一：改了组名，却忘了同步规则目标。
   const availableRuleTargets = makeNameSet(config['proxy-groups'].map(group => group && group.name));
   for (const name of BUILTIN_CHOICE_NAMES) availableRuleTargets.add(name);
