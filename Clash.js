@@ -18,13 +18,33 @@
  * - 规则新增尽量放入对应 RULES_* 分区，避免散落追加。
  * - 若修改节点识别逻辑，请同步检查地区组、故障转移组和业务候选池。
  */
-function main(config) {
+function buildConfig(config) {
 
   if (!config || !Array.isArray(config.proxies)) return config;
 
   // 运行上下文：保留旧分组选项顺序，便于脚本重载后延续用户选择。
   const existingGroups = Array.isArray(config['proxy-groups']) ? config['proxy-groups'] : [];
-  const existingGroupMap = Object.fromEntries(existingGroups.map(g => [g.name, g]));
+  const existingGroupMap = Object.create(null);
+  for (let i = 0; i < existingGroups.length; i++) {
+    const group = existingGroups[i];
+    if (group && group.name) existingGroupMap[group.name] = group;
+  }
+
+  const PERF_ENABLED = false;
+  const perfMarks = Object.create(null);
+  const perfNow = () => Date.now();
+  function perfStart(label) {
+    if (!PERF_ENABLED) return;
+    perfMarks[label] = perfNow();
+  }
+  function perfEnd(label) {
+    if (!PERF_ENABLED || !perfMarks[label]) return;
+    perfMarks[label] = perfNow() - perfMarks[label];
+  }
+  function perfFlush() {
+    if (!PERF_ENABLED) return;
+    console.log('[Clash.js][perf]', JSON.stringify(perfMarks));
+  }
 
   // 图标资源：统一走 Qure 图标仓库，避免各处手写 URL 前缀。
   const QURE_BASE = 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/';
@@ -141,10 +161,17 @@ function main(config) {
   const TEST_URL = 'https://www.gstatic.com/generate_204';
   const TEST_INTERVAL = 360;
   const TEST_TOLERANCE = 80;
+  const TEST_TIMEOUT = 2000;
+  const TEST_MAX_FAILED_TIMES = 3;
   const FALLBACK_INTERVAL = 300;
   const FALLBACK_TOLERANCE = 80;
+  const FALLBACK_TIMEOUT = 2500;
+  const FALLBACK_MAX_FAILED_TIMES = 2;
   const REGION_TEST_INTERVAL = 480;
   const REGION_TEST_TOLERANCE = 160;
+  const REGION_TEST_TIMEOUT = 3000;
+  const REGION_TEST_MAX_FAILED_TIMES = 4;
+  const HEALTH_CHECK_LAZY = true;
   const directChoices = [
     '🇨🇳 直连 | IPv4优先',
     '🇨🇳 直连 | IPv6优先',
@@ -420,7 +447,9 @@ function main(config) {
     return !invalidProxyNamePatterns.some(re => re.test(name));
   }
 
+  perfStart('proxy_filter');
   const proxies = config.proxies.filter(p => p && p.name && isRealProxyName(p.name));
+  perfEnd('proxy_filter');
 
   const unique = arr => [...new Set(arr.filter(Boolean))];
 
@@ -517,11 +546,38 @@ function main(config) {
     return streamingNamePatterns.some(re => re.test(String(name || '')));
   }
 
-  // 清洗结果：按名称去重后，再派生家宽 / 倍率 / 流媒体等特征节点集合。
-  const cleanProxies = uniqueBy(proxies, p => p && p.name);
-  const residentialProxies = cleanProxies.filter(p => isResidentialProxyName(p.name));
-  const multiplierProxies = cleanProxies.filter(p => isMultiplierProxyName(p.name));
-  const streamingProxies = cleanProxies.filter(p => isStreamingProxyName(p.name));
+  perfStart('proxy_classify');
+  // 清洗结果：单次遍历完成去重与特征归档，减少多轮 filter 扫描。
+  const cleanProxies = [];
+  const residentialProxies = [];
+  const multiplierProxies = [];
+  const streamingProxies = [];
+  const allProxyNames = [];
+  const residentialProxyNames = [];
+  const multiplierProxyNames = [];
+  const streamingProxyNames = [];
+  const seenProxyNames = new Set();
+
+  for (let i = 0; i < proxies.length; i++) {
+    const proxy = proxies[i];
+    const proxyName = proxy && proxy.name;
+    if (!proxyName || seenProxyNames.has(proxyName)) continue;
+    seenProxyNames.add(proxyName);
+    cleanProxies.push(proxy);
+    allProxyNames.push(proxyName);
+    if (isResidentialProxyName(proxyName)) {
+      residentialProxies.push(proxy);
+      residentialProxyNames.push(proxyName);
+    }
+    if (isMultiplierProxyName(proxyName)) {
+      multiplierProxies.push(proxy);
+      multiplierProxyNames.push(proxyName);
+    }
+    if (isStreamingProxyName(proxyName)) {
+      streamingProxies.push(proxy);
+      streamingProxyNames.push(proxyName);
+    }
+  }
 
   const builtInDirectProxies = [
     {
@@ -539,13 +595,28 @@ function main(config) {
       type: 'direct',
     },
   ];
-  config.proxies = uniqueBy(cleanProxies.concat(builtInDirectProxies), p => p && p.name);
+  const finalProxies = cleanProxies.slice();
+  const finalProxyNames = new Set(allProxyNames);
+  for (let i = 0; i < builtInDirectProxies.length; i++) {
+    const proxy = builtInDirectProxies[i];
+    if (!finalProxyNames.has(proxy.name)) {
+      finalProxyNames.add(proxy.name);
+      finalProxies.push(proxy);
+    }
+  }
+  config.proxies = finalProxies;
+  perfEnd('proxy_classify');
 
-  const allProxyNames = cleanProxies.map(p => p.name);
-
+  const wholeWordPatternCache = new Map();
   function hasWholeWord(text, word) {
-    const escaped = String(word || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return new RegExp('(^|[^a-z])' + escaped + '([^a-z]|$)', 'i').test(text);
+    const key = String(word || '').toLowerCase();
+    let pattern = wholeWordPatternCache.get(key);
+    if (!pattern) {
+      const escaped = key.replace(/[-/\^$*+?.()|[]{}]/g, '\\$&');
+      pattern = new RegExp('(^|[^a-z])' + escaped + '([^a-z]|$)', 'i');
+      wholeWordPatternCache.set(key, pattern);
+    }
+    return pattern.test(String(text || ''));
   }
   // 地区识别：按节点名特征将代理归入主要地理区域，供自动组和故障转移组复用。
   // 地区桶：先把节点名映射到大区，再由后续逻辑构建地区测速组、故障转移组和业务候选池。
@@ -642,6 +713,22 @@ function main(config) {
     ['其他地区', /(加拿大|canada|\bca\b|澳大利亚|澳洲|australia|\bau\b|悉尼|sydney|墨尔本|melbourne|新西兰|new zealand|\bnz\b|奥克兰|auckland|阿联酋|\buae\b|迪拜|dubai|泰国|thailand|\bth\b|曼谷|bangkok|菲律宾|philippines|\bph\b|马尼拉|manila|印度尼西亚|印尼|indonesia|\bid\b|雅加达|jakarta)/i]
   ];
 
+  const normalizedRegionKeywordMap = Object.create(null);
+  for (let i = 0; i < REGION_PRIORITY.length; i++) {
+    const regionName = REGION_PRIORITY[i];
+    const keywords = REGION_KEYWORD_MAP[regionName] || [];
+    const preparedKeywords = [];
+    for (let j = 0; j < keywords.length; j++) {
+      const lowerKeyword = String(keywords[j]).toLowerCase();
+      preparedKeywords.push({
+        lowerKeyword,
+        compactKeyword: lowerKeyword.includes(' ') ? lowerKeyword.replace(/\s+/g, '') : lowerKeyword,
+        isShortAlphaWord: lowerKeyword.length <= 3 && /^[a-z]+$/.test(lowerKeyword)
+      });
+    }
+    normalizedRegionKeywordMap[regionName] = preparedKeywords;
+  }
+
   const normalizeCache = new Map();
 
   // 噪声关键词：去掉套餐属性、业务标签、机场营销词，尽量只保留地区相关信息。
@@ -680,17 +767,19 @@ function main(config) {
     const normalized = normalizeRegionName(rawName);
     if (!normalized) return '其他地区';
 
-    const compact = normalized.replace(/\s+/g, '');
+    const compact = normalized.includes(' ') ? normalized.replace(/\s+/g, '') : normalized;
 
-    for (const regionName of REGION_PRIORITY) {
-      const keywords = REGION_KEYWORD_MAP[regionName] || [];
-      for (const keyword of keywords) {
-        const lowerKeyword = String(keyword).toLowerCase();
-        if (/^[a-z]{2,3}$/.test(lowerKeyword)) {
-          if (hasWholeWord(normalized, lowerKeyword)) return regionName;
+    for (let regionIndex = 0; regionIndex < REGION_PRIORITY.length; regionIndex++) {
+      const regionName = REGION_PRIORITY[regionIndex];
+      const keywords = normalizedRegionKeywordMap[regionName] || [];
+      for (let i = 0; i < keywords.length; i++) {
+        const keywordInfo = keywords[i];
+        if (keywordInfo.isShortAlphaWord) {
+          if (hasWholeWord(normalized, keywordInfo.lowerKeyword)) return regionName;
           continue;
         }
-        if (normalized.includes(lowerKeyword) || compact.includes(lowerKeyword.replace(/\s+/g, ''))) return regionName;
+        if (normalized.includes(keywordInfo.lowerKeyword)) return regionName;
+        if (keywordInfo.compactKeyword !== keywordInfo.lowerKeyword && compact.includes(keywordInfo.compactKeyword)) return regionName;
       }
     }
     // 兜底匹配：在关键词和旗帜均未命中时，用宽松正则做最后一次地区恢复。
@@ -701,17 +790,27 @@ function main(config) {
     return '其他地区';
   }
 
-  for (const proxy of cleanProxies) {
+  perfStart('region_classify');
+  for (let i = 0; i < cleanProxies.length; i++) {
+    const proxy = cleanProxies[i];
     regionGroups[matchRegion(proxy.name)].push(proxy.name);
   }
+  perfEnd('region_classify');
   // 运行期参数镜像：后续建组函数统一读取这些局部常量；如需调参，优先修改上方常量定义。
   const testUrl = TEST_URL;
   const testInterval = TEST_INTERVAL;
   const testTolerance = TEST_TOLERANCE;
+  const testTimeout = TEST_TIMEOUT;
+  const testMaxFailedTimes = TEST_MAX_FAILED_TIMES;
   const fallbackInterval = FALLBACK_INTERVAL;
   const fallbackTolerance = FALLBACK_TOLERANCE;
+  const fallbackTimeout = FALLBACK_TIMEOUT;
+  const fallbackMaxFailedTimes = FALLBACK_MAX_FAILED_TIMES;
   const regionUrlTestInterval = REGION_TEST_INTERVAL;
   const regionUrlTestTolerance = REGION_TEST_TOLERANCE;
+  const regionUrlTestTimeout = REGION_TEST_TIMEOUT;
+  const regionUrlTestMaxFailedTimes = REGION_TEST_MAX_FAILED_TIMES;
+  const healthCheckLazy = HEALTH_CHECK_LAZY;
 
   // 分组构造工具：负责保留旧顺序、补默认项，并统一生成各类策略组。
   // 保留用户顺序：若旧配置已有同名 select 组，则尽量继承其代理顺序，减少每次刷新后的选项跳动。
@@ -723,40 +822,73 @@ function main(config) {
     if (group.name === '全球直连') {
       return { ...group, proxies: ['DIRECT'] };
     }
-    const oldProxies = oldGroup.proxies.filter(p => group.proxies.includes(p));
-    const remaining = group.proxies.filter(p => !oldProxies.includes(p));
+    const groupProxySet = new Set(group.proxies);
+    const oldProxies = [];
+    const oldProxySeen = new Set();
+    for (let i = 0; i < oldGroup.proxies.length; i++) {
+      const proxyName = oldGroup.proxies[i];
+      if (!groupProxySet.has(proxyName) || oldProxySeen.has(proxyName)) continue;
+      oldProxySeen.add(proxyName);
+      oldProxies.push(proxyName);
+    }
+    const remaining = [];
+    for (let i = 0; i < group.proxies.length; i++) {
+      const proxyName = group.proxies[i];
+      if (!oldProxySeen.has(proxyName)) remaining.push(proxyName);
+    }
     return { ...group, proxies: oldProxies.concat(remaining) };
   }
 
   // 代理列表兜底：合并用户列表和默认项，若最终为空则至少返回 DIRECT。
   // 列表兜底约定：这里只能返回一维字符串数组；若改成对象/嵌套数组，会直接影响 Clash 配置反序列化。
   function ensureGroupList(list, extraDefaults) {
-    const merged = unique([].concat(list || [], extraDefaults || []));
+    const merged = [];
+    const seen = new Set();
+    const primary = asArray(list);
+    const defaults = asArray(extraDefaults);
+    for (let i = 0; i < primary.length; i++) {
+      const item = primary[i];
+      if (!item || seen.has(item)) continue;
+      seen.add(item);
+      merged.push(item);
+    }
+    for (let i = 0; i < defaults.length; i++) {
+      const item = defaults[i];
+      if (!item || seen.has(item)) continue;
+      seen.add(item);
+      merged.push(item);
+    }
     return merged.length ? merged : ['DIRECT'];
   }
 
   // URL Test 组：用于自动测速选优；没有节点时直接跳过创建，避免伪装成直连组。
-  function makeUrlTestGroup(name, icon, nodes, interval, tolerance) {
-    const proxies = unique(nodes || []);
+  function makeUrlTestGroup(name, icon, nodes, interval, tolerance, options = {}) {
+    const proxies = ensureGroupList(nodes, []);
     // 自动测速组没有可用节点时不应静默降级为 DIRECT；由调用方跳过创建，避免"代理组名存在但实际直连"。
-    if (!proxies.length) return null;
+    if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
     const normalizedInterval = typeof interval === 'number' ? interval : testInterval;
     const normalizedTolerance = typeof tolerance === 'number' ? tolerance : testTolerance;
+    const normalizedUrl = options.url || testUrl;
+    const normalizedTimeout = typeof options.timeout === 'number' ? options.timeout : testTimeout;
+    const normalizedMaxFailedTimes = typeof options.maxFailedTimes === 'number' ? options.maxFailedTimes : testMaxFailedTimes;
+    const normalizedLazy = typeof options.lazy === 'boolean' ? options.lazy : healthCheckLazy;
     return {
       name,
       type: 'url-test',
       icon,
-      url: testUrl,
+      url: normalizedUrl,
       interval: normalizedInterval,
       tolerance: normalizedTolerance,
-      lazy: true,
+      timeout: normalizedTimeout,
+      'max-failed-times': normalizedMaxFailedTimes,
+      lazy: normalizedLazy,
       proxies
     };
   }
 
   // Select 组：给用户手动切换使用，默认附带自动选择等兜底入口。
   function makeSelectGroup(name, icon, list, extraDefaults = ['自动选择']) {
-    return { name, type: 'select', icon, proxies: ensureGroupList(list, extraDefaults) };
+    return { name, type: 'select', icon, proxies: sanitizeChoiceList(list, extraDefaults) };
   }
 
   // Fallback 组：按存活顺序故障转移，适合关键业务场景而不是单纯测速最低延迟。
@@ -767,92 +899,133 @@ function main(config) {
       type: 'fallback',
       icon,
       url: options.url || testUrl,
-      interval: options.interval || fallbackInterval,
-      tolerance: options.tolerance || fallbackTolerance,
-      lazy: typeof options.lazy === 'boolean' ? options.lazy : true,
+      interval: typeof options.interval === 'number' ? options.interval : fallbackInterval,
+      tolerance: typeof options.tolerance === 'number' ? options.tolerance : fallbackTolerance,
+      timeout: typeof options.timeout === 'number' ? options.timeout : fallbackTimeout,
+      'max-failed-times': typeof options.maxFailedTimes === 'number' ? options.maxFailedTimes : fallbackMaxFailedTimes,
+      lazy: typeof options.lazy === 'boolean' ? options.lazy : healthCheckLazy,
       proxies
     };
   }
 
   // 批量 Select 生成：把声明式定义表转成实际策略组对象。
   function makeSelectGroupsFromDefs(defs) {
-    return defs.map(def => makeSelectGroup(def.name, def.icon, def.choices, def.extraDefaults));
+    const groups = [];
+    const list = asArray(defs);
+    for (let i = 0; i < list.length; i++) {
+      const def = list[i];
+      if (!def || !def.name) continue;
+      groups.push(makeSelectGroup(def.name, def.icon, def.choices, def.extraDefaults));
+    }
+    return groups;
   }
 
   // 规则集合并：把多个规则片段展开、拍平、去重，供最终 rules 装配。
   function mergeRuleSets(...ruleSets) {
-    return unique(ruleSets.flatMap(ruleSet => asArray(ruleSet)));
+    const merged = [];
+    const seen = new Set();
+    for (let i = 0; i < ruleSets.length; i++) {
+      const ruleSet = asArray(ruleSets[i]);
+      for (let j = 0; j < ruleSet.length; j++) {
+        const rule = ruleSet[j];
+        if (!rule || seen.has(rule)) continue;
+        seen.add(rule);
+        merged.push(rule);
+      }
+    }
+    return merged;
   }
 
   // 规则映射表：将 { name, rules } 定义转成按名称索引的查询结构。
   function buildRuleSetMap(defs) {
-    return Object.fromEntries(defs.map(def => [def.name, def.rules]));
+    const map = Object.create(null);
+    for (let i = 0; i < defs.length; i++) {
+      const def = defs[i];
+      if (!def || !def.name) continue;
+      map[def.name] = def.rules;
+    }
+    return map;
   }
 
   // 按顺序收集规则：根据给定 order 拼接规则块，确保最终规则顺序可控。
   function collectRuleSets(defs, order) {
     const ruleSetMap = buildRuleSetMap(defs);
-    return order.flatMap(name => asArray(ruleSetMap[name]));
+    const collected = [];
+    for (let i = 0; i < order.length; i++) {
+      const rules = asArray(ruleSetMap[order[i]]);
+      for (let j = 0; j < rules.length; j++) collected.push(rules[j]);
+    }
+    return collected;
   }
   // 最终分组去重：过滤空项，并以组名为键去重，同名组保留首次定义。
   function finalizeGroupList(groups) {
-    return uniqueBy((groups || []).filter(Boolean), group => group && group.name);
+    const finalized = [];
+    const seen = new Set();
+    const list = asArray(groups);
+    for (let i = 0; i < list.length; i++) {
+      const group = list[i];
+      const groupName = group && group.name;
+      if (!group || !groupName || seen.has(groupName)) continue;
+      seen.add(groupName);
+      finalized.push(group);
+    }
+    return finalized;
   }
 
 
   // 图标映射：地区图标与功能图标分离，便于后续扩展和替换。
   const regionIconMap = {
-    '香港': 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Hong_Kong.png',
-    '台湾': 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Taiwan.png',
-    '日本': 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Japan.png',
-    '新加坡': 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Singapore.png',
-    '美国': 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/United_States.png',
-    '韩国': 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Korea.png',
-    '俄罗斯': 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Russia.png',
-    '欧盟': 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/European_Union.png',
-    '其他地区': 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/World_Map.png'
+    '香港': qIcon('Hong_Kong'),
+    '台湾': qIcon('Taiwan'),
+    '日本': qIcon('Japan'),
+    '新加坡': qIcon('Singapore'),
+    '美国': qIcon('United_States'),
+    '韩国': qIcon('Korea'),
+    '俄罗斯': qIcon('Russia'),
+    '欧盟': qIcon('European_Union'),
+    '其他地区': qIcon('World_Map')
   };
 
   const iconMap = {
-    // 基础 / 通用
-    rocket: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Rocket.png',
-    auto: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Auto.png',
-    select: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Static.png',
-    balance: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Round_Robin.png',
-    direct: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Direct.png',
-    final: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Final.png',
-    global: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Global.png',
+    // 基础 / 通用：优先统一走 qIcon / jsDelivr，减少 raw 源波动。
+    rocket: qIcon('Rocket'),
+    auto: qIcon('Auto'),
+    select: qIcon('Static'),
+    balance: qIcon('Round_Robin'),
+    direct: qIcon('Direct'),
+    final: qIcon('Final'),
+    global: qIcon('Global'),
 
     // 故障转移 / 特殊用途
-    fallback: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Available.png',
-    fallbackFinal: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Airport.png',
+    fallback: qIcon('Available'),
+    fallbackFinal: qIcon('Airport'),
     flare: 'https://api.iconify.design/tabler:flame-filled.svg?color=%2300d1b2',
     lowMultiplier: 'https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b',
-    multiplier: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Filter.png',
+    multiplier: qIcon('Filter'),
     home: 'https://api.iconify.design/tabler:home-filled.svg',
 
     // 平台 / 服务
-    youtube: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/YouTube.png',
-    youtubeFallback: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Streaming.png',
-    tiktok: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/TikTok.png',
+    youtube: qIcon('YouTube'),
+    youtubeFallback: qIcon('Streaming'),
+    tiktok: qIcon('TikTok'),
     meta: 'https://api.iconify.design/simple-icons:meta.svg?color=%231877F2',
     twitter: 'https://api.iconify.design/logos:twitter.svg?color=%231DA1F2',
-    telegram: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Telegram.png',
-    google: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Google_Search.png',
+    telegram: qIcon('Telegram'),
+    google: qIcon('Google_Search'),
     playstore: 'https://api.iconify.design/logos:google-play-icon.svg',
-    microsoft: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Microsoft.png',
-    apple: 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Apple.png',
-    cloudflare: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Cloudflare.png',
-    github: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/GitHub.png',
-    ai: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/ChatGPT.png',
-    aiFallback: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Bot.png',
+    microsoft: qIcon('Microsoft'),
+    apple: qIcon('Apple'),
+    cloudflare: qIcon('Cloudflare'),
+    github: qIcon('GitHub'),
+    ai: 'https://api.iconify.design/mdi:robot-excited-outline.svg?color=%238b5cf6',
+    aiFallback: qIcon('Bot'),
     fcm: 'https://fastly.jsdelivr.net/gh/MiToverG422/Qure@master/IconSet/Color/fcm.png',
 
     // 流媒体 / 社交 / 娱乐
-    streaming: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Netflix.png',
-    streamingGlobal: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Media.png',
-    netflix: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Netflix.png',
-    spotify: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Spotify.png',
+    streaming: qIcon('Netflix'),
+    streamingGlobal: qIcon('Media'),
+    netflix: qIcon('Netflix'),
+    spotify: qIcon('Spotify'),
     twitch: 'https://api.iconify.design/simple-icons:twitch.svg?color=%239146FF',
     niconico: 'https://api.iconify.design/simple-icons:niconico.svg?color=%23EAB20C',
     taiwanMedia: 'https://ani.gamer.com.tw/favicon.ico',
@@ -864,11 +1037,11 @@ function main(config) {
     decentralized: 'https://api.iconify.design/simple-icons:bluesky.svg?color=%230380B0',
 
     // 地区 / 其他
-    china: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/China_Map.png',
-    russia: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Russia.png',
-    jpkr: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/AbemaTV.png',
-    game: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Game.png',
-    download: 'https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Download.png',
+    china: qIcon('China_Map'),
+    russia: qIcon('Russia'),
+    jpkr: qIcon('AbemaTV'),
+    game: qIcon('Game'),
+    download: qIcon('Download'),
     adblock: qIcon('Advertising'),
     riskControl: 'https://mihomo.echs.top/img/Hand-Painted-icon/Google_Suite/Account.png'
   };
@@ -892,9 +1065,15 @@ function main(config) {
 
     const names = makeFusionRegionGroupNames(regionName);
     const residentialNodes = regionNodes.filter(name => isResidentialProxyName(name));
-    const autoGroup = makeUrlTestGroup(names.auto, regionIconMap[regionName], regionNodes, regionUrlTestInterval, regionUrlTestTolerance);
+    const autoGroup = makeUrlTestGroup(names.auto, regionIconMap[regionName], regionNodes, regionUrlTestInterval, regionUrlTestTolerance, {
+      timeout: regionUrlTestTimeout,
+      maxFailedTimes: regionUrlTestMaxFailedTimes
+    });
     const homeAutoGroup = residentialNodes.length
-      ? makeUrlTestGroup(names.homeAuto, regionIconMap[regionName], residentialNodes, regionUrlTestInterval, regionUrlTestTolerance)
+      ? makeUrlTestGroup(names.homeAuto, regionIconMap[regionName], residentialNodes, regionUrlTestInterval, regionUrlTestTolerance, {
+        timeout: regionUrlTestTimeout,
+        maxFailedTimes: regionUrlTestMaxFailedTimes
+      })
       : null;
 
     acc[regionName] = {
@@ -909,16 +1088,30 @@ function main(config) {
     return acc;
   }, {});
   // 地区映射缓存：把地区名快速映射到自动组 / 家宽自动组，供候选池复用。
-  const regionAutoMap = Object.fromEntries(Object.entries(regionCatalog).map(([regionName, info]) => [regionName, info.names.auto]));
-  const regionHomeAutoMap = Object.fromEntries(
-    Object.entries(regionCatalog)
-      .filter(([, info]) => info.homeAutoGroup)
-      .map(([regionName, info]) => [regionName, info.names.homeAuto])
-  );
-  const regionAutoNames = Object.values(regionCatalog).map(info => info.names.auto);
-  const regionHomeAutoNames = Object.values(regionCatalog).filter(info => info.homeAutoGroup).map(info => info.names.homeAuto);
-  const regionAutoGroups = Object.values(regionCatalog).map(info => info.autoGroup).filter(Boolean);
-  const regionHomeAutoGroups = Object.values(regionCatalog).map(info => info.homeAutoGroup).filter(Boolean);
+  const regionAutoMap = Object.create(null);
+  const regionHomeAutoMap = Object.create(null);
+  const regionAutoNames = [];
+  const regionHomeAutoNames = [];
+  const regionCatalogValues = Object.values(regionCatalog);
+  const regionCatalogEntries = Object.entries(regionCatalog);
+  for (let i = 0; i < regionCatalogEntries.length; i++) {
+    const entry = regionCatalogEntries[i];
+    const regionName = entry[0];
+    const info = entry[1];
+    regionAutoMap[regionName] = info.names.auto;
+    regionAutoNames.push(info.names.auto);
+    if (info.homeAutoGroup) {
+      regionHomeAutoMap[regionName] = info.names.homeAuto;
+      regionHomeAutoNames.push(info.names.homeAuto);
+    }
+  }
+  const regionAutoGroups = [];
+  const regionHomeAutoGroups = [];
+  for (let i = 0; i < regionCatalogValues.length; i++) {
+    const info = regionCatalogValues[i];
+    if (info.autoGroup) regionAutoGroups.push(info.autoGroup);
+    if (info.homeAutoGroup) regionHomeAutoGroups.push(info.homeAutoGroup);
+  }
 
   // 地区查询辅助：统一生成地区自动链、家宽链与原始节点列表。
   function getRegionAuto(name) {
@@ -929,10 +1122,22 @@ function main(config) {
     return regionHomeAutoMap[name] || null;
   }
   function buildRegionChain(names) {
-    return names.map(getRegionAuto).filter(Boolean);
+    const regions = asArray(names);
+    const chain = [];
+    for (let i = 0; i < regions.length; i++) {
+      const name = getRegionAuto(regions[i]);
+      if (name) chain.push(name);
+    }
+    return chain;
   }
   function buildRegionHomeChain(names) {
-    return names.map(getRegionHomeAuto).filter(Boolean);
+    const regions = asArray(names);
+    const chain = [];
+    for (let i = 0; i < regions.length; i++) {
+      const name = getRegionHomeAuto(regions[i]);
+      if (name) chain.push(name);
+    }
+    return chain;
   }
   function getRegionNodes(regionName, options = {}) {
     const { includeResidential = true, residentialOnly = false } = options;
@@ -943,20 +1148,68 @@ function main(config) {
     return info.nodes.filter(name => !isResidentialProxyName(name));
   }
   function buildRegionNodeList(names, options = {}) {
-
-    return unique(names.flatMap(regionName => getRegionNodes(regionName, options)));
+    const merged = [];
+    const seen = new Set();
+    const regions = asArray(names);
+    for (let i = 0; i < regions.length; i++) {
+      const nodes = getRegionNodes(regions[i], options);
+      for (let j = 0; j < nodes.length; j++) {
+        const name = nodes[j];
+        if (!name || seen.has(name)) continue;
+        seen.add(name);
+        merged.push(name);
+      }
+    }
+    return merged;
   }
   function buildNodeChain(patterns) {
-    return allProxyNames.filter(name => patterns.some(pattern => pattern.test(name)));
+    const chain = [];
+    for (let i = 0; i < allProxyNames.length; i++) {
+      const name = allProxyNames[i];
+      for (let j = 0; j < patterns.length; j++) {
+        if (patterns[j].test(name)) {
+          chain.push(name);
+          break;
+        }
+      }
+    }
+    return chain;
+  }
+  function filterOutDirectEntries(names) {
+    return asArray(names).filter(name => {
+      if (!name || name === 'DIRECT') return false;
+      return !String(name).includes('直连 |');
+    });
   }
   function buildChoiceList(...parts) {
-    return unique(parts.flatMap(part => asArray(part)));
+    const merged = [];
+    const seen = new Set();
+    for (let i = 0; i < parts.length; i++) {
+      const part = asArray(parts[i]);
+      for (let j = 0; j < part.length; j++) {
+        const item = part[j];
+        if (!item || seen.has(item)) continue;
+        seen.add(item);
+        merged.push(item);
+      }
+    }
+    return merged;
   }
   function createNamedChoiceMap(defs, builder) {
-    return Object.fromEntries(defs.map(def => [def.name, builder(def)]));
+    const map = Object.create(null);
+    for (let i = 0; i < defs.length; i++) {
+      const def = defs[i];
+      map[def.name] = builder(def);
+    }
+    return map;
   }
   function createNamedValueMap(defs, keyField, builder) {
-    return Object.fromEntries(defs.map(def => [def[keyField], builder(def)]));
+    const map = Object.create(null);
+    for (let i = 0; i < defs.length; i++) {
+      const def = defs[i];
+      map[def[keyField]] = builder(def);
+    }
+    return map;
   }
   function makeBusinessChoiceMap(defs) {
     return createNamedValueMap(defs, 'key', def => makeOrderedChoices(def.first, def.pool));
@@ -964,8 +1217,52 @@ function main(config) {
   function makeChoicePool(first, ...poolParts) {
     return makeOrderedChoices(first, buildChoiceList(...poolParts));
   }
+  function makeGroupNameSet(groups) {
+    const set = new Set();
+    const list = asArray(groups);
+    for (let i = 0; i < list.length; i++) {
+      const group = list[i];
+      if (group && group.name) set.add(group.name);
+    }
+    return set;
+  }
+  function sanitizeChoiceList(list, fallbackChoices) {
+    const merged = [];
+    const seen = new Set();
+    const sources = [asArray(list), asArray(fallbackChoices)];
+    for (let i = 0; i < sources.length; i++) {
+      const part = sources[i];
+      for (let j = 0; j < part.length; j++) {
+        const item = part[j];
+        if (!item || seen.has(item)) continue;
+        seen.add(item);
+        merged.push(item);
+      }
+    }
+    return merged.length ? merged : ['DIRECT'];
+  }
+  const BUILTIN_CHOICE_NAMES = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS']);
+  function makeNameSet(list) {
+    const set = new Set();
+    const source = asArray(list);
+    for (let i = 0; i < source.length; i++) {
+      const item = source[i];
+      if (item) set.add(item);
+    }
+    return set;
+  }
+  function filterDynamicChoices(list, availableNames, selfName) {
+    const filtered = [];
+    const source = asArray(list);
+    for (let i = 0; i < source.length; i++) {
+      const item = source[i];
+      if (!item || item === selfName) continue;
+      if (BUILTIN_CHOICE_NAMES.has(item) || availableNames.has(item)) filtered.push(item);
+    }
+    return filtered;
+  }
   // 全局家宽池：从全部节点中抽出住宅线路，供风控 / 支付 / 登录等敏感业务优先选择。
-  const globalHomeNodes = unique(residentialProxies.map(p => p.name));
+  const globalHomeNodes = residentialProxyNames.slice();
 
   // 可见地区链：把地区自动组与家宽自动组统一并入手动候选菜单。
   const fusionVisibleRegions = unique(regionAutoNames.concat(regionHomeAutoNames));
@@ -1020,7 +1317,7 @@ function main(config) {
   const cnLandingStrongNodes = allProxyNames.filter(name => isCnLanding(name));
   const cnLandingWeakNodes = allProxyNames.filter(name => !isCnLanding(name) && isCnLandingWeak(name));
   // YouTube 无广候选池：按“送中强信号 → 弱信号 → 经验低广告地区”顺序组织。
-  const youtubeFallbackNodes = buildChoiceList(
+  const youtubeFallbackNodes = filterOutDirectEntries(buildChoiceList(
     cnLandingStrongNodes,                                            // 🅰️ 明确送中 → 极大概率无广
     cnLandingWeakNodes,                                              // 🅱️ 中国线路标记 → 较大概率无广
     buildNodeChain([/俄罗斯/i, /俄(罗斯)?/i, /\bRU\b/i, /🇷🇺/]),     // 🅲 俄罗斯 → Google 无广告运营
@@ -1032,19 +1329,19 @@ function main(config) {
     regionGroups['新加坡'],
     regionGroups['日本'],
     regionGroups['美国']
-  );
+  ));
 
   // AI 候选池：优先放入对海外 AI 服务兼容性通常更稳定的地区自动组。
-  const aiFallbackNodes = buildChoiceList(
+  const aiFallbackNodes = filterOutDirectEntries(buildChoiceList(
     buildRegionChain(['台湾', '美国', '日本', '新加坡', '韩国', '其他地区'])
-  );
+  ));
 
   // Cloudflare 候选：优先自动组与欧美出口，并允许显式 Cloudflare / WARP 节点参与。
-  const cloudflareGroupChoices = buildChoiceList(
+  const cloudflareGroupChoices = filterOutDirectEntries(buildChoiceList(
     ['自动选择', '欧美故障转移', '全球直连', '全球手动'],
     buildNodeChain([/cloudflare/i, /\bCF\b/i, /WARP/i, /1\.1\.1\.1/]),
     buildRegionChain(['美国', '新加坡', '日本', '香港', '台湾', '欧盟'])
-  );
+  ));
 
   // 下载分区定义：按地区生成 load-balance 组，适合大文件 / CDN 拉取类业务。
   const DOWNLOAD_REGION_DEFS = [
@@ -1058,8 +1355,8 @@ function main(config) {
     { key: '欧盟', groupName: '欧盟下载', icon: regionIconMap['欧盟'] || qIcon('EU') }
   ];
   function makeLoadBalanceGroup(name, icon, nodes, options = {}) {
-    const proxies = unique(nodes || []);
-    if (!proxies.length) return null;
+    const proxies = ensureGroupList(nodes, []);
+    if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
     return {
       name,
       type: 'load-balance',
@@ -1083,7 +1380,7 @@ function main(config) {
   );
 
   // 下载候选池：优先给下载类业务提供负载均衡入口与地区下载组。
-  const downloadGroupChoices = buildChoiceList(['负载均衡', '自动选择'], downloadRegionGroups.map(group => group.name));
+  const downloadGroupChoices = filterOutDirectEntries(buildChoiceList(['负载均衡', '自动选择'], downloadRegionGroups.map(group => group.name)));
 
   // 候选池装配：将通用节点、故障转移与特殊策略组组合成业务分流可选项。
   // 特殊 fallback 组：为 YouTube 无广、海外 AI 等敏感业务提供专用故障转移入口。
@@ -1110,27 +1407,25 @@ function main(config) {
     ...SPECIAL_FALLBACK_DEFS.map(def => makeFallbackGroup(def.name, def.icon, def.nodes, def.extraDefaults, def.options))
   ].filter(Boolean);
   // 负载均衡与特征聚合：生成下载、商店、家宽、倍率、流媒体等复用组。
-  const playStoreBalanceNodes = unique([].concat(
+  const playStoreBalanceNodes = buildChoiceList(
     buildRegionChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟']),
     buildRegionHomeChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟'])
-
-  ));
+  );
   // 负载均衡组：一个面向全局通用，一个面向谷歌商店下载 / 分发链路。
-  const loadBalanceGroups = [
-    makeLoadBalanceGroup('负载均衡', iconMap.balance, ensureGroupList(allProxyNames, [])),
-    makeLoadBalanceGroup('谷歌商店负载均衡', iconMap.playstore, ensureGroupList(playStoreBalanceNodes, ['自动选择']))
-  ].filter(Boolean);
+  const loadBalanceGroups = [];
+  const globalLoadBalanceGroup = makeLoadBalanceGroup('负载均衡', iconMap.balance, ensureGroupList(allProxyNames, []));
+  if (globalLoadBalanceGroup) loadBalanceGroups.push(globalLoadBalanceGroup);
+  const playStoreLoadBalanceGroup = makeLoadBalanceGroup('谷歌商店负载均衡', iconMap.playstore, ensureGroupList(playStoreBalanceNodes, ['自动选择']));
+  if (playStoreLoadBalanceGroup) loadBalanceGroups.push(playStoreLoadBalanceGroup);
 
   // 特殊聚合组：为家宽、倍率、流媒体等高频特征提供独立聚合入口。
   const globalHomeGroup = globalHomeNodes.length
-
     ? makeUrlTestGroup('全球家宽', iconMap.home, globalHomeNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
 
 
   // 倍率聚合：先按识别出的倍率值排序，再派生低倍率节点池。
-  const globalMultiplierNodes = unique(multiplierProxies.map(p => p.name)).sort((a, b) => {
-
+  const globalMultiplierNodes = multiplierProxyNames.slice().sort((a, b) => {
     const aInfo = getMultiplierSortInfo(a);
     const bInfo = getMultiplierSortInfo(b);
     const diff = aInfo.value - bInfo.value;
@@ -1148,7 +1443,7 @@ function main(config) {
   const lowMultiplierGroup = lowMultiplierNodes.length
     ? makeUrlTestGroup('低倍率节点', iconMap.lowMultiplier, lowMultiplierNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
-  const globalStreamingNodes = unique(streamingProxies.map(p => p.name));
+  const globalStreamingNodes = streamingProxyNames.slice();
   const globalStreamingGroup = globalStreamingNodes.length
     ? makeUrlTestGroup('全球流媒体', iconMap.streamingGlobal, globalStreamingNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
@@ -1186,9 +1481,23 @@ function main(config) {
   // ===== 通用候选构造器 =====
   // 候选顺序合成：把 first 视为强优先项，其余候选按原池顺序补齐；不要随意改成排序逻辑。
   function makeOrderedChoices(first, pool) {
-    const source = pool || baseChoices;
-
-    return first.concat(source.filter(name => first.indexOf(name) === -1));
+    const merged = [];
+    const seen = new Set();
+    const primary = asArray(first);
+    const source = asArray(pool || baseChoices);
+    for (let i = 0; i < primary.length; i++) {
+      const item = primary[i];
+      if (!item || seen.has(item)) continue;
+      seen.add(item);
+      merged.push(item);
+    }
+    for (let i = 0; i < source.length; i++) {
+      const item = source[i];
+      if (!item || seen.has(item)) continue;
+      seen.add(item);
+      merged.push(item);
+    }
+    return merged;
   }
 
   // ===== 业务分组候选项 =====
@@ -1233,8 +1542,13 @@ function main(config) {
     ['去中心化平台', iconMap.decentralized]
   ];
   const businessChoiceMap = makeBusinessChoiceMap(BUSINESS_CHOICE_DEFS);
-  const businessServiceGroupDefs = BUSINESS_SERVICE_ICON_DEFS
-    .map(([name, icon]) => ({ name, icon, choices: businessChoiceMap[name] }));
+  const businessServiceGroupDefs = [];
+  for (let i = 0; i < BUSINESS_SERVICE_ICON_DEFS.length; i++) {
+    const entry = BUSINESS_SERVICE_ICON_DEFS[i];
+    const name = entry[0];
+    const icon = entry[1];
+    businessServiceGroupDefs.push({ name, icon, choices: businessChoiceMap[name] });
+  }
 
   const CHOICE_GROUPS = {
     streaming: globalStreamingGroup
@@ -1308,10 +1622,37 @@ function main(config) {
 
 
   // ===== 附加显示组 =====
-  const visibleRegionAutoGroups = regionAutoOrder
-    .map(regionName => regionAutoGroups.find(group => group.name === (regionAutoMap[regionName] || '')))
-    .filter(Boolean);
-  const specialFeatureGroups = [globalHomeGroup, lowMultiplierGroup, globalMultiplierGroup, globalStreamingGroup].filter(Boolean);
+  const regionAutoGroupMap = Object.create(null);
+  for (let i = 0; i < regionAutoGroups.length; i++) {
+    const group = regionAutoGroups[i];
+    if (group && group.name) regionAutoGroupMap[group.name] = group;
+  }
+  const visibleRegionAutoGroups = [];
+  for (let i = 0; i < regionAutoOrder.length; i++) {
+    const groupName = regionAutoMap[regionAutoOrder[i]] || '';
+    const group = regionAutoGroupMap[groupName];
+    if (group) visibleRegionAutoGroups.push(group);
+  }
+  const specialFeatureGroups = [];
+  if (globalHomeGroup) specialFeatureGroups.push(globalHomeGroup);
+  if (lowMultiplierGroup) specialFeatureGroups.push(lowMultiplierGroup);
+  if (globalMultiplierGroup) specialFeatureGroups.push(globalMultiplierGroup);
+  if (globalStreamingGroup) specialFeatureGroups.push(globalStreamingGroup);
+  const visibleRegionGroupNames = makeGroupNameSet(visibleRegionAutoGroups);
+  const regionHomeGroupNames = makeGroupNameSet(regionHomeAutoGroups);
+  const specialFeatureGroupNames = makeGroupNameSet(specialFeatureGroups);
+  const selectableGroupNames = new Set(['自动选择', '负载均衡', '全球手动', '节点选择', '全球直连', '自动兜底']);
+  for (const name of visibleRegionGroupNames) selectableGroupNames.add(name);
+  for (const name of regionHomeGroupNames) selectableGroupNames.add(name);
+  for (const name of specialFeatureGroupNames) selectableGroupNames.add(name);
+  for (let i = 0; i < fallbackGroups.length; i++) {
+    const group = fallbackGroups[i];
+    if (group && group.name) selectableGroupNames.add(group.name);
+  }
+  for (let i = 0; i < loadBalanceGroups.length; i++) {
+    const group = loadBalanceGroups[i];
+    if (group && group.name) selectableGroupNames.add(group.name);
+  }
   // 服务分流：统一声明业务组名称、图标与候选池，后续批量生成 select 组。
   const SERVICE_GROUP_BASE_DEFS = [
     { name: '风控安全', icon: iconMap.riskControl, choices: CHOICE_GROUPS.riskControl, extraDefaults: [] },
@@ -1341,27 +1682,37 @@ function main(config) {
     ...UTILITY_GROUP_PRESET_DEFS
   ];
 
+  const defaultAutoGroup = makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50);
+  const autoGroup = defaultAutoGroup || {
+    name: '自动选择',
+    type: 'select',
+    icon: iconMap.auto,
+    proxies: sanitizeChoiceList(allProxyNames, ['全球手动', 'DIRECT'])
+  };
+  const homeFailoverGroup = makeFallbackGroup('家宽故障转移', iconMap.flare, homeFailoverChoices, ['自动兜底']);
+
   const CORE_ENTRY_GROUPS = [
     makeSelectGroup('节点选择', iconMap.rocket, MAIN_CHOICE_POOLS.nodeSelection)
   ];
-  const CORE_AUTO_GROUPS = [
-    makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50),
-    ...loadBalanceGroups,
-    makeSelectGroup('全球手动', iconMap.select, allProxyNames)
-  ];
-  const CORE_FAILOVER_GROUPS = [
-    ...fallbackGroups,
-    makeFallbackGroup('家宽故障转移', iconMap.flare, homeFailoverChoices, ['自动兜底'])
-  ];
+  const CORE_AUTO_GROUPS = [];
+  CORE_AUTO_GROUPS.push(autoGroup);
+  for (let i = 0; i < loadBalanceGroups.length; i++) CORE_AUTO_GROUPS.push(loadBalanceGroups[i]);
+  CORE_AUTO_GROUPS.push(makeSelectGroup('全球手动', iconMap.select, allProxyNames, []));
+  const CORE_FAILOVER_GROUPS = [];
+  for (let i = 0; i < fallbackGroups.length; i++) CORE_FAILOVER_GROUPS.push(fallbackGroups[i]);
+  if (homeFailoverGroup) CORE_FAILOVER_GROUPS.push(homeFailoverGroup);
+
+  const serviceGroups = makeSelectGroupsFromDefs(serviceGroupDefs);
+  const utilityGroups = makeSelectGroupsFromDefs(utilityGroupDefs);
 
   const coreProxyGroupSections = {
     entry: CORE_ENTRY_GROUPS,
     auto: CORE_AUTO_GROUPS,
     failover: CORE_FAILOVER_GROUPS,
 
-    service: makeSelectGroupsFromDefs(serviceGroupDefs),
+    service: serviceGroups,
     utility: [
-      ...makeSelectGroupsFromDefs(utilityGroupDefs),
+      ...utilityGroups,
       ...downloadRegionGroups
     ],
     visibleExtra: [
@@ -1377,15 +1728,93 @@ function main(config) {
   // - filter(Boolean): 提前剔除空组，避免 hidden/preserve 处理空值；
   // - hidden 标记: 只隐藏辅助组，不改变其被其他组引用的能力；
   // - preserveGroup: 必须放在末尾，保证最终候选顺序基于已清洗后的组数据。
-  const proxyGroups = Object.values(coreProxyGroupSections)
+  const proxyGroupBuckets = Object.values(coreProxyGroupSections);
+  const proxyGroups = [];
+  for (let i = 0; i < proxyGroupBuckets.length; i++) {
+    const bucket = asArray(proxyGroupBuckets[i]);
+    for (let j = 0; j < bucket.length; j++) {
+      let group = bucket[j];
+      if (!group) continue;
+      if (/^(香港|台湾|日本|韩国|新加坡|美国|欧盟)下载$/.test(group.name)) {
+        group = Object.assign({}, group, { hidden: true });
+      } else if (group.name === '谷歌商店负载均衡') {
+        group = Object.assign({}, group, { hidden: true });
+      }
+      proxyGroups.push(preserveGroup(group));
+    }
+  }
+  // 分组候选清洗：先构建可引用名称集合，再统一做最终出口清洗。
+  // 这样可以避免前面生成阶段为每个组重复做重型校验，兼顾启动速度和稳定性。
+  function getGroupFallbackChoices(groupName) {
+    return groupName === '全球直连'
+      ? ['DIRECT']
+      : groupName === '全球手动'
+        ? []
+        : groupName === '自动选择'
+          ? ['全球手动', 'DIRECT']
+          : groupName === '广告拦截'
+            ? ['REJECT-DROP', 'REJECT', 'PASS']
+            : groupName === '跟踪分析'
+              ? ['REJECT', 'DIRECT']
+              : groupName === '漏网之鱼'
+                ? ['自动选择', '全球手动', '全球直连']
+                : ['自动选择'];
+  }
 
-    .flat()
-    .filter(Boolean)
-    .map(group => /^(香港|台湾|日本|韩国|新加坡|美国|欧盟)下载$/.test(group && group.name) ? Object.assign({}, group, { hidden: true }) : group)
-    .map(group => group && group.name === '谷歌商店负载均衡' ? Object.assign({}, group, { hidden: true }) : group)
-    .map(preserveGroup);
+  const finalizedProxyGroups = finalizeGroupList(proxyGroups);
+  const availableChoiceNames = makeNameSet(allProxyNames);
 
-  config['proxy-groups'] = finalizeGroupList(proxyGroups);
+  for (let i = 0; i < finalizedProxyGroups.length; i++) {
+    const group = finalizedProxyGroups[i];
+    if (group && group.name) availableChoiceNames.add(group.name);
+  }
+  for (const name of BUILTIN_CHOICE_NAMES) availableChoiceNames.add(name);
+  // 第一层清洗：处理不存在的候选、自引用和重复项。
+  // select 组允许按语义保留空 fallback；测速/故障转移类组则强制补齐最小可用候选，避免空组。
+  const sanitizedProxyGroups = finalizedProxyGroups.map(group => {
+    if (!group || !Array.isArray(group.proxies)) return group;
+    const filteredProxies = filterDynamicChoices(group.proxies, availableChoiceNames, group.name);
+    const fallbackChoices = getGroupFallbackChoices(group.name);
+    const proxies = sanitizeChoiceList(filteredProxies, fallbackChoices);
+    if (group.type === 'select') return Object.assign({}, group, { proxies });
+    if (group.type === 'fallback' || group.type === 'url-test' || group.type === 'load-balance') {
+      return Object.assign({}, group, { proxies: ensureGroupList(filteredProxies, fallbackChoices) });
+    }
+    return Object.assign({}, group, { proxies });
+  });
+
+  const sanitizedGroupMap = Object.create(null);
+
+  for (let i = 0; i < sanitizedProxyGroups.length; i++) {
+    const group = sanitizedProxyGroups[i];
+    if (group && group.name) sanitizedGroupMap[group.name] = group;
+  }
+
+  // 第二层清洗：基于最终分组关系再切一次显式环。
+  // 当前只处理收益最高、最常见的两类问题：
+  // - 自环：A -> A
+  // - 二元互环：A -> B 且 B -> A
+  // 更深层链式环理论上也可做图遍历，但当前版本优先控制复杂度与稳定性。
+  config['proxy-groups'] = sanitizedProxyGroups.map(group => {
+    if (!group || !Array.isArray(group.proxies) || !group.name) return group;
+    const fallbackChoices = getGroupFallbackChoices(group.name);
+    const nextProxies = [];
+    for (let i = 0; i < group.proxies.length; i++) {
+      const proxyName = group.proxies[i];
+      const targetGroup = sanitizedGroupMap[proxyName];
+      if (!targetGroup || !Array.isArray(targetGroup.proxies)) {
+        nextProxies.push(proxyName);
+        continue;
+      }
+      if (targetGroup.name === group.name) continue;
+      if (targetGroup.proxies.includes(group.name)) continue;
+      nextProxies.push(proxyName);
+    }
+    if (group.type === 'fallback' || group.type === 'url-test' || group.type === 'load-balance') {
+      return Object.assign({}, group, { proxies: ensureGroupList(nextProxies, fallbackChoices) });
+    }
+    return Object.assign({}, group, { proxies: sanitizeChoiceList(nextProxies, fallbackChoices) });
+  });
   // 规则数据区：按业务能力拆分为独立规则数组，最后统一合并去重。
   // YouTube 规则：处理主应用、ReVanced 系变体以及视频资源域名。
   const RULES_YOUTUBE = [
@@ -2648,8 +3077,82 @@ function main(config) {
     .map(name => ({ name, rules: RULE_SET_MAP[name] }));
 
   // 规则落盘：按优先级顺序合并所有规则，并做最终去重。
-  config.rules = mergeRuleSets(collectRuleSets(RULE_SET_DEFS, RULE_ASSEMBLY_ORDER));
+  perfStart('rules_assemble');
+  const assembledRules = collectRuleSets(RULE_SET_DEFS, RULE_ASSEMBLY_ORDER);
+  config.rules = mergeRuleSets(assembledRules);
+  perfEnd('rules_assemble');
+
+  if (!config.rules.length || !config.rules.some(rule => typeof rule === 'string' && rule.startsWith('MATCH,'))) {
+    throw new Error('rules health check failed: missing fallback MATCH rule');
+  }
+
+  perfFlush();
 
   return config;
+}
+
+function clonePlainConfig(value) {
+  if (!value || typeof value !== 'object') return {};
+  const config = Object.assign({}, value);
+  config.proxies = Array.isArray(value.proxies)
+    ? value.proxies.map(proxy => (proxy && typeof proxy === 'object' ? Object.assign({}, proxy) : proxy))
+    : [];
+  config['proxy-groups'] = Array.isArray(value['proxy-groups'])
+    ? value['proxy-groups'].map(group => (group && typeof group === 'object' ? Object.assign({}, group) : group))
+    : [];
+  config.rules = Array.isArray(value.rules) ? value.rules.slice() : [];
+  config.dns = value.dns && typeof value.dns === 'object' ? Object.assign({}, value.dns) : {};
+  config.profile = value.profile && typeof value.profile === 'object' ? Object.assign({}, value.profile) : {};
+  config.sniffer = value.sniffer && typeof value.sniffer === 'object' ? Object.assign({}, value.sniffer) : {};
+  config.hosts = value.hosts && typeof value.hosts === 'object' ? Object.assign({}, value.hosts) : {};
+  config.experimental = value.experimental && typeof value.experimental === 'object' ? Object.assign({}, value.experimental) : {};
+  return config;
+}
+
+function normalizeInputConfig(input) {
+  const config = input && typeof input === 'object' ? input : {};
+  if (!Array.isArray(config.proxies)) config.proxies = [];
+  if (!Array.isArray(config['proxy-groups'])) config['proxy-groups'] = [];
+  if (!Array.isArray(config.rules)) config.rules = [];
+  if (!config.dns || typeof config.dns !== 'object') config.dns = {};
+  if (!config.profile || typeof config.profile !== 'object') config.profile = {};
+  if (!config.sniffer || typeof config.sniffer !== 'object') config.sniffer = {};
+  if (!config.hosts || typeof config.hosts !== 'object') config.hosts = {};
+  if (!config.experimental || typeof config.experimental !== 'object') config.experimental = {};
+  return config;
+}
+
+function validateOutputConfig(config) {
+  if (!config || typeof config !== 'object') {
+    throw new Error('output config is not an object');
+  }
+  if (!Array.isArray(config.proxies)) {
+    throw new Error('output proxies is not an array');
+  }
+  if (!Array.isArray(config['proxy-groups'])) {
+    throw new Error('output proxy-groups is not an array');
+  }
+  if (!Array.isArray(config.rules)) {
+    throw new Error('output rules is not an array');
+  }
+  if (!config.dns || typeof config.dns !== 'object') {
+    throw new Error('output dns is not an object');
+  }
+  if (!config.rules.some(rule => typeof rule === 'string' && rule.startsWith('MATCH,'))) {
+    throw new Error('output rules missing MATCH fallback');
+  }
+  return config;
+}
+
+function main(config) {
+  const originalConfig = config && typeof config === 'object' ? config : {};
+  try {
+    const workingConfig = normalizeInputConfig(clonePlainConfig(originalConfig));
+    const result = buildConfig(workingConfig);
+    return validateOutputConfig(normalizeInputConfig(result));
+  } catch (error) {
+    console.log('[Clash.js] fatal:', error && error.stack ? error.stack : error);
+    return normalizeInputConfig(clonePlainConfig(originalConfig));
+  }
 }
 
