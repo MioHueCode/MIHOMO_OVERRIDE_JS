@@ -434,18 +434,30 @@ function buildConfig(config) {
   config.dns.fallback = trustDns;
   config.dns['direct-nameserver'] = [...cnDns, ...localDns];
   config.dns['direct-nameserver-follow-policy'] = true;
-
   // 节点清洗：过滤订阅公告、套餐说明、链接文本等非真实代理项。
   const invalidProxyNamePatterns = [
-    /(?:剩余流量|流量已用|重置|到期|官网|官方|公告|通知|最新|售后|telegram|电报|套餐|订阅|使用说明|请使用|客户端|更新订阅|复制链接|浏览器打开|https?:\/\/|@\w+|工单|教程|群组|频道|返利|邀请|购买|续费|维护)/i
+    /(?:剩余流量|流量已用|重置|到期|官网|官方|公告|通知|最新|售后|套餐|订阅|使用说明|请使用|客户端|更新订阅|复制链接|浏览器打开|https?:\/\/|工单|教程|返利|邀请|购买|续费|维护)/i
   ];
 
-  function isRealProxyName(name) {
-    if (!name) return false;
-    if (/^(urltest|select|fallback|load-balance)\b/i.test(name)) return false;
-    if (/\b\d+\/\d+\b/.test(name)) return false;
-    return !invalidProxyNamePatterns.some(re => re.test(name));
+  function isLikelyMetaNoticeName(name) {
+    const text = String(name || '').trim();
+    if (!text) return true;
+    if (/^(?:https?:\/\/|www\.)/i.test(text)) return true;
+    if (/^(?:公告|通知|官网|官方|使用说明|更新订阅|复制链接|浏览器打开)/i.test(text)) return true;
+    return false;
   }
+
+  function isRealProxyName(name) {
+    const text = String(name || '').trim();
+    if (!text) return false;
+    if (/^(urltest|select|fallback|load-balance)\b/i.test(text)) return false;
+    if (/\b\d+\/\d+\b/.test(text)) return false;
+    // 很多机场真实节点名会带 TG / 频道 / @用户名，这些不能再作为硬过滤条件。
+    // 这里只过滤明显的说明文本 / 链接 / 公告，而不是带广告前缀的真实节点。
+    if (isLikelyMetaNoticeName(text)) return false;
+    return !invalidProxyNamePatterns.some(re => re.test(text));
+  }
+
 
   perfStart('proxy_filter');
   const proxies = config.proxies.filter(p => p && p.name && isRealProxyName(p.name));
@@ -789,13 +801,23 @@ function buildConfig(config) {
 
     return '其他地区';
   }
-
   perfStart('region_classify');
   for (let i = 0; i < cleanProxies.length; i++) {
     const proxy = cleanProxies[i];
-    regionGroups[matchRegion(proxy.name)].push(proxy.name);
+    const matchedRegion = matchRegion(proxy.name);
+    if (!regionGroups[matchedRegion]) {
+      regionGroups['其他地区'].push(proxy.name);
+      continue;
+    }
+    regionGroups[matchedRegion].push(proxy.name);
   }
+  // 未命中明确地区特征的节点统一回收进「其他地区」，避免掉出地区体系。
+  // 当上游订阅命名只有广告词/序号时，这里会成为主要承接池，供后续自动组与兜底链继续复用。
+  const otherRegionNodes = unique(regionGroups['其他地区']);
+  const hasNamedPrimaryRegion = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '欧盟']
+    .some(regionName => regionGroups[regionName].length > 0);
   perfEnd('region_classify');
+
   // 运行期参数镜像：后续建组函数统一读取这些局部常量；如需调参，优先修改上方常量定义。
   const testUrl = TEST_URL;
   const testInterval = TEST_INTERVAL;
@@ -811,7 +833,6 @@ function buildConfig(config) {
   const regionUrlTestTimeout = REGION_TEST_TIMEOUT;
   const regionUrlTestMaxFailedTimes = REGION_TEST_MAX_FAILED_TIMES;
   const healthCheckLazy = HEALTH_CHECK_LAZY;
-
   // 分组构造工具：负责保留旧顺序、补默认项，并统一生成各类策略组。
   // 保留用户顺序：若旧配置已有同名 select 组，则尽量继承其代理顺序，减少每次刷新后的选项跳动。
   function preserveGroup(group) {
@@ -838,6 +859,7 @@ function buildConfig(config) {
     }
     return { ...group, proxies: oldProxies.concat(remaining) };
   }
+
 
   // 代理列表兜底：合并用户列表和默认项，若最终为空则至少返回 DIRECT。
   // 列表兜底约定：这里只能返回一维字符串数组；若改成对象/嵌套数组，会直接影响 Clash 配置反序列化。
@@ -919,22 +941,28 @@ function buildConfig(config) {
     }
     return groups;
   }
-
-  // 规则集合并：把多个规则片段展开、拍平、去重，供最终 rules 装配。
+  // 规则集合并：把多个规则片段展开、拍平，并对“同匹配键”采用后定义覆盖前定义。
+  // 这样可保留脚本编排顺序的覆写语义：后面的同 type+value 规则会替换前面的同键规则。
   function mergeRuleSets(...ruleSets) {
     const merged = [];
-    const seen = new Set();
+    const seenRuleIndexes = new Map();
     for (let i = 0; i < ruleSets.length; i++) {
       const ruleSet = asArray(ruleSets[i]);
       for (let j = 0; j < ruleSet.length; j++) {
         const rule = ruleSet[j];
-        if (!rule || seen.has(rule)) continue;
-        seen.add(rule);
+        if (!rule) continue;
+        const identityKey = getRuleIdentityKey(rule) || `RAW@@${rule}`;
+        if (seenRuleIndexes.has(identityKey)) {
+          const prevIndex = seenRuleIndexes.get(identityKey);
+          if (typeof prevIndex === 'number' && prevIndex >= 0 && prevIndex < merged.length) merged[prevIndex] = null;
+        }
+        seenRuleIndexes.set(identityKey, merged.length);
         merged.push(rule);
       }
     }
-    return merged;
+    return merged.filter(Boolean);
   }
+
 
   // 规则映射表：将 { name, rules } 定义转成按名称索引的查询结构。
   function buildRuleSetMap(defs) {
@@ -1096,15 +1124,15 @@ function buildConfig(config) {
   const regionCatalogEntries = Object.entries(regionCatalog);
   for (let i = 0; i < regionCatalogEntries.length; i++) {
     const entry = regionCatalogEntries[i];
-    const regionName = entry[0];
     const info = entry[1];
-    regionAutoMap[regionName] = info.names.auto;
+    regionAutoMap[info.name] = info.names.auto;
     regionAutoNames.push(info.names.auto);
     if (info.homeAutoGroup) {
-      regionHomeAutoMap[regionName] = info.names.homeAuto;
+      regionHomeAutoMap[info.name] = info.names.homeAuto;
       regionHomeAutoNames.push(info.names.homeAuto);
     }
   }
+
   const regionAutoGroups = [];
   const regionHomeAutoGroups = [];
   for (let i = 0; i < regionCatalogValues.length; i++) {
@@ -1115,9 +1143,9 @@ function buildConfig(config) {
 
   // 地区查询辅助：统一生成地区自动链、家宽链与原始节点列表。
   function getRegionAuto(name) {
-
     return regionAutoMap[name] || null;
   }
+
   function getRegionHomeAuto(name) {
     return regionHomeAutoMap[name] || null;
   }
@@ -1273,12 +1301,12 @@ function buildConfig(config) {
 
   // 区域故障转移定义：把高相关地区打包成可复用 fallback 组。
   const REGION_FAILOVER_DEFS = [
-{ name: '港台故障转移', regions: ['香港', '台湾'], icon: qIcon('Star') },
+    { name: '港台故障转移', regions: ['香港', '台湾'], icon: qIcon('Star') },
     { name: '日韩故障转移', regions: ['日本', '韩国'], icon: qIcon('Heart') },
     { name: '欧美故障转移', regions: ['美国', '欧盟'], icon: qIcon('Magic') }
   ];
-  const regionFallbackNodeMap = createNamedChoiceMap(REGION_FAILOVER_DEFS, def => buildRegionNodeList(def.regions));
 
+  const regionFallbackNodeMap = createNamedChoiceMap(REGION_FAILOVER_DEFS, def => buildRegionNodeList(def.regions));
 
   // YouTube无广策略：Google 广告投放基于出口 IP 的 GeoIP 归属。
 
@@ -1627,7 +1655,9 @@ function buildConfig(config) {
     const group = regionAutoGroups[i];
     if (group && group.name) regionAutoGroupMap[group.name] = group;
   }
+
   const visibleRegionAutoGroups = [];
+
   for (let i = 0; i < regionAutoOrder.length; i++) {
     const groupName = regionAutoMap[regionAutoOrder[i]] || '';
     const group = regionAutoGroupMap[groupName];
@@ -1638,22 +1668,8 @@ function buildConfig(config) {
   if (lowMultiplierGroup) specialFeatureGroups.push(lowMultiplierGroup);
   if (globalMultiplierGroup) specialFeatureGroups.push(globalMultiplierGroup);
   if (globalStreamingGroup) specialFeatureGroups.push(globalStreamingGroup);
-  const visibleRegionGroupNames = makeGroupNameSet(visibleRegionAutoGroups);
-  const regionHomeGroupNames = makeGroupNameSet(regionHomeAutoGroups);
-  const specialFeatureGroupNames = makeGroupNameSet(specialFeatureGroups);
-  const selectableGroupNames = new Set(['自动选择', '负载均衡', '全球手动', '节点选择', '全球直连', '自动兜底']);
-  for (const name of visibleRegionGroupNames) selectableGroupNames.add(name);
-  for (const name of regionHomeGroupNames) selectableGroupNames.add(name);
-  for (const name of specialFeatureGroupNames) selectableGroupNames.add(name);
-  for (let i = 0; i < fallbackGroups.length; i++) {
-    const group = fallbackGroups[i];
-    if (group && group.name) selectableGroupNames.add(group.name);
-  }
-  for (let i = 0; i < loadBalanceGroups.length; i++) {
-    const group = loadBalanceGroups[i];
-    if (group && group.name) selectableGroupNames.add(group.name);
-  }
   // 服务分流：统一声明业务组名称、图标与候选池，后续批量生成 select 组。
+
   const SERVICE_GROUP_BASE_DEFS = [
     { name: '风控安全', icon: iconMap.riskControl, choices: CHOICE_GROUPS.riskControl, extraDefaults: [] },
     { name: '国内服务', icon: iconMap.china, choices: MAIN_CHOICE_POOLS.domesticService },
@@ -1728,6 +1744,7 @@ function buildConfig(config) {
   // - filter(Boolean): 提前剔除空组，避免 hidden/preserve 处理空值；
   // - hidden 标记: 只隐藏辅助组，不改变其被其他组引用的能力；
   // - preserveGroup: 必须放在末尾，保证最终候选顺序基于已清洗后的组数据。
+
   const proxyGroupBuckets = Object.values(coreProxyGroupSections);
   const proxyGroups = [];
   for (let i = 0; i < proxyGroupBuckets.length; i++) {
@@ -1743,79 +1760,294 @@ function buildConfig(config) {
       proxyGroups.push(preserveGroup(group));
     }
   }
-  // 分组候选清洗：先构建可引用名称集合，再统一做最终出口清洗。
-  // 这样可以避免前面生成阶段为每个组重复做重型校验，兼顾启动速度和稳定性。
+  // 分组候选清洗：这是 proxy-groups 最后一道安全收口。
+  // 目标只有三件事：
+  // 1) 删掉不存在的候选名、重复项、自引用；
+  // 2) 给少数必须可用的组补最小兜底；
+  // 3) 切掉显式环引用，避免 A -> B -> A。
+  // 它不负责重新设计分组，只负责把前面拼好的结果整理成可稳定导入的最终结构。
   function getGroupFallbackChoices(groupName) {
-    return groupName === '全球直连'
-      ? ['DIRECT']
-      : groupName === '全球手动'
-        ? []
-        : groupName === '自动选择'
-          ? ['全球手动', 'DIRECT']
-          : groupName === '广告拦截'
-            ? ['REJECT-DROP', 'REJECT', 'PASS']
-            : groupName === '跟踪分析'
-              ? ['REJECT', 'DIRECT']
-              : groupName === '漏网之鱼'
-                ? ['自动选择', '全球手动', '全球直连']
-                : ['自动选择'];
+    // 全局直连组语义固定，最终必须只保留 DIRECT。
+    if (groupName === '全球直连') return ['DIRECT'];
+    // 全局手动组应尽量只保留真实节点，因此这里不给默认兜底项。
+    if (groupName === '全球手动') return [];
+    // 自动选择组在极端情况下允许退回“全球手动 / DIRECT”，避免测速组彻底空掉。
+    if (groupName === '自动选择') return ['全球手动', 'DIRECT'];
+    // 广告拦截组属于行为组，不依赖真实节点，兜底项是内建动作。
+    if (groupName === '广告拦截') return ['REJECT-DROP', 'REJECT', 'PASS'];
+    // 跟踪分析组用于阻断/直连观测，兜底动作不需要真实代理。
+    if (groupName === '跟踪分析') return ['REJECT', 'DIRECT'];
+    // 漏网之鱼承担 MATCH 收尾职责，允许回退到主入口组。
+    if (groupName === '漏网之鱼') return ['自动选择', '全球手动', '全球直连'];
+    // 其余分组不在这里乱补默认项，避免把“自动选择”偷偷塞进别的组。
+    return [];
   }
 
   const finalizedProxyGroups = finalizeGroupList(proxyGroups);
+  // availableChoiceNames：最终允许出现在 proxies 列表里的名字全集。
+  // 包含真实节点名、已生成的组名，以及 DIRECT / REJECT 等内建动作。
   const availableChoiceNames = makeNameSet(allProxyNames);
-
+  // realProxyNameSet：只包含真实节点名，用来判断“当前组里是否还有真实代理可用”。
+  const realProxyNameSet = makeNameSet(allProxyNames);
   for (let i = 0; i < finalizedProxyGroups.length; i++) {
     const group = finalizedProxyGroups[i];
     if (group && group.name) availableChoiceNames.add(group.name);
   }
   for (const name of BUILTIN_CHOICE_NAMES) availableChoiceNames.add(name);
-  // 第一层清洗：处理不存在的候选、自引用和重复项。
-  // select 组允许按语义保留空 fallback；测速/故障转移类组则强制补齐最小可用候选，避免空组。
-  const sanitizedProxyGroups = finalizedProxyGroups.map(group => {
-    if (!group || !Array.isArray(group.proxies)) return group;
-    const filteredProxies = filterDynamicChoices(group.proxies, availableChoiceNames, group.name);
+
+  function hasRealProxyChoices(list) {
+    // 只要候选中还存在一个真实节点，就说明这个组不需要走语义兜底。
+    return asArray(list).some(name => realProxyNameSet.has(name));
+  }
+
+  function finalizeGroupProxies(group, candidates) {
+    // candidates 是已经过基础过滤后的候选列表；这里再按组类型决定最终落盘形式。
+    const proxies = asArray(candidates);
     const fallbackChoices = getGroupFallbackChoices(group.name);
-    const proxies = sanitizeChoiceList(filteredProxies, fallbackChoices);
-    if (group.type === 'select') return Object.assign({}, group, { proxies });
-    if (group.type === 'fallback' || group.type === 'url-test' || group.type === 'load-balance') {
-      return Object.assign({}, group, { proxies: ensureGroupList(filteredProxies, fallbackChoices) });
+    const hasRealChoices = hasRealProxyChoices(proxies);
+
+    // 全球直连组固定只保留 DIRECT，避免被旧配置或别处逻辑污染。
+    if (group.name === '全球直连') return ['DIRECT'];
+    // 全球手动组若被清空，则回填全部真实节点，确保用户始终能手动选线。
+    if (group.name === '全球手动') return proxies.length ? proxies : allProxyNames.slice();
+    // fallback 组只保留构建阶段明确给它的候选；这里不额外补“自动选择”。
+    // 如果清洗后彻底为空，ensureGroupList(..., []) 会退到 DIRECT，至少保证配置仍可导入。
+    if (group.type === 'fallback') return ensureGroupList(proxies, []);
+    // 自动选择 / url-test / load-balance 这类“自动型”组，必须优先依赖真实节点工作。
+    // 只有在真实节点被清空时，才允许回退到它们各自的最小兜底项。
+    if (group.name === '自动选择' || group.type === 'url-test' || group.type === 'load-balance') {
+      return hasRealChoices ? proxies : ensureGroupList(proxies, fallbackChoices);
     }
-    return Object.assign({}, group, { proxies });
+    // 其余 select / 行为组：有真实节点就直接保留；没真实节点才走语义兜底。
+    return hasRealChoices ? proxies : sanitizeChoiceList(proxies, fallbackChoices);
+  }
+
+  // 第一层清洗：
+  // - 删除不存在的候选名；
+  // - 删除 self reference（组引用自己）；
+  // - 删除重复项；
+  // - 然后按组类型收口成最终候选。
+  const sanitizedProxyGroups = finalizedProxyGroups.map(group => {
+    if (!group || !Array.isArray(group.proxies) || !group.name) return group;
+    const filteredProxies = filterDynamicChoices(group.proxies, availableChoiceNames, group.name);
+    return Object.assign({}, group, { proxies: finalizeGroupProxies(group, filteredProxies) });
   });
 
+  // 建立组名到组对象的映射，供第二层“切环”时快速查询目标组内容。
   const sanitizedGroupMap = Object.create(null);
-
   for (let i = 0; i < sanitizedProxyGroups.length; i++) {
     const group = sanitizedProxyGroups[i];
     if (group && group.name) sanitizedGroupMap[group.name] = group;
   }
 
-  // 第二层清洗：基于最终分组关系再切一次显式环。
-  // 当前只处理收益最高、最常见的两类问题：
-  // - 自环：A -> A
-  // - 二元互环：A -> B 且 B -> A
-  // 更深层链式环理论上也可做图遍历，但当前版本优先控制复杂度与稳定性。
+  // 第二层清洗：切掉显式环引用。
+  // 当前只处理两类高频问题：
+  // 1) 自环：A -> A
+  // 2) 二元互环：A -> B 且 B -> A
+  // 这一步放在第一层之后，是因为必须基于“已经清洗过一次的最终候选关系”再判断一次。
   config['proxy-groups'] = sanitizedProxyGroups.map(group => {
     if (!group || !Array.isArray(group.proxies) || !group.name) return group;
-    const fallbackChoices = getGroupFallbackChoices(group.name);
     const nextProxies = [];
     for (let i = 0; i < group.proxies.length; i++) {
       const proxyName = group.proxies[i];
       const targetGroup = sanitizedGroupMap[proxyName];
+      // 目标不是组，或者目标组没有 proxies，就把它当普通候选直接保留。
       if (!targetGroup || !Array.isArray(targetGroup.proxies)) {
         nextProxies.push(proxyName);
         continue;
       }
+      // A -> A：直接丢掉。
       if (targetGroup.name === group.name) continue;
+      // A -> B 且 B -> A：视为显式互环，直接丢掉当前这条引用。
       if (targetGroup.proxies.includes(group.name)) continue;
       nextProxies.push(proxyName);
     }
-    if (group.type === 'fallback' || group.type === 'url-test' || group.type === 'load-balance') {
-      return Object.assign({}, group, { proxies: ensureGroupList(nextProxies, fallbackChoices) });
-    }
-    return Object.assign({}, group, { proxies: sanitizeChoiceList(nextProxies, fallbackChoices) });
+    // 切环后再按组类型收口一次，避免某些组因为去环而被清空。
+    return Object.assign({}, group, { proxies: finalizeGroupProxies(group, nextProxies) });
   });
+
+  // 规则目标校验：规则里引用的策略名必须真的存在。
+  // 这是规则区最常见的维护事故之一：改了组名，却忘了同步规则目标。
+  const availableRuleTargets = makeNameSet(config['proxy-groups'].map(group => group && group.name));
+  for (const name of BUILTIN_CHOICE_NAMES) availableRuleTargets.add(name);
+  function extractRulePolicyTarget(rule) {
+    if (typeof rule !== 'string') return null;
+    const parts = rule.split(',').map(part => String(part || '').trim());
+    if (parts.length < 3) return null;
+    const trailingFlags = new Set(['NO-RESOLVE', 'SRC', 'DST', 'UDP', 'TCP']);
+    for (let i = parts.length - 1; i >= 2; i--) {
+      const value = parts[i];
+      if (!value) continue;
+      if (trailingFlags.has(value.toUpperCase())) continue;
+      return value;
+    }
+    return null;
+  }
+
+  function extractRuleMatchValue(rule) {
+    if (typeof rule !== 'string') return null;
+    const parts = rule.split(',');
+    if (parts.length < 2) return null;
+    return {
+      type: String(parts[0] || '').trim().toUpperCase(),
+      value: String(parts[1] || '').trim(),
+      target: extractRulePolicyTarget(rule)
+    };
+  }
+  function getRuleIdentityKey(rule) {
+    if (typeof rule !== 'string') return null;
+    const parts = rule.split(',').map(part => String(part || '').trim());
+    const meta = extractRuleMatchValue(rule);
+    if (!meta || !meta.type || !meta.value) return `RAW@@${rule}`;
+    const normalizedType = meta.type.toUpperCase();
+    const normalizedValue = meta.value;
+    const extraParts = parts.length > 3 ? parts.slice(3).join(',') : '';
+    return `${normalizedType}@@${normalizedValue}@@${extraParts}`;
+  }
+
+
+  function buildRuleDiagnostics(ruleSetDefs, mergedRules) {
+    const diagnostics = {
+      duplicateRulesAcrossSets: [],
+      riskyShortKeywords: [],
+      redundantDomainCoveredBySuffix: [],
+      overriddenRuleTargets: [],
+      broadKeywordOverlapHints: [],
+      totalSourceRules: 0,
+
+      totalMergedRules: Array.isArray(mergedRules) ? mergedRules.length : 0,
+      dedupedRuleCount: 0,
+      ruleSetSizes: [],
+      mergedRuleTypeCounts: {}
+    };
+    const exactRuleOwners = new Map();
+    const normalizedMatchOwners = new Map();
+
+    for (const def of ruleSetDefs) {
+      const rules = Array.isArray(def && def.rules) ? def.rules : [];
+      const validRuleCount = rules.filter(rule => typeof rule === 'string').length;
+      diagnostics.totalSourceRules += validRuleCount;
+      diagnostics.ruleSetSizes.push({ name: def && def.name ? def.name : 'UNKNOWN', count: validRuleCount });
+      for (const rule of rules) {
+        if (typeof rule !== 'string') continue;
+        if (!exactRuleOwners.has(rule)) exactRuleOwners.set(rule, []);
+        exactRuleOwners.get(rule).push(def.name);
+
+        const meta = extractRuleMatchValue(rule);
+        if (!meta || !meta.type || !meta.value || !meta.target) continue;
+        const ownerKey = `${meta.type}@@${meta.value}`;
+        if (!normalizedMatchOwners.has(ownerKey)) normalizedMatchOwners.set(ownerKey, []);
+        normalizedMatchOwners.get(ownerKey).push({ target: meta.target, set: def.name, rule });
+      }
+    }
+
+    for (const [rule, owners] of exactRuleOwners.entries()) {
+      const uniqOwners = Array.from(new Set(owners));
+      if (uniqOwners.length > 1) diagnostics.duplicateRulesAcrossSets.push({ rule, sets: uniqOwners });
+    }
+    for (const [matchKey, entries] of normalizedMatchOwners.entries()) {
+      const uniqTargets = Array.from(new Set(entries.map(item => item.target)));
+      if (uniqTargets.length <= 1) continue;
+      diagnostics.overriddenRuleTargets.push({
+        matchKey,
+        targets: uniqTargets,
+        entries: entries.slice(0, 10),
+        effectiveTarget: entries[entries.length - 1] ? entries[entries.length - 1].target : null
+      });
+    }
+
+    diagnostics.dedupedRuleCount = Math.max(0, diagnostics.totalSourceRules - diagnostics.totalMergedRules);
+    diagnostics.ruleSetSizes.sort((a, b) => b.count - a.count || String(a.name).localeCompare(String(b.name)));
+
+    const suffixRuleMap = new Map();
+    const keywordRules = [];
+    for (const rule of mergedRules) {
+      const meta = extractRuleMatchValue(rule);
+      if (!meta || !meta.type || !meta.value || !meta.target) continue;
+      diagnostics.mergedRuleTypeCounts[meta.type] = (diagnostics.mergedRuleTypeCounts[meta.type] || 0) + 1;
+      if (meta.type === 'DOMAIN-SUFFIX') suffixRuleMap.set(`${meta.value}@@${meta.target}`, rule);
+      if (meta.type === 'DOMAIN-KEYWORD') keywordRules.push(meta);
+    }
+
+    for (const rule of mergedRules) {
+      const meta = extractRuleMatchValue(rule);
+      if (!meta || meta.type !== 'DOMAIN' || !meta.value || !meta.target) continue;
+      if (suffixRuleMap.has(`${meta.value}@@${meta.target}`)) {
+        diagnostics.redundantDomainCoveredBySuffix.push(rule);
+      }
+    }
+
+    for (const meta of keywordRules) {
+      if (meta.value && meta.value.length <= 2) diagnostics.riskyShortKeywords.push(`DOMAIN-KEYWORD,${meta.value},${meta.target}`);
+    }
+    for (let i = 0; i < keywordRules.length; i++) {
+      for (let j = i + 1; j < keywordRules.length; j++) {
+        const a = keywordRules[i];
+        const b = keywordRules[j];
+        if (a.target === b.target) continue;
+        if (!a.value || !b.value) continue;
+        const av = a.value.toLowerCase();
+        const bv = b.value.toLowerCase();
+        if (av === bv) continue;
+        if (av.length >= 4 && bv.includes(av)) diagnostics.broadKeywordOverlapHints.push({ broader: a, narrower: b });
+        else if (bv.length >= 4 && av.includes(bv)) diagnostics.broadKeywordOverlapHints.push({ broader: b, narrower: a });
+      }
+    }
+
+    return diagnostics;
+  }
+  function emitRuleDiagnostics(diagnostics) {
+    if (!diagnostics || typeof console === 'undefined' || typeof console.log !== 'function') return;
+    const lines = [];
+    lines.push(`[rules diagnostics] source rules: ${diagnostics.totalSourceRules}, merged rules: ${diagnostics.totalMergedRules}, deduped: ${diagnostics.dedupedRuleCount}`);
+    if (Array.isArray(diagnostics.ruleSetSizes) && diagnostics.ruleSetSizes.length) {
+      lines.push('[rules diagnostics] top rule sets by size:');
+      diagnostics.ruleSetSizes.slice(0, 10).forEach(item => {
+        lines.push(`  - ${item.name}: ${item.count}`);
+      });
+    }
+    const typeCountEntries = Object.entries(diagnostics.mergedRuleTypeCounts || {}).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+    if (typeCountEntries.length) {
+      lines.push('[rules diagnostics] merged rule types:');
+      typeCountEntries.slice(0, 10).forEach(([type, count]) => {
+        lines.push(`  - ${type}: ${count}`);
+      });
+    }
+    if (diagnostics.duplicateRulesAcrossSets.length) {
+
+      lines.push(`[rules diagnostics] duplicate exact rules across sets: ${diagnostics.duplicateRulesAcrossSets.length}`);
+      diagnostics.duplicateRulesAcrossSets.slice(0, 10).forEach(item => {
+        lines.push(`  - ${item.rule} <= ${item.sets.join(' | ')}`);
+      });
+    }
+    if (diagnostics.overriddenRuleTargets.length) {
+      lines.push(`[rules diagnostics] same match value overridden by later rule: ${diagnostics.overriddenRuleTargets.length}`);
+      diagnostics.overriddenRuleTargets.slice(0, 10).forEach(item => {
+        lines.push(`  - ${item.matchKey} => ${item.targets.join(' | ')} (effective: ${item.effectiveTarget || 'unknown'})`);
+      });
+    }
+
+    if (diagnostics.redundantDomainCoveredBySuffix.length) {
+      lines.push(`[rules diagnostics] DOMAIN covered by same DOMAIN-SUFFIX: ${diagnostics.redundantDomainCoveredBySuffix.length}`);
+      diagnostics.redundantDomainCoveredBySuffix.slice(0, 10).forEach(rule => lines.push(`  - ${rule}`));
+    }
+    if (diagnostics.broadKeywordOverlapHints.length) {
+      lines.push(`[rules diagnostics] cross-target keyword overlap hints: ${diagnostics.broadKeywordOverlapHints.length}`);
+      diagnostics.broadKeywordOverlapHints.slice(0, 10).forEach(item => {
+        lines.push(`  - broader ${item.broader.value}:${item.broader.target} vs narrower ${item.narrower.value}:${item.narrower.target}`);
+      });
+    }
+    if (diagnostics.riskyShortKeywords.length) {
+      lines.push(`[rules diagnostics] risky short DOMAIN-KEYWORD rules: ${diagnostics.riskyShortKeywords.length}`);
+      diagnostics.riskyShortKeywords.slice(0, 10).forEach(rule => lines.push(`  - ${rule}`));
+    }
+    if (lines.length) console.log(lines.join('\n'));
+  }
+
+
   // 规则数据区：按业务能力拆分为独立规则数组，最后统一合并去重。
+
+
   // YouTube 规则：处理主应用、ReVanced 系变体以及视频资源域名。
   const RULES_YOUTUBE = [
 
@@ -1826,14 +2058,13 @@ function buildConfig(config) {
     'PROCESS-NAME,app.morphe.android.youtube,YouTube',
     'DOMAIN,www.youtube.com,YouTube',
     'DOMAIN,m.youtube.com,YouTube',
-    'DOMAIN,youtubei.googleapis.com,YouTube',
-    'DOMAIN,youtube.googleapis.com,YouTube',
     'DOMAIN,youtubeembeddedplayer.googleapis.com,YouTube',
     'DOMAIN,jnn-pa.googleapis.com,YouTube',
     'DOMAIN,video.google.com,YouTube',
     'DOMAIN-SUFFIX,youtube.com,YouTube',
     'DOMAIN-SUFFIX,youtubei.googleapis.com,YouTube',
     'DOMAIN-SUFFIX,youtube.googleapis.com,YouTube',
+
     'DOMAIN-SUFFIX,googlevideo.com,YouTube',
     'DOMAIN-SUFFIX,ytimg.com,YouTube',
     'DOMAIN-SUFFIX,ggpht.com,YouTube',
@@ -1892,6 +2123,10 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,linguee.com,Google',
   ];
   // 广告拦截规则：覆盖广告、遥测、追踪与部分已知推广 SDK 域名。
+  // 维护约定：
+  // - 这里优先放“强动作”规则（如 REJECT-DROP / REJECT）；
+  // - 同一域名若已经在前面被更强动作处理，后面不要再追加同域名的弱动作版本，避免职责冲突。
+  // - DOMAIN-KEYWORD 只保留高置信度广告词，避免把过宽的通用词误伤到正常业务域名。
   const RULES_ADBLOCK = [
 
     'DOMAIN,incoming.telemetry.mozilla.org,REJECT-DROP',
@@ -1899,13 +2134,10 @@ function buildConfig(config) {
     'PROCESS-NAME,TikTok.Mod.Jaggu,TikTok',
     'PROCESS-NAME-REGEX,(?i)^TikTok\.Mod\.Jaggu(?::.*)?$,TikTok',
     'GEOSITE,category-ads-all,广告拦截',
-
-    'DOMAIN-KEYWORD,ads,广告拦截',
+    // 关键词拦截只保留高置信度广告词；像 ads / promo / analytics / sponsor 这类过宽词不在这里粗暴拦截。
     'DOMAIN-KEYWORD,adserver,广告拦截',
     'DOMAIN-KEYWORD,adnetwork,广告拦截',
     'DOMAIN-KEYWORD,adtech,广告拦截',
-    'DOMAIN-KEYWORD,ssp,广告拦截',
-    'DOMAIN-KEYWORD,rtb,广告拦截',
     'DOMAIN-KEYWORD,adsdk,广告拦截',
     'DOMAIN-KEYWORD,adapi,广告拦截',
     'DOMAIN-KEYWORD,adtrack,广告拦截',
@@ -1914,19 +2146,6 @@ function buildConfig(config) {
     'DOMAIN-KEYWORD,adstat,广告拦截',
     'DOMAIN-KEYWORD,adload,广告拦截',
     'DOMAIN-KEYWORD,adsystem,广告拦截',
-    'DOMAIN-KEYWORD,advert,广告拦截',
-    'DOMAIN-KEYWORD,banner,广告拦截',
-    'DOMAIN-KEYWORD,promo,广告拦截',
-    'DOMAIN-KEYWORD,sponsor,广告拦截',
-    'DOMAIN-KEYWORD,tracking,广告拦截',
-    'DOMAIN-KEYWORD,telemetry,广告拦截',
-    'DOMAIN-KEYWORD,analytics,广告拦截',
-    'DOMAIN-KEYWORD,heatmap,广告拦截',
-    'DOMAIN-KEYWORD,segment,广告拦截',
-    'DOMAIN-KEYWORD,amplitude,广告拦截',
-    'DOMAIN-KEYWORD,mixpanel,广告拦截',
-    'DOMAIN-KEYWORD,sentry,广告拦截',
-    'DOMAIN-KEYWORD,logging,广告拦截',
     'DOMAIN-KEYWORD,impression,广告拦截',
     'DOMAIN-KEYWORD,conversion,广告拦截',
     'DOMAIN-KEYWORD,atdmt,广告拦截',
@@ -1935,6 +2154,7 @@ function buildConfig(config) {
     'DOMAIN-KEYWORD,popunder,广告拦截',
     'DOMAIN-KEYWORD,clickhubs,广告拦截',
     'DOMAIN-KEYWORD,adriver,广告拦截',
+
     'DOMAIN-SUFFIX,pglstatp-toutiao.com,广告拦截',
     'DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,广告拦截',
     'DOMAIN-SUFFIX,pangolin.snssdk.com,广告拦截',
@@ -1990,8 +2210,8 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,doubleclick.net,广告拦截',
     'DOMAIN-SUFFIX,google-analytics.com,广告拦截',
     // 第 5 层：TikTok 广告/遥测补充 + 浏览器扩展追踪
-    'DOMAIN-REGEX,^(log|mon)[0-9A-Za-z.-]*\.tiktokv\.com$,广告拦截',
-    'DOMAIN,incoming.telemetry.mozilla.org,广告拦截',
+    // 已在规则前部以 REJECT / REJECT-DROP 强动作处理，这里不再重复放弱动作版本。
+
     // ===== 风控安全：金融支付 / 账号登录 / 高敏感 =====
     'DOMAIN-SUFFIX,accounts.google.com,风控安全',
     'DOMAIN-SUFFIX,myaccount.google.com,风控安全',
@@ -2130,12 +2350,17 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,meta.com,风控安全',
   ];
   // 跟踪分析规则：覆盖 Tracker、遥测、统计与分析域名。
+  // 维护约定：
+  // - 这里偏向“可观测 / 可放行”的分析类流量，而不是已经明确要强拦截的广告域名；
+  // - 若某域名已在广告拦截中被 REJECT / REJECT-DROP，通常不应再在这里重复声明。
+  // - DOMAIN-KEYWORD 尽量使用 tracker / telemetry / metrics 这类高语义词，避免 tg 等过短词造成误伤。
   const RULES_TRACKER = [
 
     'GEOSITE,tracker,跟踪分析',
     'DOMAIN-KEYWORD,tracker,跟踪分析',
     'DOMAIN-KEYWORD,analytics,跟踪分析',
     'DOMAIN-KEYWORD,telemetry,跟踪分析',
+
     'DOMAIN-KEYWORD,metrics,跟踪分析',
     'DOMAIN-KEYWORD,logging,跟踪分析',
     'DOMAIN-KEYWORD,heatmap,跟踪分析',
@@ -2149,14 +2374,13 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,googletagmanager.com,跟踪分析',
     'DOMAIN-SUFFIX,googletagservices.com,跟踪分析',
     'DOMAIN-SUFFIX,doubleclick.net,跟踪分析',
-    'DOMAIN,incoming.telemetry.mozilla.org,跟踪分析',
   ];
   // 风控与系统规则：覆盖 FCM、Play Store、Google AI、下载与高敏感登录链路。
-  const RULES_RISK_CONTROL = [
-
-    // ===== FCM / Google 推送 =====
+  // 维护约定：
+  // - 这里主要放系统级 / 登录级 / 分发级链路；
+  // - YouTube / Google 视频主业务流量优先交给 RULES_YOUTUBE 处理，这里只保留补洞性质的相关条目。
+  const RULES_RISK_CONTROL_FCM = [
     'DOMAIN-SUFFIX,fcm.googleapis.com,FCM',
-
     'DOMAIN-SUFFIX,fcm-xmpp.googleapis.com,FCM',
     'DOMAIN-SUFFIX,mtalk.google.com,FCM',
     'DOMAIN-SUFFIX,mtalk4.google.com,FCM',
@@ -2165,8 +2389,8 @@ function buildConfig(config) {
     'DST-PORT,5228,FCM',
     'DST-PORT,5229,FCM',
     'DST-PORT,5230,FCM',
-
-    // ===== 谷歌商店 / Play Store =====
+  ];
+  const RULES_RISK_CONTROL_PLAY_STORE = [
     'PROCESS-NAME,com.android.vending,谷歌商店',
     'DOMAIN-SUFFIX,play.google.com,谷歌商店',
     'DOMAIN-SUFFIX,play.googleapis.com,谷歌商店',
@@ -2180,45 +2404,43 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,android.clients.google.com,谷歌商店',
     'DOMAIN-SUFFIX,android.googleapis.com,风控安全',
     'DOMAIN-KEYWORD,googleplay,谷歌商店',
-
-    // ===== YouTube / Google 视频媒体 =====
-    'PROCESS-NAME,app.revanced.android.youtube,YouTube',
-    'PROCESS-NAME,app.rvx.android.youtube,YouTube',
-    'PROCESS-NAME,app.morphe.android.youtube,YouTube',
-    'DOMAIN-SUFFIX,youtube.com,YouTube',
+  ];
+  const RULES_RISK_CONTROL_YOUTUBE_EXTRA = [
+    // 主规则已由 RULES_YOUTUBE 覆盖；这里仅保留主规则未覆盖的补充域名。
     'DOMAIN-SUFFIX,youtube-nocookie.com,YouTube',
-    'DOMAIN-SUFFIX,youtu.be,YouTube',
     'DOMAIN-SUFFIX,yt.be,YouTube',
-    'DOMAIN-SUFFIX,youtube.googleapis.com,YouTube',
-    'DOMAIN-SUFFIX,youtubei.googleapis.com,YouTube',
-    'DOMAIN-SUFFIX,googlevideo.com,YouTube',
-    'DOMAIN-SUFFIX,ytimg.com,YouTube',
-    'DOMAIN-SUFFIX,ggpht.com,YouTube',
     'DOMAIN-SUFFIX,yt3.ggpht.com,YouTube',
     'DOMAIN-SUFFIX,youtubekids.com,YouTube',
     'DOMAIN-SUFFIX,sponsor.ajay.app,YouTube',
     'DOMAIN-SUFFIX,returnyoutubedislikeapi.com,YouTube',
-
-    // ===== Google AI / Gemini =====
+  ];
+  const RULES_RISK_CONTROL_GOOGLE_AI = [
     'DOMAIN-SUFFIX,gemini.google.com,AI',
     'DOMAIN-SUFFIX,generativeai.google,AI',
     'DOMAIN-SUFFIX,generativelanguage.googleapis.com,AI',
     'DOMAIN-SUFFIX,proactivebackend-pa.googleapis.com,AI',
     'DOMAIN-SUFFIX,notebooklm.google.com,AI',
-
-    // ===== Google 下载 / 更新 =====
+  ];
+  const RULES_RISK_CONTROL_DOWNLOAD = [
     'DOMAIN-SUFFIX,dl.google.com,下载专用组',
     'DOMAIN-SUFFIX,dl.googleusercontent.com,下载专用组',
     'DOMAIN-SUFFIX,redirector.gvt1.com,下载专用组',
     'DOMAIN-SUFFIX,update.googleapis.com,下载专用组',
     'DOMAIN-SUFFIX,connectivitycheck.gstatic.com,下载专用组',
   ];
+  const RULES_RISK_CONTROL = [
+    ...RULES_RISK_CONTROL_FCM,
+    ...RULES_RISK_CONTROL_PLAY_STORE,
+    ...RULES_RISK_CONTROL_YOUTUBE_EXTRA,
+    ...RULES_RISK_CONTROL_GOOGLE_AI,
+    ...RULES_RISK_CONTROL_DOWNLOAD,
+  ];
   // AI / TikTok / 风控 / 流媒体补充规则：收纳核心规则外的专项补丁。
-  const RULES_AI_TIKTOK_EXTRA = [
-
-    // AI（补充）
+  // 维护约定：
+  // - 这里只放主规则没有覆盖、但确实需要单独补洞的条目；
+  // - 若某域名 / 进程已经进入对应主规则块，优先在主规则块维护，不要长期双写。
+  const RULES_AI_EXTRA = [
     'PROCESS-NAME,ai.x.grok,AI',
-
     'PROCESS-NAME,ai.cici.android,AI',
     'PROCESS-NAME,com.ciciai.app,AI',
     'PROCESS-NAME,com.coze.android,AI',
@@ -2237,10 +2459,8 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,openai.com,AI',
     'DOMAIN-SUFFIX,anthropic.com,AI',
     'DOMAIN-SUFFIX,statsigapi.net,AI',
-
-    // TikTok（补充）
-    'PROCESS-NAME,TikTok.Mod.Jaggu,TikTok',
-    'PROCESS-NAME-REGEX,(?i)^TikTok\.Mod\.Jaggu(?::.*)?$,TikTok',
+  ];
+  const RULES_TIKTOK_EXTRA = [
     'DOMAIN,frontier.tiktokv.com,TikTok',
     'DOMAIN,p16-tiktokcdn-com.akamaized.net,TikTok',
     'DOMAIN,rezvorck.github.io,TikTok',
@@ -2261,8 +2481,8 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,tiktokmusic.app,TikTok',
     'DOMAIN-SUFFIX,ttwebview.com,TikTok',
     'DOMAIN-SUFFIX,ttwstatic.com,TikTok',
-
-    // 风控安全（补充）
+  ];
+  const RULES_FINANCE_EXTRA = [
     'PROCESS-NAME,money.boku.android,风控安全',
     'PROCESS-NAME,com.ifast.gb,风控安全',
     'PROCESS-NAME-REGEX,(?i)^io\.metamask(?::.*)?$,风控安全',
@@ -2272,10 +2492,8 @@ function buildConfig(config) {
     'DOMAIN,communication-app.ifastgb.com,风控安全',
     'DOMAIN,fpjs.checkout.com,风控安全',
     'DOMAIN,fpjscache.checkout.com,风控安全',
-    'DOMAIN,ifastgb.com,风控安全',
-    'DOMAIN,neverless.com,风控安全',
-    'DOMAIN,noones.com,风控安全',
     'DOMAIN,auth.noones.com,风控安全',
+
     'DOMAIN,api.noones.com,风控安全',
     'DOMAIN,static.noones.com,风控安全',
     'DOMAIN,sentry.noones.com,风控安全',
@@ -2295,23 +2513,31 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,ouyich.biz,风控安全',
     'DOMAIN-SUFFIX,ouyich.show,风控安全',
     'DOMAIN-SUFFIX,cnouyi.pizza,风控安全',
-
-    // 流媒体（补充）
+  ];
+  const RULES_STREAMING_EXTRA = [
     'PROCESS-NAME,com.oumi.utility.media.hub,流媒体',
     'DOMAIN,api.7littlemen.com,流媒体',
     'DOMAIN,bps8m.onyra.cc,流媒体',
     'DOMAIN,image.tmdb.org,流媒体',
+
     'DOMAIN,stream.onyra.uk,流媒体',
     'DOMAIN,vh.api.okaapps.com,流媒体',
     'DOMAIN,vh.image.okaapps.com,流媒体',
     'DOMAIN,vh.image1.okaapps.com,流媒体',
-    'DOMAIN,www.premiumize.me,流媒体',
     'DOMAIN-SUFFIX,okaapps.com,流媒体',
+
     'DOMAIN-SUFFIX,onyra.cc,流媒体',
     'DOMAIN-SUFFIX,onyra.uk,流媒体',
     'DOMAIN-SUFFIX,premiumize.me,流媒体',
     'IP-CIDR,121.43.145.95/32,流媒体,no-resolve',
   ];
+  const RULES_AI_TIKTOK_EXTRA = [
+    ...RULES_AI_EXTRA,
+    ...RULES_TIKTOK_EXTRA,
+    ...RULES_FINANCE_EXTRA,
+    ...RULES_STREAMING_EXTRA,
+  ];
+
   // 国内服务规则：承接中国大陆常用站点与国产 AI / 内容 / 电商服务。
   const RULES_DOMESTIC = [
 
@@ -2718,9 +2944,10 @@ function buildConfig(config) {
     'DOMAIN-SUFFIX,tdesktop.com,Telegram',
     'DOMAIN-SUFFIX,usercontent.dev,Telegram',
     'DOMAIN-SUFFIX,graph.org,Telegram',
+    // telegram 关键词保留；tg 过短，极易误伤普通域名，不再使用。
     'DOMAIN-KEYWORD,telegram,Telegram',
-    'DOMAIN-KEYWORD,tg,Telegram',
     'IP-CIDR,91.108.4.0/22,Telegram,no-resolve',
+
     'IP-CIDR,91.108.8.0/21,Telegram,no-resolve',
     'IP-CIDR,91.108.12.0/22,Telegram,no-resolve',
     'IP-CIDR,91.108.16.0/22,Telegram,no-resolve',
@@ -2737,6 +2964,7 @@ function buildConfig(config) {
     'IP-CIDR6,2001:67c:4e8::/48,Telegram,no-resolve'
   ];
   // Google 通用规则：覆盖搜索、Gmail、Drive、Maps、Workspace 与基础资源域名。
+  // 维护约定：翻译与 YouTube 已有独立规则块，这里尽量不重复放专项主规则。
   const RULES_GOOGLE = [
 
     'DOMAIN,dns.google,Google',
@@ -3042,13 +3270,17 @@ function buildConfig(config) {
     DIRECT_AND_FALLBACK: RULES_DIRECT_AND_FALLBACK
   };
   const RULE_ASSEMBLY_ORDER = [
+    // 主业务优先：视频、应用进程、翻译
     'YOUTUBE',
     'APP_PROCESS',
     'TRANSLATION',
+    // 强动作与系统级规则
     'ADBLOCK',
     'TRACKER',
     'RISK_CONTROL',
+    // 补丁型专项规则
     'AI_TIKTOK_EXTRA',
+
     'DOMESTIC',
     'APPLE',
     'AI_GLOBAL',
@@ -3075,16 +3307,39 @@ function buildConfig(config) {
   ];
   const RULE_SET_DEFS = RULE_ASSEMBLY_ORDER
     .map(name => ({ name, rules: RULE_SET_MAP[name] }));
-
   // 规则落盘：按优先级顺序合并所有规则，并做最终去重。
   perfStart('rules_assemble');
   const assembledRules = collectRuleSets(RULE_SET_DEFS, RULE_ASSEMBLY_ORDER);
   config.rules = mergeRuleSets(assembledRules);
   perfEnd('rules_assemble');
-
-  if (!config.rules.length || !config.rules.some(rule => typeof rule === 'string' && rule.startsWith('MATCH,'))) {
+  if (!config.rules.length || !config.rules.some(rule => typeof rule === 'string' && /^MATCH\s*,/i.test(rule))) {
     throw new Error('rules health check failed: missing fallback MATCH rule');
   }
+
+
+  // 规则健康检查：所有策略目标都必须可解析到真实存在的组名或内建动作。
+  const missingRuleTargets = [];
+  const seenMissingRuleTargets = new Set();
+  for (let i = 0; i < config.rules.length; i++) {
+    const rule = config.rules[i];
+    const target = extractRulePolicyTarget(rule);
+    if (!target || availableRuleTargets.has(target)) continue;
+    if (seenMissingRuleTargets.has(target)) continue;
+    seenMissingRuleTargets.add(target);
+    missingRuleTargets.push(target);
+  }
+  if (missingRuleTargets.length) {
+    throw new Error('rules health check failed: missing policy target(s): ' + missingRuleTargets.join(', '));
+  }
+  const ruleDiagnostics = buildRuleDiagnostics(RULE_SET_DEFS, config.rules);
+  if (ruleDiagnostics.riskyShortKeywords.length && typeof console !== 'undefined' && typeof console.warn === 'function') {
+    console.warn('rules health check warning: risky short DOMAIN-KEYWORD rule(s): ' + ruleDiagnostics.riskyShortKeywords.join(', '));
+  }
+
+  // 同 match value 多 target 现在按“后定义覆盖前定义”处理，只记录诊断，不再阻断。
+
+  emitRuleDiagnostics(ruleDiagnostics);
+
 
   perfFlush();
 
