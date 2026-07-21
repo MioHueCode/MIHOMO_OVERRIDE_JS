@@ -1086,14 +1086,24 @@ function buildConfig(config) {
   }
 
 
+  // 构建直连代理名称集合，用于过滤
+  const builtInDirectProxyNames = new Set([
+    '🇨🇳 直连 | IPv4优先',
+    '🇨🇳 直连 | IPv6优先',
+    '🇨🇳 直连 | 双栈'
+  ]);
+  
   perfStart('region_classify');
 
   for (let i = 0; i < cleanProxies.length; i++) {
     const proxy = cleanProxies[i];
+    
+    // 跳过内置直连代理：它们不是真实的地区节点
+    if (builtInDirectProxyNames.has(proxy.name)) continue;
+    
     const matchedRegion = matchRegion(proxy.name);
     if (!regionGroups[matchedRegion]) {
       regionGroups['其它地区'].push(proxy.name);
-
       continue;
     }
     regionGroups[matchedRegion].push(proxy.name);
