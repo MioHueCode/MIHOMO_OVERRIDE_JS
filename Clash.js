@@ -1,22 +1,43 @@
 /**
- * Clash / Mihomo 工程化整理脚本
+ * ═══════════════════════════════════════════════════════════════════════════════
+ * Clash / Mihomo 工程化配置脚本
+ * ═══════════════════════════════════════════════════════════════════════════════
  *
- * 设计目标：
- * 1. 在尽量不改变原有行为的前提下，提升配置脚本的可维护性与可读性。
- * 2. 统一 DNS、嗅探、节点识别、地区分组、业务分流与规则装配逻辑。
- * 3. 为后续继续扩展规则、分组和节点分类提供清晰的结构边界。
+ * 【设计理念】
+ * 本脚本旨在构建高度模块化、可维护、可扩展的 Clash 配置生成系统。
+ * 遵循单一职责、开闭原则和最小惊讶原则，确保每次修改的影响范围可控。
  *
- * 主要结构：
- * - 基础运行参数与通用工具
- * - Sniffer / Hosts / DNS 配置
- * - 节点清洗、特征识别与地区归类
- * - 自动选择、故障转移、负载均衡与业务分组构造
- * - 规则数组拆分、组合与最终落盘
+ * 【核心架构】
+ * ┌─────────────────────────────────────────────────────────────────┐
+ * │ 1. 基础设施层   │ 工具函数、性能分析、错误处理             │
+ * ├─────────────────────────────────────────────────────────────────┤
+ * │ 2. 网络配置层   │ DNS、Sniffer、Hosts、实验特性           │
+ * ├─────────────────────────────────────────────────────────────────┤
+ * │ 3. 节点处理层   │ 清洗、特征识别、地区归类、去重           │
+ * ├─────────────────────────────────────────────────────────────────┤
+ * │ 4. 策略构建层   │ 自动选择、故障转移、负载均衡、业务分组    │
+ * ├─────────────────────────────────────────────────────────────────┤
+ * │ 5. 规则装配层   │ 规则分组、合并、去重、诊断               │
+ * └─────────────────────────────────────────────────────────────────┘
  *
- * 维护约定：
- * - 优先做保守重构，不随意改变规则优先级与组装顺序。
- * - 规则新增尽量放入对应 RULES_* 分区，避免散落追加。
- * - 若修改节点识别逻辑，请同步检查地区组、故障转移组和业务候选池。
+ * 【维护指南】
+ * • 新增规则    → 添加到对应的 RULES_* 常量数组
+ * • 新增分组    → 使用 makeSelectGroup / makeUrlTestGroup 等工厂函数
+ * • 修改节点识别 → 同步更新地区归类、故障转移和业务候选池
+ * • 调整优先级  → 修改 BUSINESS_CHOICE_DEFS 或 CHOICE_POOL_DEFS
+ * • 性能调优    → 启用 PERF_ENABLED 查看各阶段耗时
+ *
+ * 【特性说明】
+ * 谷歌商店多模式系统：
+ * - 四个独立模式：商店稳定 / 商店极速 / 商店全球 / 商店兜底
+ * - 每个模式有独立的：测速URL、地区池、健康检查参数、DNS策略
+ * - 切换方式：修改 PLAY_STORE_PRESET 常量（第 270 行）
+ * - 四个模式组使用专属候选池，不会出现在其他业务组中
+ *
+ * @version 2.0.0
+ * @date 2026-07-21
+ * @license MIT
+ * ═══════════════════════════════════════════════════════════════════════════════
  */
 function buildConfig(config) {
   if (!config || !Array.isArray(config.proxies)) return config;
@@ -28,13 +49,21 @@ function buildConfig(config) {
     const group = existingGroups[i];
     if (group && group.name) existingGroupMap[group.name] = group;
   }
+  // ========================================
+  // 运行时工具：性能分析、调试与安全执行
+  // ========================================
   const PERF_ENABLED = false;
   const RULE_DIAGNOSTICS_ENABLED = false;
+  
   const perfMarks = Object.create(null);
   const perfNow = () => Date.now();
+  
   const debugLog = (...args) => {
-    if (typeof console !== 'undefined' && typeof console.log === 'function') console.log(...args);
+    if (typeof console !== 'undefined' && typeof console.log === 'function') {
+      console.log(...args);
+    }
   };
+  
   function safeRun(label, fn, fallbackValue) {
     try {
       return typeof fn === 'function' ? fn() : fallbackValue;
@@ -45,24 +74,29 @@ function buildConfig(config) {
   }
 
   function perfStart(label) {
-
     if (!PERF_ENABLED) return;
     perfMarks[label] = perfNow();
   }
+  
   function perfEnd(label) {
     if (!PERF_ENABLED || !perfMarks[label]) return;
     perfMarks[label] = perfNow() - perfMarks[label];
   }
+  
   function perfFlush() {
     if (!PERF_ENABLED) return;
     console.log('[Clash.js][perf]', JSON.stringify(perfMarks));
   }
 
-  // 图标资源：统一走 Qure 图标仓库，避免各处手写 URL 前缀。
+  // ========================================
+  // 通用工具函数
+  // ========================================
+  
+  // 图标资源：统一走 Qure 图标仓库
   const QURE_BASE = 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/';
   const qIcon = name => QURE_BASE + name + '.png';
 
-  // 通用工具：将外部输入统一收敛为数组。
+  // 数组工具：统一处理外部输入
   function asArray(value) {
     return Array.isArray(value) ? value : [];
   }
@@ -70,38 +104,61 @@ function buildConfig(config) {
   function uniqList(arr) {
     return Array.from(new Set(asArray(arr).filter(Boolean)));
   }
+  
+  // 通用去重工具
+  const unique = arr => [...new Set(arr.filter(Boolean))];
+  
+  const uniqueBy = (arr, keyFn) => {
+    const seen = new Set();
+    return arr.filter(item => {
+      const key = keyFn(item);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
 
-  // 基础运行参数：优先保证配置持久化、协议栈兼容性与默认行为稳定。
+  // ========================================
+  // 基础配置：运行参数、网络栈、实验特性
+  // ========================================
+  
+  // Profile：持久化配置
   config.profile = {
     ...(config.profile || {}),
     'store-selected': true,
     'store-fake-ip': true
   };
 
+  // 网络与端口配置
   config['mixed-port'] = config['mixed-port'] || 7890;
   config['allow-lan'] = false;
+  config['mode'] = 'rule';
+  config['log-level'] = config['log-level'] || 'error';
+  config.ipv6 = true;
+  
+  // TCP 优化
   config['tcp-concurrent'] = true;
   config['keep-alive-interval'] = 15;
   config['keep-alive-idle'] = 600;
   config['disable-keep-alive'] = false;
+  
+  // 其他特性
   config['etag-support'] = true;
-
-  config['mode'] = 'rule';
-
-  config['log-level'] = config['log-level'] || 'error';
-  config.ipv6 = true;
-
   config['unified-delay'] = true;
   config['find-process-mode'] = 'strict';
   config['global-client-fingerprint'] = config['global-client-fingerprint'] || 'chrome';
-  // 实验特性：统一关闭 GSO/ECN，保持与常见客户端兼容。
+  
+  // 实验特性：QUIC 兼容性优化
   config['experimental'] = Object.assign({}, config['experimental'] || {}, {
     'quic-go-disable-gso': true,
     'quic-go-disable-ecn': true,
-    'dialer-ip4p-convert': false,
+    'dialer-ip4p-convert': false
   });
 
-  // 嗅探模块：为 HTTPS / QUIC / 纯 IP 连接补足域名感知，便于后续规则命中。
+  // ========================================
+  // 嗅探模块：域名感知与流量识别
+  // ========================================
+  
   if (!config.sniffer || typeof config.sniffer !== 'object') config.sniffer = {};
   config.sniffer['force-dns-mapping'] = true;
 
@@ -143,7 +200,10 @@ function buildConfig(config) {
     'time.android.com'
   ]);
 
-  // Hosts 兜底：为关键 DoH 与常见重定向域名提供静态兜底映射。
+  // ========================================
+  // Hosts 映射：关键服务域名兜底
+  // ========================================
+  
   if (!config.hosts || typeof config.hosts !== 'object') config.hosts = {};
   config.hosts['dns.alidns.com'] = ['223.5.5.5', '223.6.6.6'];
 
@@ -157,7 +217,11 @@ function buildConfig(config) {
   // Telegram t.me 兼容映射：优先采用域名别名方式，避免直接写死 IP。
   config.hosts['t.me'] = 'telegram.me';
 
-  // DNS 基础资源：分离本地解析、国内 DoH、可信境外 DoH 与广告过滤 DNS。
+  // ========================================
+  // DNS 配置：解析器、策略与路由
+  // ========================================
+  
+  // DNS 端点定义
   const DNS_ENDPOINTS = {
     local: ['223.6.6.6', '119.29.29.29'],
     cn: ['https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'],
@@ -169,21 +233,93 @@ function buildConfig(config) {
   const trustDns = DNS_ENDPOINTS.trust;
   const adguardDns = DNS_ENDPOINTS.adguard;
 
-  // 测速常量：统一控制自动选择、故障转移和地区测速组的探测参数。
+  // ========================================
+  // 健康检查参数：测速与故障检测配置
+  // ========================================
+ 
+  // 通用测速配置
   const TEST_URL = 'https://www.gstatic.com/generate_204';
-  const TEST_INTERVAL = 360;
-  const TEST_TOLERANCE = 80;
-  const TEST_TIMEOUT = 2000;
-  const TEST_MAX_FAILED_TIMES = 3;
-  const FALLBACK_INTERVAL = 300;
-  const FALLBACK_TOLERANCE = 80;
-  const FALLBACK_TIMEOUT = 2500;
-  const FALLBACK_MAX_FAILED_TIMES = 2;
-  const REGION_TEST_INTERVAL = 480;
-  const REGION_TEST_TOLERANCE = 160;
-  const REGION_TEST_TIMEOUT = 3000;
-  const REGION_TEST_MAX_FAILED_TIMES = 4;
-  const HEALTH_CHECK_LAZY = true;
+  const TEST_INTERVAL = 360;                    // 自动选择测速间隔（秒）
+  const TEST_TOLERANCE = 80;                     // 延迟容差（毫秒）
+  const TEST_TIMEOUT = 2000;                     // 超时时间（毫秒）
+  const TEST_MAX_FAILED_TIMES = 3;               // 最大失败次数
+  
+  // 故障转移配置
+  const FALLBACK_INTERVAL = 300;                 // 故障检测间隔（秒）
+  const FALLBACK_TOLERANCE = 80;                 // 延迟容差（毫秒）
+  const FALLBACK_TIMEOUT = 2500;                 // 超时时间（毫秒）
+  const FALLBACK_MAX_FAILED_TIMES = 2;           // 最大失败次数
+  
+  // 地区测速配置
+  const REGION_TEST_INTERVAL = 480;              // 地区组测速间隔（秒）
+  const REGION_TEST_TOLERANCE = 160;             // 延迟容差（毫秒）
+  const REGION_TEST_TIMEOUT = 3000;              // 超时时间（毫秒）
+  const REGION_TEST_MAX_FAILED_TIMES = 4;        // 最大失败次数
+  // ========================================
+  // 谷歌商店专项配置：多模式负载均衡系统
+  // ========================================
+  //
+  // 设计思想：
+  // 谷歌商店下载体验高度依赖节点质量和地区分布，单一策略难以适应所有场景。
+  // 本系统提供4个预设模式，每个模式有独立的测速URL、地区池、DNS策略和健康检查参数。
+  //
+  // 模式特点：
+  // • stable（稳定优先）：兼容性最好，适合日常使用
+  // • speed（速度优先）：测速更激进，适合大文件下载
+  // • global（全球覆盖）：地区池最广，适合特殊分发区域
+  // • rescue（兜底模式）：最宽松配置，适合网络受限环境
+  //
+  // 测速档位：不同探测URL用于不同场景
+  const PLAY_STORE_TEST_PROFILES = {
+    stable: 'https://www.gstatic.com/generate_204',
+    google: 'https://www.google.com/generate_204',
+    'gstatic-connectivity': 'https://connectivitycheck.gstatic.com/generate_204'
+  };
+  
+  // 模式预设：一键切换完整策略
+  // 每个模式包含：测速URL、地区池、快速模式、DNS策略
+  const PLAY_STORE_PRESETS = {
+    stable: { test: 'stable', region: 'balanced', fast: false, dns: 'strict' },     // 稳定优先
+    speed: { test: 'google', region: 'asia', fast: true, dns: 'hybrid' },           // 速度优先
+    global: { test: 'stable', region: 'global', fast: false, dns: 'strict' },       // 全球覆盖
+    rescue: { test: 'gstatic-connectivity', region: 'global', fast: true, dns: 'aggressive' } // 兜底模式
+  };
+  
+  // 模式组定义：UI显示名称与预设映射
+  const PLAY_STORE_MODE_GROUP_DEFS = [
+    { key: 'stable', name: '商店稳定', preset: 'stable' },
+    { key: 'speed', name: '商店极速', preset: 'speed' },
+    { key: 'global', name: '商店全球', preset: 'global' },
+    { key: 'rescue', name: '商店兜底', preset: 'rescue' }
+  ];
+  const PLAY_STORE_SPECIAL_GROUP_NAMES = ['谷歌商店负载均衡'].concat(PLAY_STORE_MODE_GROUP_DEFS.map(def => def.name));
+
+  // 运行配置：切换默认模式
+  const PLAY_STORE_PRESET = 'stable';                // 可选：stable | speed | global | rescue
+  const PLAY_STORE_PROFILE_OVERRIDE = {};            // 自定义覆盖：可覆盖预设中的单个字段
+
+  // 地区池定义：不同策略使用不同地区组合
+  const PLAY_STORE_REGION_PROFILES = {
+    asia: ['香港', '台湾', '日本', '新加坡'],                           // 东亚优先
+    balanced: ['香港', '台湾', '日本', '新加坡', '美国', '欧盟'],       // 平衡覆盖（默认）
+    global: ['香港', '台湾', '日本', '韩国', '新加坡', '美国', '欧盟']  // 全球覆盖
+  };
+  
+  // DNS 策略：不同安全级别的解析器组合
+  const PLAY_STORE_DNS_PROFILE_RESOLVERS = {
+    strict: uniqList([...trustDns]),                             // 仅可信境外 DoH
+    hybrid: uniqList([...trustDns, ...cnDns]),                   // 境外 + 国内 DoH
+    aggressive: uniqList([...trustDns, ...cnDns, ...localDns])   // 全部解析器（兜底）
+  };
+  
+  const PLAY_STORE_LOAD_BALANCE_STRATEGY = 'round-robin';        // 负载均衡策略
+
+  const HEALTH_CHECK_LAZY = true;                                  // 延迟健康检查
+
+  // ========================================
+  // 内置策略组：直连与特殊选项
+  // ========================================
+  
   const directChoices = [
     '🇨🇳 直连 | IPv4优先',
     '🇨🇳 直连 | IPv6优先',
@@ -225,6 +361,12 @@ function buildConfig(config) {
       '+.google.com', '+.googleapis.com', '+.googleapis.cn', '+.services.googleapis.cn', '+.gstatic.com', '+.googleusercontent.com',
       '+.gvt1.com', '+.gvt2.com', '+.gvt3.com', '+.recaptcha.net', '+.recaptcha-cn.net'
     ],
+    playStore: [
+      'play.google.com', 'market.android.com', 'play.googleapis.com', 'android.clients.google.com',
+      'play-fe.googleapis.com', 'play-lh.googleusercontent.com', 'dl.google.com',
+      '+.gvt1.com', '+.gvt2.com', '+.gvt3.com', '+.ggpht.com', '+.googleusercontent.com'
+    ],
+
     aiFinanceRisk: [
       '+.chatgpt.com', '+.openai.com', '+.metamask.io', '+.neverless.com', '+.noones.com', 'noonessupport.zendesk.com',
       '+.okx.com', '+.okx.ac', '+.okx.cab', '+.xlayer.tech', '+.ifastgb.com', '+.fundsupermart.com', 'stest.zimperium.com',
@@ -256,10 +398,15 @@ function buildConfig(config) {
     streaming: ['+.netflix.com', '+.disneyplus.com', '+.hulu.com', '+.hbomax.com', '+.primevideo.com', '+.spotify.com', '+.twitch.tv', '+.twtrdns.net'],
     gaming: ['+.steamcommunity.com', '+.steampowered.com', '+.epicgames.com', '+.roblox.com', '+.battle.net', '+.blizzard.com', '+.blizzardentertainment.com', '+.battlenet.com.cn', '+.ea.com', '+.origin.com', '+.uplay.com', '+.nintendo.com', '+.playstation.com', '+.xbox.com', '+.xboxlive.com', '+.supercell.com', '+.supercell.net'],
     bigTech: ['+.apple.com', '+.icloud.com', '+.microsoft.com', '+.live.com', '+.aws.amazon.com', 'account.amazon.com', 'payments.amazon.com'],
-
     infra: ['+.dns.google', '+.dns.google.com', '+.api2.branch.io', '+.cdn.branch.io'],
+    playStore: [
+      'play.google.com', 'market.android.com', 'play.googleapis.com', 'android.clients.google.com',
+      'play-fe.googleapis.com', 'play-lh.googleusercontent.com', 'dl.google.com',
+      '+.gvt1.com', '+.gvt2.com', '+.gvt3.com', '+.ggpht.com'
+    ],
     youtubeMedia: ['+.youtubei.googleapis.com', '+.youtube.googleapis.com', 'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com', '+.googlevideo.com', '+.ytimg.com', '+.ggpht.com']
   };
+
 
   const DNS_FAKE_IP_FILTER_SETS = {
     lan: [
@@ -395,11 +542,16 @@ function buildConfig(config) {
 
   // OpenAI / AI 实时服务：保证登录、静态资源与实时链路解析稳定。
   appendDnsPolicyDomains(nameserverPolicy, DNS_POLICY_DOMAIN_SETS.openaiRealtime, trustDns);
-
   // Google 主生态：搜索、接口、静态资源与验证码统一走境外可信 DNS。
   appendDnsPolicyDomains(nameserverPolicy, DNS_POLICY_DOMAIN_SETS.google, trustDns);
-
+ 
+  // 谷歌商店 / Android 分发链路：单独走 Play 专用解析器，方便与下载模式联动调优。
+  // 注：DNS 模式现在从 buildPlayStoreModeArtifacts 中按各模式独立确定，这里保留 stable 作为兜底。
+  const playStoreDnsResolvers = PLAY_STORE_DNS_PROFILE_RESOLVERS.strict || trustDns;
+  appendDnsPolicyDomains(nameserverPolicy, DNS_POLICY_DOMAIN_SETS.playStore, playStoreDnsResolvers);
+ 
   // 通用海外 AI / 钱包 / 风控站点：避免被国内解析劫持或区域收敛。
+
   appendDnsPolicyDomains(nameserverPolicy, DNS_POLICY_DOMAIN_SETS.aiFinanceRisk, trustDns);
 
   // 主流海外内容 / 社交 / 开发 / 游戏站点：统一使用可信境外 DNS 维持地域一致性。
@@ -454,19 +606,27 @@ function buildConfig(config) {
 
       // Apple / Microsoft / Amazon 等大厂主域名。
       ...DNS_FALLBACK_FILTER_DOMAIN_SETS.bigTech,
-
       // 特殊基础设施域名。
       ...DNS_FALLBACK_FILTER_DOMAIN_SETS.infra,
-
+ 
+      // 谷歌商店 / Android 分发链路。
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.playStore,
+ 
       // YouTube 视频与媒体资源链路。
       ...DNS_FALLBACK_FILTER_DOMAIN_SETS.youtubeMedia
     ]
   };
 
+  // DNS fallback 与 direct-nameserver：保持保守的 strict 行为，不再全局联动模式开关。
   config.dns.fallback = trustDns;
   config.dns['direct-nameserver'] = [...cnDns, ...localDns];
   config.dns['direct-nameserver-follow-policy'] = true;
-  // 节点清洗：过滤订阅公告、套餐说明、链接文本等非真实代理项。
+
+  // ========================================
+  // 节点处理：清洗、特征识别、去重
+  // ========================================
+  
+  // 过滤非真实代理的正则表达式
   const PROXY_INFO_RE = /(?:https?:\/\/|www\.|导航网址|网址导航|距离下次重置|剩余流量|流量已用|流量余额|套餐(?:到期|余额)?|订阅(?:链接)?|官网|官方|公告|通知|使用说明|更新订阅|复制链接|浏览器打开|更新时间|到期|剩余|重置|请使用|客户端|最新|售后|工单|教程|返利|邀请|购买|续费|维护)/i;
 
   function isRealProxyName(name) {
@@ -477,18 +637,9 @@ function buildConfig(config) {
     return !PROXY_INFO_RE.test(text);
   }
 
-  const unique = arr => [...new Set(arr.filter(Boolean))];
-
-  const uniqueBy = (arr, keyFn) => {
-    const seen = new Set();
-    return arr.filter(item => {
-      const key = keyFn(item);
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  };
-  // 节点特征识别：家宽 / 倍率 / 流媒体节点将用于后续分组聚合。
+  // ========================================
+  // 节点特征识别：家宽 / 倍率 / 流媒体
+  // ========================================
   // 家宽识别：用于构建住宅线路候选池，优先把 ISP / Residential 类节点单独筛出。
   const residentialNamePatterns = [
     /家宽|家庭宽带|家庭住宅|住宅宽带|住宅|宽带/,
@@ -618,6 +769,13 @@ function buildConfig(config) {
     seenProxyNames.add(proxy.name);
     cleanProxies.push(proxy);
   }
+  const builtInDirectChoiceNames = builtInDirectProxies.map(proxy => proxy && proxy.name).filter(Boolean);
+  // 组级额外候选注册表：声明哪些名字仅在特定组的作用域内可见。
+  // 注意：这些名字不会自动进入全局候选池，但会被 Final Choice Registry 识别，避免 cleanup 误删。
+  const GROUP_SCOPED_CHOICE_REGISTRY = Object.freeze({
+    '国内服务': builtInDirectChoiceNames.slice()
+  });
+
   config.proxies = cleanProxies;
   perfEnd('proxy_classify');
 
@@ -632,7 +790,9 @@ function buildConfig(config) {
     }
     return pattern.test(String(text || ''));
   }
-  // 地区识别：按节点名特征将代理归入主要地理区域，供自动组和故障转移组复用。
+  // ========================================
+  // 地区识别：按特征归类到地理区域
+  // ========================================
   // 地区桶：先把节点名映射到大区，再由后续逻辑构建地区测速组、故障转移组和业务候选池。
   const regionGroups = {
     '香港': [],
@@ -1048,11 +1208,16 @@ function buildConfig(config) {
       proxies
     };
   }
-
   // Select 组：给用户手动切换使用，默认附带自动选择等兜底入口。
-  function makeSelectGroup(name, icon, list, extraDefaults = ['自动选择']) {
-    return { name, type: 'select', icon, proxies: sanitizeChoiceList(list, extraDefaults) };
+  function makeSelectGroup(name, icon, list, extraDefaults = ['自动选择'], scope = null) {
+    return {
+      name,
+      type: 'select',
+      icon,
+      proxies: filterUsableChoiceNames(buildChoiceList(list, extraDefaults), scope)
+    };
   }
+
 
   // Fallback 组：按存活顺序故障转移，适合关键业务场景而不是单纯测速最低延迟。
   function makeFallbackGroup(name, icon, list, extraDefaults = ['自动选择'], options = {}) {
@@ -1070,7 +1235,6 @@ function buildConfig(config) {
       proxies
     };
   }
-
   // 批量 Select 生成：把声明式定义表转成实际策略组对象。
   function makeSelectGroupsFromDefs(defs) {
     const groups = [];
@@ -1078,10 +1242,11 @@ function buildConfig(config) {
     for (let i = 0; i < list.length; i++) {
       const def = list[i];
       if (!def || !def.name) continue;
-      groups.push(makeSelectGroup(def.name, def.icon, def.choices, def.extraDefaults));
+      groups.push(makeSelectGroup(def.name, def.icon, def.choices, def.extraDefaults, def.scope));
     }
     return groups;
   }
+
   // 规则集合并：把多个规则片段展开、拍平，并对“同匹配键”采用后定义覆盖前定义。
   // 这样可保留脚本编排顺序的覆写语义：后面的同 type+value 规则会替换前面的同键规则。
   function mergeRuleSets(...ruleSets) {
@@ -1332,9 +1497,9 @@ function buildConfig(config) {
     return info.nodes.filter(name => !isResidentialProxyName(name));
   }
   function buildRegionNodeList(names, options = {}) {
+    const regions = asArray(names);
     const merged = [];
     const seen = new Set();
-    const regions = asArray(names);
     for (let i = 0; i < regions.length; i++) {
       const nodes = getRegionNodes(regions[i], options);
       for (let j = 0; j < nodes.length; j++) {
@@ -1372,9 +1537,10 @@ function buildConfig(config) {
       const part = asArray(parts[i]);
       for (let j = 0; j < part.length; j++) {
         const item = part[j];
-        if (!item || seen.has(item)) continue;
-        seen.add(item);
-        merged.push(item);
+        if (item && !seen.has(item)) {
+          seen.add(item);
+          merged.push(item);
+        }
       }
     }
     return merged;
@@ -1396,22 +1562,29 @@ function buildConfig(config) {
     return map;
   }
   function makeBusinessChoiceMap(defs, templateMap = null) {
-
     return createNamedValueMap(defs, 'key', def => {
       const pool = def.poolKey && templateMap ? templateMap[def.poolKey] : def.pool;
-      return makeOrderedChoices(def.first, pool);
+      return makeOrderedChoices(def.first, pool, def.scope);
     });
   }
+
   function makeChoicePool(first, ...poolParts) {
     return makeOrderedChoices(first, buildChoiceList(...poolParts));
   }
+
+  // 候选池构建：不仅要合并 first + parts，还必须透传组级额外白名单。
+  // 否则像“国内服务”这种允许额外候选的组，会在二次重组时又被按全局白名单刷掉。
   function buildChoicePoolsFromDefs(defs) {
     const map = Object.create(null);
     const list = asArray(defs);
     for (let i = 0; i < list.length; i++) {
       const def = list[i];
       if (!def || !def.key) continue;
-      map[def.key] = makeChoicePool(def.first, ...asArray(def.parts));
+      map[def.key] = makeOrderedChoices(
+        def.first,
+        buildChoiceList(...asArray(def.parts)),
+        def.scope
+      );
     }
     return map;
   }
@@ -1440,16 +1613,17 @@ function buildConfig(config) {
     }
     return set;
   }
-  function filterDynamicChoices(list, availableNames, selfName) {
+  function filterAvailableChoiceNames(list, availableChoiceNameSet, selfName) {
     const filtered = [];
     const source = asArray(list);
     for (let i = 0; i < source.length; i++) {
       const item = source[i];
       if (!item || item === selfName) continue;
-      if (BUILTIN_CHOICE_NAMES.has(item) || availableNames.has(item)) filtered.push(item);
+      if (BUILTIN_CHOICE_NAMES.has(item) || availableChoiceNameSet.has(item)) filtered.push(item);
     }
     return filtered;
   }
+
   // 全局家宽池：从全部节点中抽出住宅线路，供风控 / 支付 / 登录等敏感业务优先选择。
   const globalHomeNodes = residentialProxyNames.slice();
 
@@ -1548,6 +1722,7 @@ function buildConfig(config) {
     { key: '美国', groupName: '美国下载', icon: regionIconMap['美国'] || qIcon('US') },
     { key: '欧盟', groupName: '欧盟下载', icon: regionIconMap['欧盟'] || qIcon('EU') }
   ];
+  // Load-balance 组：适合下载 / 分发类业务；支持独立的健康检查与调度策略参数。
   function makeLoadBalanceGroup(name, icon, nodes, options = {}) {
     const proxies = ensureGroupList(nodes, []);
     if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
@@ -1556,12 +1731,15 @@ function buildConfig(config) {
       type: 'load-balance',
       icon,
       url: options.url || testUrl,
-      interval: options.interval || testInterval,
+      interval: typeof options.interval === 'number' ? options.interval : testInterval,
+      timeout: typeof options.timeout === 'number' ? options.timeout : testTimeout,
+      'max-failed-times': typeof options.maxFailedTimes === 'number' ? options.maxFailedTimes : testMaxFailedTimes,
       strategy: options.strategy || 'consistent-hashing',
-      lazy: typeof options.lazy === 'boolean' ? options.lazy : true,
+      lazy: typeof options.lazy === 'boolean' ? options.lazy : healthCheckLazy,
       proxies
     };
   }
+
   function collectNamedGroups(groups) {
     const namedGroups = [];
     const names = [];
@@ -1623,19 +1801,81 @@ function buildConfig(config) {
   const fallbackGroups = fallbackGroupArtifacts.groups;
   const fallbackNames = fallbackGroupArtifacts.names;
   // 负载均衡与特征聚合：生成下载、商店、家宽、倍率、流媒体等复用组。
-  const playStoreBalanceNodes = buildChoiceList(
-    buildRegionChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟']),
-    buildRegionHomeChain(['日本', '新加坡', '美国', '香港', '台湾', '欧盟'])
-  );
+  function makeRegionDownloadGroupNames(regionOrder, availableNames) {
+    const availableNameSet = makeNameSet(availableNames);
+    return regionOrder
+      .map(regionName => `${regionName}下载`)
+      .filter(name => availableNameSet.has(name));
+  }
+  function buildPlayStoreProfileFromPreset(presetName) {
+    return Object.assign({}, PLAY_STORE_PRESETS[presetName] || PLAY_STORE_PRESETS.stable);
+  }
+  function buildPlayStoreModeArtifacts(def) {
+    const profile = buildPlayStoreProfileFromPreset(def && def.preset);
+    const regionOrder = PLAY_STORE_REGION_PROFILES[profile.region] || PLAY_STORE_REGION_PROFILES.balanced;
+    const fastMode = !!profile.fast;
+    const dnsMode = profile.dns || (fastMode ? 'hybrid' : 'strict');
+    const resolvers = PLAY_STORE_DNS_PROFILE_RESOLVERS[dnsMode] || PLAY_STORE_DNS_PROFILE_RESOLVERS.strict;
+    const downloadChoices = makeRegionDownloadGroupNames(regionOrder, downloadRegionGroupArtifacts.names);
+    const balanceChoices = filterOutDirectEntries(buildChoiceList(
+      downloadChoices,
+      ['自动选择']
+    ));
+    const serviceChoices = [def.name]
+      .concat(downloadChoices, fastMode ? [] : ['负载均衡'], ['自动选择']);
+    const loadBalanceOptions = {
+      url: PLAY_STORE_TEST_PROFILES[profile.test] || PLAY_STORE_TEST_PROFILES.stable,
+      interval: fastMode ? 120 : 180,
+      timeout: fastMode ? 1200 : 1500,
+      maxFailedTimes: fastMode ? 1 : 2,
+      strategy: PLAY_STORE_LOAD_BALANCE_STRATEGY,
+      lazy: false
+    };
+    return {
+      profile,
+      dnsMode,
+      resolvers,
+      downloadChoices,
+      balanceChoices,
+      serviceChoices,
+      loadBalanceOptions
+    };
+  }
+  // 谷歌商店负载均衡走“方案 E”：
+  // 1) 保留一个默认模式供规则直接使用；
+  // 2) 额外拆出多个可手选模式，直接在 UI 中切换；
+  // 3) 各模式共享地区下载组，但独立健康检查参数。
+  const playStoreModeArtifactMap = {};
+  const playStoreModeLoadBalanceGroups = [];
+  const playStoreModeGroupNames = [];
+  for (let i = 0; i < PLAY_STORE_MODE_GROUP_DEFS.length; i++) {
+    const def = PLAY_STORE_MODE_GROUP_DEFS[i];
+    const artifact = buildPlayStoreModeArtifacts(def);
+    playStoreModeArtifactMap[def.key] = artifact;
+    const group = makeLoadBalanceGroup(def.name, iconMap.playstore, ensureGroupList(artifact.balanceChoices, ['自动选择']), artifact.loadBalanceOptions);
+    if (!group || !group.name) continue;
+    playStoreModeLoadBalanceGroups.push(group);
+    playStoreModeGroupNames.push(group.name);
+  }
+  const activePlayStoreModeDef = PLAY_STORE_MODE_GROUP_DEFS.find(def => def.preset === PLAY_STORE_PRESET) || PLAY_STORE_MODE_GROUP_DEFS[0];
+  const activePlayStoreModeArtifact = playStoreModeArtifactMap[activePlayStoreModeDef.key] || buildPlayStoreModeArtifacts(activePlayStoreModeDef);
+  const playStoreDownloadRegionChoices = activePlayStoreModeArtifact.downloadChoices;
+  const playStoreBalanceChoices = activePlayStoreModeArtifact.balanceChoices;
+  const playStoreServiceChoices = []
+    .concat(playStoreModeGroupNames, ['自动选择']);
+  const playStoreLoadBalanceOptions = activePlayStoreModeArtifact.loadBalanceOptions;
+
+
   // 负载均衡组：一个面向全局通用，一个面向谷歌商店下载 / 分发链路。
   const loadBalanceGroupArtifacts = collectNamedGroups([
     makeLoadBalanceGroup('负载均衡', iconMap.balance, ensureGroupList(allProxyNames, [])),
-    makeLoadBalanceGroup('谷歌商店负载均衡', iconMap.playstore, ensureGroupList(playStoreBalanceNodes, ['自动选择']))
+    makeLoadBalanceGroup('谷歌商店负载均衡', iconMap.playstore, ensureGroupList(playStoreBalanceChoices, ['自动选择']), playStoreLoadBalanceOptions),
+    ...playStoreModeLoadBalanceGroups
   ]);
+
+
   const loadBalanceGroups = loadBalanceGroupArtifacts.groups;
   const loadBalanceNames = loadBalanceGroupArtifacts.names;
-  const globalLoadBalanceGroup = loadBalanceGroups[0] || null;
-  const playStoreLoadBalanceGroup = loadBalanceGroups.length > 1 ? loadBalanceGroups[1] : null;
 
   // 特殊聚合组：为家宽、倍率、流媒体等高频特征提供独立聚合入口。
   const globalHomeGroup = globalHomeNodes.length
@@ -1672,7 +1912,9 @@ function buildConfig(config) {
     globalStreamingGroup ? ['全球流媒体'] : []
   );
   // 候选菜单总索引：把 fallback、负载均衡、特征组、地区组与原始节点拼成通用候选池。
-  const commonLoadBalanceNames = loadBalanceNames.filter(name => name !== '谷歌商店负载均衡');
+  // 排除谷歌商店专属组：谷歌商店负载均衡 + 四个模式组（商店稳定/极速/全球/兜底）
+  const playStoreExclusiveSet = new Set(['谷歌商店负载均衡', ...playStoreModeGroupNames]);
+  const commonLoadBalanceNames = loadBalanceNames.filter(name => !playStoreExclusiveSet.has(name));
   const regionFallbackNames = ['港台故障转移', '日韩故障转移', '欧美故障转移'];
   const fallbackNameSet = makeNameSet(fallbackNames);
   const excludedFallbackChoiceSet = makeNameSet(excludedFallbackChoices);
@@ -1700,48 +1942,101 @@ function buildConfig(config) {
     ...regionHomeAutoNames
   ]);
   const usableChoiceNameSet = makeNameSet(STATIC_CHOICE_HINTS.concat(allProxyNames));
-
   for (const name of BUILTIN_CHOICE_NAMES) usableChoiceNameSet.add(name);
-  function filterUsableChoiceNames(list) {
+  // ===== Choice Scope =====
+  // 组级候选作用域：统一描述“这个定义/分组额外允许哪些候选名”。
+  // 所有候选过滤、重排、Select 定义构建都应只消费 scope，而不是散传 extraAllowedChoices。
+  function resolveScopedChoiceNames(scopeKeyOrList) {
+    if (Array.isArray(scopeKeyOrList)) return scopeKeyOrList.filter(Boolean);
+    if (!scopeKeyOrList) return [];
+    return asArray(GROUP_SCOPED_CHOICE_REGISTRY[scopeKeyOrList]).filter(Boolean);
+  }
+  function createChoiceScope(scopeKeyOrChoices = null) {
+    if (scopeKeyOrChoices && typeof scopeKeyOrChoices === 'object' && scopeKeyOrChoices.allowedNameSet) {
+      return scopeKeyOrChoices;
+    }
+    const scopedChoiceNames = resolveScopedChoiceNames(scopeKeyOrChoices);
+    return {
+      scopedChoiceNames,
+      allowedNameSet: makeNameSet(Array.from(usableChoiceNameSet).concat(scopedChoiceNames))
+    };
+  }
+
+  const GLOBAL_CHOICE_SCOPE = createChoiceScope();
+  function filterUsableChoiceNames(list, scope = GLOBAL_CHOICE_SCOPE) {
+
     const filtered = [];
     const seen = new Set();
     const source = asArray(list);
+    const scoped = scope && scope.allowedNameSet ? scope : GLOBAL_CHOICE_SCOPE;
     for (let i = 0; i < source.length; i++) {
       const item = source[i];
       if (!item || seen.has(item)) continue;
-      if (!BUILTIN_CHOICE_NAMES.has(item) && !usableChoiceNameSet.has(item)) continue;
+      if (!BUILTIN_CHOICE_NAMES.has(item) && !scoped.allowedNameSet.has(item)) continue;
       seen.add(item);
       filtered.push(item);
     }
     return filtered;
   }
   function usableChoices(...parts) {
-    return filterUsableChoiceNames(buildChoiceList(...parts));
+    return filterUsableChoiceNames(buildChoiceList(...parts), GLOBAL_CHOICE_SCOPE);
+  }
+  function usableChoicesForScope(scope, ...parts) {
+
+    return filterUsableChoiceNames(buildChoiceList(...parts), scope);
+  }
+  function usableChoicesForScopeKey(scopeKeyOrChoices, ...parts) {
+    return usableChoicesForScope(createChoiceScope(scopeKeyOrChoices), ...parts);
+  }
+
+  function makeChoiceDef(key, scope, first, ...parts) {
+    return {
+      key,
+      scope: scope || GLOBAL_CHOICE_SCOPE,
+      first: usableChoicesForScope(scope || GLOBAL_CHOICE_SCOPE, first),
+      parts: parts.map(part => usableChoicesForScope(scope || GLOBAL_CHOICE_SCOPE, part))
+    };
   }
   function usableChoiceDef(key, first, ...parts) {
-    return { key, first: usableChoices(first), parts: parts.map(part => usableChoices(part)) };
+    return makeChoiceDef(key, GLOBAL_CHOICE_SCOPE, first, ...parts);
   }
-  function makeSelectGroupDef(name, icon, choices, extraDefaults) {
-    return { name, icon, choices: usableChoices(choices), extraDefaults: usableChoices(extraDefaults) };
+  // 带组级作用域的候选定义：scope 必须作为正式元数据挂到 def 上，
+  // 以便后续 buildChoicePoolsFromDefs / makeOrderedChoices 二次重组时继续保留这层放行语义。
+  function makeScopedChoiceDef(key, scopeKeyOrChoices, first, ...parts) {
+    return makeChoiceDef(key, createChoiceScope(scopeKeyOrChoices), first, ...parts);
   }
+  function makeSelectGroupDef(name, icon, choices, extraDefaults, scopeKeyOrChoices = null) {
+    const scope = createChoiceScope(scopeKeyOrChoices);
+
+    return {
+      name,
+      icon,
+      scope,
+      choices: filterUsableChoiceNames(choices, scope),
+      extraDefaults: filterUsableChoiceNames(extraDefaults, scope)
+    };
+  }
+
   function makeSelectGroupDefList(entries) {
     const defs = [];
     const list = asArray(entries);
     for (let i = 0; i < list.length; i++) {
       const entry = list[i];
       if (!entry || !entry.name) continue;
-      defs.push(makeSelectGroupDef(entry.name, entry.icon, entry.choices, entry.extraDefaults));
+      defs.push(makeSelectGroupDef(entry.name, entry.icon, entry.choices, entry.extraDefaults, entry.scope || entry.extraAllowedChoices));
+
     }
     return defs;
   }
+
   const baseChoices = usableChoices(['自动选择', '负载均衡', '全球手动'], orderedFallbackNames, commonLoadBalanceNames, globalFeatureChoices, fusionVisibleRegions, allProxyNames);
   const commonBaseChoices = baseChoices.filter(name => !excludedFallbackChoiceSet.has(name));
   const youtubeOnlyBaseChoices = baseChoices.filter(name => name !== '国外AI故障转移');
   const aiOnlyBaseChoices = baseChoices.filter(name => name !== 'YouTube无广节点优先组');
-
   // ===== 通用候选构造器 =====
   // 候选顺序合成：把 first 视为强优先项，其余候选按原池顺序补齐；不要随意改成排序逻辑。
-  function makeOrderedChoices(first, pool) {
+  // scope 用于保留组级额外候选作用域，避免在顺序合成阶段退回全局白名单。
+  function makeOrderedChoices(first, pool, scope = GLOBAL_CHOICE_SCOPE) {
     const merged = [];
     const seen = new Set();
     const primary = asArray(first);
@@ -1758,7 +2053,7 @@ function buildConfig(config) {
       seen.add(item);
       merged.push(item);
     }
-    return filterUsableChoiceNames(merged);
+    return filterUsableChoiceNames(merged, scope);
   }
 
   // ===== 业务分组候选项 =====
@@ -1770,6 +2065,7 @@ function buildConfig(config) {
     usableChoiceDef('common', ['节点选择'], commonBaseChoices),
     usableChoiceDef('youtubeOnly', ['节点选择', 'YouTube无广节点优先组'], youtubeOnlyBaseChoices),
     usableChoiceDef('aiOnly', ['节点选择', '国外AI故障转移'], aiOnlyBaseChoices),
+    usableChoiceDef('playStore', playStoreServiceChoices, commonBaseChoices),  // 谷歌商店专属候选池
     usableChoiceDef('streaming', globalStreamingGroup ? ['全球流媒体', '自动选择'] : ['自动选择'], commonBaseChoices),
     usableChoiceDef('taiwanMedia', unique(['港台故障转移', taiwanAutoChoice, '自动选择'].filter(Boolean)), commonBaseChoices),
     usableChoiceDef('riskControl', ['家宽故障转移'], [
@@ -1789,26 +2085,29 @@ function buildConfig(config) {
   const CHOICE_POOLS = buildChoicePoolsFromDefs(CHOICE_POOL_DEFS);
 
   const BUSINESS_CHOICE_DEFS = [
+     { key: 'Meta', first: ['自动选择'], poolKey: 'common' },
+     { key: 'Telegram', first: ['自动选择'], poolKey: 'common' },
+     { key: 'Twitch', first: ['自动选择'], poolKey: 'common' },
+     { key: '国外游戏', first: ['自动选择'], poolKey: 'common' },
+     { key: 'Twitter', first: ['自动选择'], poolKey: 'common' },
+     { key: 'Discord', first: ['自动选择'], poolKey: 'common' },
+     { key: '社交信息流', first: ['自动选择'], poolKey: 'common' },
+     { key: 'GitHub', first: ['自动选择'], poolKey: 'common' },
+     { key: '翻译服务', first: ['自动选择'], poolKey: 'common' },
+     { key: 'YouTube', first: ['YouTube无广节点优先组', '节点选择'], poolKey: 'youtubeOnly' },
+     { key: 'Spotify', first: ['港台故障转移'], poolKey: 'common' },
+     { key: 'Google', first: ['港台故障转移'], poolKey: 'common' },
+     { key: 'TikTok', first: ['港台故障转移'], poolKey: 'common' },
+     { key: '日韩生态区', first: ['日韩故障转移'], poolKey: 'common' },
+     { key: 'Niconico', first: ['日韩故障转移'], poolKey: 'common' },
+     { key: '去中心化平台', first: ['欧美故障转移'], poolKey: 'common' },
+     { key: '微软服务', first: ['自动选择', '全球直连'], poolKey: 'common' },
+     // 谷歌商店：专属候选池，四个模式组（商店稳定/极速/全球/兜底）仅在此组可见
+     { key: '谷歌商店', first: playStoreServiceChoices, poolKey: 'playStore' },
 
-    { key: 'Meta', first: ['自动选择'], poolKey: 'common' },
-    { key: 'Telegram', first: ['自动选择'], poolKey: 'common' },
-    { key: 'Twitch', first: ['自动选择'], poolKey: 'common' },
-    { key: '国外游戏', first: ['自动选择'], poolKey: 'common' },
-    { key: 'Twitter', first: ['自动选择'], poolKey: 'common' },
-    { key: 'Discord', first: ['自动选择'], poolKey: 'common' },
-    { key: '社交信息流', first: ['自动选择'], poolKey: 'common' },
-    { key: 'GitHub', first: ['自动选择'], poolKey: 'common' },
-    { key: '翻译服务', first: ['自动选择'], poolKey: 'common' },
-    { key: 'YouTube', first: ['YouTube无广节点优先组', '节点选择'], poolKey: 'youtubeOnly' },
-    { key: 'Spotify', first: ['港台故障转移'], poolKey: 'common' },
-    { key: 'Google', first: ['港台故障转移'], poolKey: 'common' },
-    { key: 'TikTok', first: ['港台故障转移'], poolKey: 'common' },
-    { key: '日韩生态区', first: ['日韩故障转移'], poolKey: 'common' },
-    { key: 'Niconico', first: ['日韩故障转移'], poolKey: 'common' },
-    { key: '去中心化平台', first: ['欧美故障转移'], poolKey: 'common' },
-    { key: '微软服务', first: ['自动选择', '全球直连'], poolKey: 'common' },
-    { key: '谷歌商店', first: ['谷歌商店负载均衡', '负载均衡', '自动选择'], poolKey: 'common' },
-    { key: 'AI', first: ['国外AI故障转移', '节点选择'], poolKey: 'aiOnly' }
+     { key: 'AI', first: ['国外AI故障转移', '节点选择'], poolKey: 'aiOnly' }
+
+
   ];
   const BUSINESS_SERVICE_HEAD = [
     ['YouTube', iconMap.youtube],
@@ -1873,14 +2172,28 @@ function buildConfig(config) {
   const MAIN_CHOICE_POOL_DEFS = [
     usableChoiceDef('nodeSelection', ['自动选择', '负载均衡', '全球手动'], fallbackNames, globalFeatureChoices, fusionVisibleRegions),
     usableChoiceDef('systemService', ['自动选择', '节点选择', '全球手动', '全球直连'], fusionVisibleRegions, allProxyNames),
-    usableChoiceDef('domesticService', ['全球直连'], directChoices.filter(x => x !== '全球直连'), domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x))),
+    // 国内服务显式放行三种内置直连；这里必须走 makeScopedChoiceDef，不能退回普通 def。
+    makeScopedChoiceDef('domesticService', '国内服务', ['全球直连'], builtInDirectChoiceNames, domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x))),
+
     // 最终兜底候选：供 MATCH / 未命中流量使用，优先自动选择，其次允许手动接管与地区兜底。
     usableChoiceDef('finalFallback', ['自动选择', '全球手动'], fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name)), fusionVisibleRegions)
   ];
-
   const MAIN_CHOICE_POOLS = buildChoicePoolsFromDefs(MAIN_CHOICE_POOL_DEFS);
+  // Choice Scope 自检：关键组的 def 必须带 scope，且 scope 要能识别其额外候选。
+  const domesticServiceScopeDef = MAIN_CHOICE_POOL_DEFS.find(def => def && def.key === 'domesticService');
+  if (!domesticServiceScopeDef || !domesticServiceScopeDef.scope || !domesticServiceScopeDef.scope.allowedNameSet) {
+    throw new Error('choice scope health check failed: domesticService def missing scope metadata');
+  }
+  for (let i = 0; i < builtInDirectChoiceNames.length; i++) {
+    const name = builtInDirectChoiceNames[i];
+    if (!domesticServiceScopeDef.scope.allowedNameSet.has(name)) {
+      throw new Error('choice scope health check failed: domesticService scope missing extra allowed choice: ' + name);
+    }
+  }
+
 
   // ===== 附加显示组 =====
+
 
   const regionAutoGroupMap = Object.create(null);
 
@@ -1902,7 +2215,8 @@ function buildConfig(config) {
   // 服务分流：统一声明业务组名称、图标与候选池，后续批量生成 select 组。
   const RISK_CONTROL_SERVICE_GROUP = makeSelectGroupDef('风控安全', iconMap.riskControl, CHOICE_GROUPS.riskControl, []);
 
-  const DOMESTIC_SERVICE_GROUP = makeSelectGroupDef('国内服务', iconMap.china, MAIN_CHOICE_POOLS.domesticService);
+  const DOMESTIC_SERVICE_GROUP = makeSelectGroupDef('国内服务', iconMap.china, MAIN_CHOICE_POOLS.domesticService, [], '国内服务');
+
   const SERVICE_GROUP_BASE_DEFS = makeSelectGroupDefList([
     RISK_CONTROL_SERVICE_GROUP,
     DOMESTIC_SERVICE_GROUP,
@@ -1988,11 +2302,14 @@ function buildConfig(config) {
     for (let j = 0; j < bucket.length; j++) {
       let group = bucket[j];
       if (!group) continue;
-      if (/^(香港|台湾|日本|韩国|新加坡|美国|欧盟)下载$/.test(group.name)) {
-        group = Object.assign({}, group, { hidden: true });
-      } else if (group.name === '谷歌商店负载均衡') {
+      // 隐藏辅助组：下载组、谷歌商店负载均衡及其四个模式组不在主列表展示。
+      const shouldHide = /^(香港|台湾|日本|韩国|新加坡|美国|欧盟)下载$/.test(group.name)
+        || group.name === '谷歌商店负载均衡'
+        || playStoreModeGroupNames.includes(group.name);
+      if (shouldHide) {
         group = Object.assign({}, group, { hidden: true });
       }
+
       proxyGroups.push(preserveGroup(group));
     }
   }
@@ -2018,28 +2335,24 @@ function buildConfig(config) {
     // 其余分组不在这里乱补默认项，避免把“自动选择”偷偷塞进别的组。
     return [];
   }
-
   const finalizedProxyGroups = finalizeGroupList(proxyGroups);
   // availableChoiceNames：最终允许出现在 proxies 列表里的名字全集。
-  // 包含真实节点名、已生成的组名，以及 DIRECT / REJECT 等内建动作。
-  const availableChoiceNames = makeNameSet(allProxyNames);
-  // realProxyNameSet：只包含真实节点名，用来判断“当前组里是否还有真实代理可用”。
-  const realProxyNameSet = makeNameSet(allProxyNames);
-  for (let i = 0; i < finalizedProxyGroups.length; i++) {
-    const group = finalizedProxyGroups[i];
-    if (group && group.name) availableChoiceNames.add(group.name);
-  }
-  for (const name of BUILTIN_CHOICE_NAMES) availableChoiceNames.add(name);
-
-  function hasRealProxyChoices(list) {
+  // 包含真实节点名、已生成的组名、组级额外放行项，以及 DIRECT / REJECT 等内建动作。
+  const availableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(finalizedProxyGroups);
+  // realChoiceCandidateSet：只包含真实节点名与脚本显式注册为“真实候选”的额外名字，用来判断当前组是否仍有可保留候选。
+  const realChoiceCandidateSet = buildRealChoiceCandidateSet();
+  assertChoiceNamesRegistered(builtInDirectChoiceNames, 'scoped choice');
+  function hasRealChoiceCandidates(list) {
     // 只要候选中还存在一个真实节点，就说明这个组不需要走语义兜底。
-    return asArray(list).some(name => realProxyNameSet.has(name));
+    return asArray(list).some(name => realChoiceCandidateSet.has(name));
   }
-  function finalizeGroupProxies(group, candidates) {
+
+  function finalizeGroupChoices(group, candidates) {
     // candidates 是已经过基础过滤后的候选列表；这里再按组类型决定最终落盘形式。
     const proxies = asArray(candidates);
     const fallbackChoices = getGroupFallbackChoices(group.name);
-    const hasRealChoices = hasRealProxyChoices(proxies);
+    const hasRealChoices = hasRealChoiceCandidates(proxies);
+
 
     // 全球直连组固定只保留 DIRECT，避免被旧配置或别处逻辑污染。
     if (group.name === '全球直连') return ['DIRECT'];
@@ -2054,25 +2367,66 @@ function buildConfig(config) {
     }
     // 其他 url-test / load-balance 组如果没有真实节点，应直接视为空组，后续删除。
     // 不能降级成 DIRECT，否则会出现“地区自动组/下载组明明无节点却伪装成直连”的假组。
+    // 唯独谷歌商店负载均衡允许承载“地区自动组”这类上层候选，只要候选列表非空就保留。
     if (group.type === 'url-test' || group.type === 'load-balance') {
+      if (PLAY_STORE_SPECIAL_GROUP_NAMES.includes(group.name)) return proxies.length ? proxies : [];
       return hasRealChoices ? proxies : [];
     }
+
     // 其余 select / 行为组：有真实节点就直接保留；没真实节点才走语义兜底。
     return hasRealChoices ? proxies : sanitizeChoiceList(proxies, fallbackChoices);
   }
-
   function shouldDropEmptyGroup(group) {
     if (!group || !group.name) return true;
     if (!Array.isArray(group.proxies)) return false;
-    if (group.name === '自动选择' || group.name === '全球手动' || group.name === '全球直连') return false;
+    
+    // 核心组永不删除
+    const coreGroups = ['自动选择', '全球手动', '全球直连'];
+    if (coreGroups.includes(group.name)) return false;
+    
+    // 测速/负载组：谷歌商店组检查是否为空，其他组检查是否有真实节点
     if (group.type === 'url-test' || group.type === 'load-balance') {
-      return !hasRealProxyChoices(group.proxies);
+      if (PLAY_STORE_SPECIAL_GROUP_NAMES.includes(group.name)) return !asArray(group.proxies).length;
+      return !hasRealChoiceCandidates(group.proxies);
     }
+
     return false;
   }
-  function collectAvailableChoiceNamesFromGroups(groups) {
-    const names = makeNameSet(allProxyNames);
+
+  // ===== Final Choice Registry =====
+  // cleanup 阶段统一从这里获取“最终承认存在的名字”，避免把组级额外候选再次误删。
+  function getAllScopedChoiceNames() {
+    const merged = [];
+    const keys = Object.keys(GROUP_SCOPED_CHOICE_REGISTRY);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      merged.push(...asArray(GROUP_SCOPED_CHOICE_REGISTRY[key]));
+    }
+    return unique(merged.filter(Boolean));
+  }
+  function buildRealChoiceCandidateSet() {
+    return makeNameSet(allProxyNames.concat(
+      getAllScopedChoiceNames(),
+      playStoreModeGroupNames,
+      ['谷歌商店负载均衡']
+    ));
+  }
+
+  function assertChoiceNamesRegistered(list, label) {
+    const candidates = asArray(list);
+    const registry = buildRealChoiceCandidateSet();
+    for (let i = 0; i < candidates.length; i++) {
+      const name = candidates[i];
+      if (!name || registry.has(name)) continue;
+      throw new Error('final choice registry health check failed: missing ' + label + ': ' + name);
+    }
+  }
+  // 最终清洗可见名集合：除真实节点与组名外，还要包含脚本注入的内置直连名。
+  // 否则前面已放行的三直连会在 cleanup 阶段再次被当成“无效候选”删除。
+  function buildAvailableChoiceNameSetFromGroups(groups) {
+    const names = buildRealChoiceCandidateSet();
     const list = asArray(groups);
+
     for (let i = 0; i < list.length; i++) {
       const group = list[i];
       if (group && group.name) names.add(group.name);
@@ -2080,40 +2434,50 @@ function buildConfig(config) {
     for (const name of BUILTIN_CHOICE_NAMES) names.add(name);
     return names;
   }
+  function runProxyGroupCleanupPass(groups, availableChoiceNameSet) {
+    // 第一步：过滤无效候选并最终化选项
+    const cleanedGroups = asArray(groups)
+      .map(group => {
+        if (!group || !Array.isArray(group.proxies) || !group.name) return group;
+        const filteredProxies = filterAvailableChoiceNames(group.proxies, availableChoiceNameSet, group.name);
+        return Object.assign({}, group, { proxies: finalizeGroupChoices(group, filteredProxies) });
+      })
+      .filter(group => !shouldDropEmptyGroup(group));
 
-  function runProxyGroupCleanupPass(groups, availableNames) {
-    const cleanedGroups = asArray(groups).map(group => {
-      if (!group || !Array.isArray(group.proxies) || !group.name) return group;
-      const filteredProxies = filterDynamicChoices(group.proxies, availableNames, group.name);
-      return Object.assign({}, group, { proxies: finalizeGroupProxies(group, filteredProxies) });
-    }).filter(group => !shouldDropEmptyGroup(group));
-
+    // 构建组映射表
     const groupMap = Object.create(null);
     for (let i = 0; i < cleanedGroups.length; i++) {
       const group = cleanedGroups[i];
       if (group && group.name) groupMap[group.name] = group;
     }
 
-    return cleanedGroups.map(group => {
-      if (!group || !Array.isArray(group.proxies) || !group.name) return group;
-      const nextProxies = [];
-      for (let i = 0; i < group.proxies.length; i++) {
-        const proxyName = group.proxies[i];
-        const targetGroup = groupMap[proxyName];
-        // 目标不是组，或者目标组没有 proxies，就把它当普通候选直接保留。
-        if (!targetGroup || !Array.isArray(targetGroup.proxies)) {
+    // 第二步：切除自引用和互环引用
+    return cleanedGroups
+      .map(group => {
+        if (!group || !Array.isArray(group.proxies) || !group.name) return group;
+        const nextProxies = [];
+        for (let i = 0; i < group.proxies.length; i++) {
+          const proxyName = group.proxies[i];
+          const targetGroup = groupMap[proxyName];
+          
+          // 不是组引用，直接保留
+          if (!targetGroup || !Array.isArray(targetGroup.proxies)) {
+            nextProxies.push(proxyName);
+            continue;
+          }
+          
+          // 自引用 A -> A：丢弃
+          if (targetGroup.name === group.name) continue;
+          
+          // 互环引用 A -> B && B -> A：丢弃
+          if (targetGroup.proxies.includes(group.name)) continue;
+          
           nextProxies.push(proxyName);
-          continue;
         }
-        // A -> A：直接丢掉。
-        if (targetGroup.name === group.name) continue;
-        // A -> B 且 B -> A：视为显式互环，直接丢掉当前这条引用。
-        if (targetGroup.proxies.includes(group.name)) continue;
-        nextProxies.push(proxyName);
-      }
-      // 切环后再按组类型收口一次，避免某些组因为去环而被清空。
-      return Object.assign({}, group, { proxies: finalizeGroupProxies(group, nextProxies) });
-    }).filter(group => !shouldDropEmptyGroup(group));
+        
+        return Object.assign({}, group, { proxies: finalizeGroupChoices(group, nextProxies) });
+      })
+      .filter(group => !shouldDropEmptyGroup(group));
   }
 
   function getProxyGroupSignature(groups) {
@@ -2132,15 +2496,28 @@ function buildConfig(config) {
   let stabilizedProxyGroups = finalizedProxyGroups.slice();
   let previousSignature = '';
   for (let round = 0; round < 8; round++) {
-    const availableNames = collectAvailableChoiceNamesFromGroups(stabilizedProxyGroups);
-    stabilizedProxyGroups = runProxyGroupCleanupPass(stabilizedProxyGroups, availableNames);
-    const nextAvailableNames = collectAvailableChoiceNamesFromGroups(stabilizedProxyGroups);
-    stabilizedProxyGroups = runProxyGroupCleanupPass(stabilizedProxyGroups, nextAvailableNames);
+    const availableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(stabilizedProxyGroups);
+    stabilizedProxyGroups = runProxyGroupCleanupPass(stabilizedProxyGroups, availableChoiceNameSet);
+    const nextAvailableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(stabilizedProxyGroups);
+    stabilizedProxyGroups = runProxyGroupCleanupPass(stabilizedProxyGroups, nextAvailableChoiceNameSet);
     const signature = getProxyGroupSignature(stabilizedProxyGroups);
+
     if (signature === previousSignature) break;
     previousSignature = signature;
   }
   config['proxy-groups'] = stabilizedProxyGroups;
+
+  // 最终分组自检：国内服务如果存在，必须仍然保留三直连可见性，避免回归到“前面放行、后面 cleanup 删除”。
+  const domesticServiceGroup = stabilizedProxyGroups.find(group => group && group.name === '国内服务');
+  if (domesticServiceGroup && Array.isArray(domesticServiceGroup.proxies)) {
+    for (let i = 0; i < builtInDirectChoiceNames.length; i++) {
+      const name = builtInDirectChoiceNames[i];
+
+      if (!domesticServiceGroup.proxies.includes(name)) {
+        throw new Error('proxy group health check failed: domesticService missing built-in direct choice after cleanup: ' + name);
+      }
+    }
+  }
 
   // 规则目标校验：规则里引用的策略名必须真的存在。
 
@@ -2149,21 +2526,21 @@ function buildConfig(config) {
   const availableRuleTargets = makeNameSet(config['proxy-groups'].map(group => group && group.name));
   for (const name of BUILTIN_CHOICE_NAMES) availableRuleTargets.add(name);
   const RULE_TRAILING_FLAGS = new Set(['NO-RESOLVE', 'SRC', 'DST', 'UDP', 'TCP']);
+  // 规则解析工具：统一处理规则字符串的解析、目标提取和标识计算
   function parseRuleParts(rule) {
     if (typeof rule !== 'string') return null;
-    const parts = rule.split(',');
-    if (!parts.length) return null;
-    for (let i = 0; i < parts.length; i++) parts[i] = String(parts[i] || '').trim();
-    return parts;
+    const parts = rule.split(',').map(p => String(p || '').trim());
+    return parts.length ? parts : null;
   }
+  
   function extractRulePolicyTarget(ruleOrParts) {
     const parts = Array.isArray(ruleOrParts) ? ruleOrParts : parseRuleParts(ruleOrParts);
     if (!parts || parts.length < 3) return null;
+    
+    // 从后往前找第一个非标志位的值作为目标
     for (let i = parts.length - 1; i >= 2; i--) {
       const value = parts[i];
-      if (!value) continue;
-      if (RULE_TRAILING_FLAGS.has(String(value).toUpperCase())) continue;
-      return value;
+      if (value && !RULE_TRAILING_FLAGS.has(value.toUpperCase())) return value;
     }
     return null;
   }
@@ -2171,109 +2548,141 @@ function buildConfig(config) {
   function extractRuleMatchValue(ruleOrParts) {
     const parts = Array.isArray(ruleOrParts) ? ruleOrParts : parseRuleParts(ruleOrParts);
     if (!parts || parts.length < 2) return null;
+    
     return {
-      type: String(parts[0] || '').toUpperCase(),
-      value: String(parts[1] || ''),
+      type: parts[0].toUpperCase(),
+      value: parts[1],
       target: extractRulePolicyTarget(parts)
     };
   }
+  
   function getRuleIdentityKey(rule) {
     const parts = parseRuleParts(rule);
     if (!parts) return null;
+    
     const meta = extractRuleMatchValue(parts);
     if (!meta || !meta.type || !meta.value) return `RAW@@${rule}`;
-    const normalizedType = meta.type;
-    const normalizedValue = meta.value;
+    
     const extraParts = parts.length > 3 ? parts.slice(3).join(',') : '';
-    return `${normalizedType}@@${normalizedValue}@@${extraParts}`;
+    return `${meta.type}@@${meta.value}@@${extraParts}`;
   }
 
 
   function buildRuleDiagnostics(ruleSetDefs, mergedRules) {
     const diagnostics = {
-      duplicateRulesAcrossSets: [],
-      riskyShortKeywords: [],
-      redundantDomainCoveredBySuffix: [],
-      overriddenRuleTargets: [],
-      broadKeywordOverlapHints: [],
       totalSourceRules: 0,
-
       totalMergedRules: Array.isArray(mergedRules) ? mergedRules.length : 0,
       dedupedRuleCount: 0,
       ruleSetSizes: [],
-      mergedRuleTypeCounts: {}
+      mergedRuleTypeCounts: {},
+      duplicateRulesAcrossSets: [],
+      overriddenRuleTargets: [],
+      redundantDomainCoveredBySuffix: [],
+      riskyShortKeywords: [],
+      broadKeywordOverlapHints: []
     };
     const exactRuleOwners = new Map();
     const normalizedMatchOwners = new Map();
 
+    // 第一轮：收集规则所有权和匹配信息
     for (const def of ruleSetDefs) {
       const rules = Array.isArray(def && def.rules) ? def.rules : [];
-      const validRuleCount = rules.filter(rule => typeof rule === 'string').length;
-      diagnostics.totalSourceRules += validRuleCount;
-      diagnostics.ruleSetSizes.push({ name: def && def.name ? def.name : 'UNKNOWN', count: validRuleCount });
-      for (const rule of rules) {
-        if (typeof rule !== 'string') continue;
+      const validRules = rules.filter(rule => typeof rule === 'string');
+      
+      diagnostics.totalSourceRules += validRules.length;
+      diagnostics.ruleSetSizes.push({ name: def && def.name ? def.name : 'UNKNOWN', count: validRules.length });
+      
+      for (const rule of validRules) {
+        // 记录完整规则的所有权
         if (!exactRuleOwners.has(rule)) exactRuleOwners.set(rule, []);
         exactRuleOwners.get(rule).push(def.name);
 
+        // 记录匹配键的所有权（用于检测目标覆盖）
         const meta = extractRuleMatchValue(rule);
         if (!meta || !meta.type || !meta.value || !meta.target) continue;
+        
         const ownerKey = `${meta.type}@@${meta.value}`;
         if (!normalizedMatchOwners.has(ownerKey)) normalizedMatchOwners.set(ownerKey, []);
         normalizedMatchOwners.get(ownerKey).push({ target: meta.target, set: def.name, rule });
       }
     }
 
+    // 第二轮：检测跨规则集的重复和覆盖
     for (const [rule, owners] of exactRuleOwners.entries()) {
       const uniqOwners = Array.from(new Set(owners));
-      if (uniqOwners.length > 1) diagnostics.duplicateRulesAcrossSets.push({ rule, sets: uniqOwners });
+      if (uniqOwners.length > 1) {
+        diagnostics.duplicateRulesAcrossSets.push({ rule, sets: uniqOwners });
+      }
     }
+    
     for (const [matchKey, entries] of normalizedMatchOwners.entries()) {
       const uniqTargets = Array.from(new Set(entries.map(item => item.target)));
-      if (uniqTargets.length <= 1) continue;
-      diagnostics.overriddenRuleTargets.push({
-        matchKey,
-        targets: uniqTargets,
-        entries: entries.slice(0, 10),
-        effectiveTarget: entries[entries.length - 1] ? entries[entries.length - 1].target : null
-      });
+      if (uniqTargets.length > 1) {
+        diagnostics.overriddenRuleTargets.push({
+          matchKey,
+          targets: uniqTargets,
+          entries: entries.slice(0, 10),
+          effectiveTarget: entries[entries.length - 1].target
+        });
+      }
     }
 
     diagnostics.dedupedRuleCount = Math.max(0, diagnostics.totalSourceRules - diagnostics.totalMergedRules);
     diagnostics.ruleSetSizes.sort((a, b) => b.count - a.count || String(a.name).localeCompare(String(b.name)));
 
+    // 第三轮：分析合并后的规则
     const suffixRuleMap = new Map();
     const keywordRules = [];
+    
     for (const rule of mergedRules) {
       const meta = extractRuleMatchValue(rule);
       if (!meta || !meta.type || !meta.value || !meta.target) continue;
+      
+      // 统计规则类型
       diagnostics.mergedRuleTypeCounts[meta.type] = (diagnostics.mergedRuleTypeCounts[meta.type] || 0) + 1;
+      
+      // 收集后缀和关键词规则用于后续检查
       if (meta.type === 'DOMAIN-SUFFIX') suffixRuleMap.set(`${meta.value}@@${meta.target}`, rule);
       if (meta.type === 'DOMAIN-KEYWORD') keywordRules.push(meta);
     }
 
+    // 第四轮：检测冗余规则
+    // 检测被后缀规则覆盖的域名规则
     for (const rule of mergedRules) {
       const meta = extractRuleMatchValue(rule);
       if (!meta || meta.type !== 'DOMAIN' || !meta.value || !meta.target) continue;
+      
       if (suffixRuleMap.has(`${meta.value}@@${meta.target}`)) {
         diagnostics.redundantDomainCoveredBySuffix.push(rule);
       }
     }
 
+    // 检测风险关键词
     for (const meta of keywordRules) {
-      if (meta.value && meta.value.length <= 2) diagnostics.riskyShortKeywords.push(`DOMAIN-KEYWORD,${meta.value},${meta.target}`);
+      if (meta.value && meta.value.length <= 2) {
+        diagnostics.riskyShortKeywords.push(`DOMAIN-KEYWORD,${meta.value},${meta.target}`);
+      }
     }
+    
+    // 检测关键词重叠
     for (let i = 0; i < keywordRules.length; i++) {
       for (let j = i + 1; j < keywordRules.length; j++) {
         const a = keywordRules[i];
         const b = keywordRules[j];
-        if (a.target === b.target) continue;
-        if (!a.value || !b.value) continue;
+        
+        // 同目标或空值跳过
+        if (a.target === b.target || !a.value || !b.value) continue;
+        
         const av = a.value.toLowerCase();
         const bv = b.value.toLowerCase();
         if (av === bv) continue;
-        if (av.length >= 4 && bv.includes(av)) diagnostics.broadKeywordOverlapHints.push({ broader: a, narrower: b });
-        else if (bv.length >= 4 && av.includes(bv)) diagnostics.broadKeywordOverlapHints.push({ broader: b, narrower: a });
+        
+        // 检测包含关系
+        if (av.length >= 4 && bv.includes(av)) {
+          diagnostics.broadKeywordOverlapHints.push({ broader: a, narrower: b });
+        } else if (bv.length >= 4 && av.includes(bv)) {
+          diagnostics.broadKeywordOverlapHints.push({ broader: b, narrower: a });
+        }
       }
     }
 
@@ -3653,58 +4062,95 @@ function buildConfig(config) {
     'DIRECT_AND_FALLBACK'
   ];
 
-  const RULE_SET_DEFS = RULE_ASSEMBLY_ORDER
-    .map(name => ({ name, rules: RULE_SET_MAP[name] }));
-  // 规则落盘：按优先级顺序合并所有规则，并做最终去重。
+  // ========================================
+  // 规则装配：按优先级合并与去重
+  // ========================================
+  
+  const RULE_SET_DEFS = RULE_ASSEMBLY_ORDER.map(name => ({ 
+    name, 
+    rules: RULE_SET_MAP[name] 
+  }));
+  
   perfStart('rules_assemble');
   const assembledRules = collectRuleSets(RULE_SET_DEFS, RULE_ASSEMBLY_ORDER);
   config.rules = mergeRuleSets(assembledRules);
   perfEnd('rules_assemble');
+  
+  // 规则健康检查：确保存在最终兜底规则
   if (!config.rules.length || !config.rules.some(rule => typeof rule === 'string' && /^MATCH\s*,/i.test(rule))) {
     throw new Error('rules health check failed: missing fallback MATCH rule');
   }
 
 
-  // 规则健康检查：所有策略目标都必须可解析到真实存在的组名或内建动作。
+  // ========================================
+  // 规则目标校验：确保所有目标都指向有效策略组
+  // ========================================
+  
   const missingRuleTargets = [];
   const seenMissingRuleTargets = new Set();
+  
   for (let i = 0; i < config.rules.length; i++) {
     const rule = config.rules[i];
     const target = extractRulePolicyTarget(rule);
+    
+    // 跳过有效目标和已记录的缺失目标
     if (!target || availableRuleTargets.has(target)) continue;
     if (seenMissingRuleTargets.has(target)) continue;
+    
     seenMissingRuleTargets.add(target);
     missingRuleTargets.push(target);
   }
   if (missingRuleTargets.length) {
     throw new Error('rules health check failed: missing policy target(s): ' + missingRuleTargets.join(', '));
   }
+  
+  // ========================================
+  // 规则诊断：可选的深度分析（开发调试用）
+  // ========================================
+  
   if (RULE_DIAGNOSTICS_ENABLED) {
     const ruleDiagnostics = buildRuleDiagnostics(RULE_SET_DEFS, config.rules);
+    
+    // 警告：风险关键词规则
     if (ruleDiagnostics.riskyShortKeywords.length && typeof console !== 'undefined' && typeof console.warn === 'function') {
       console.warn('rules health check warning: risky short DOMAIN-KEYWORD rule(s): ' + ruleDiagnostics.riskyShortKeywords.join(', '));
     }
 
-    // 同 match value 多 target 现在按“后定义覆盖前定义”处理，只记录诊断，不再阻断。
-
+    // 注：同 match value 多 target 现在按"后定义覆盖前定义"处理，只记录诊断，不再阻断
     emitRuleDiagnostics(ruleDiagnostics);
   }
 
-
+  // ========================================
+  // 完成：性能统计与配置返回
+  // ========================================
+  
   perfFlush();
-
   return config;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 辅助工具函数
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 浅克隆配置对象
+ * @param {Object} value - 原始配置对象
+ * @returns {Object} 克隆后的配置对象
+ */
 function clonePlainConfig(value) {
   if (!value || typeof value !== 'object') return {};
+  
   const config = Object.assign({}, value);
+  
+  // 克隆核心配置字段
   config.proxies = Array.isArray(value.proxies)
     ? value.proxies.map(proxy => (proxy && typeof proxy === 'object' ? Object.assign({}, proxy) : proxy))
     : [];
+    
   config['proxy-groups'] = Array.isArray(value['proxy-groups'])
     ? value['proxy-groups'].map(group => (group && typeof group === 'object' ? Object.assign({}, group) : group))
     : [];
+    
   config.rules = Array.isArray(value.rules) ? value.rules.slice() : [];
   config.dns = value.dns && typeof value.dns === 'object' ? Object.assign({}, value.dns) : {};
   config.profile = value.profile && typeof value.profile === 'object' ? Object.assign({}, value.profile) : {};
