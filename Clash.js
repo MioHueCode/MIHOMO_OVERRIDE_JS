@@ -28,11 +28,12 @@
  * • 性能调优    → 启用 PERF_ENABLED 查看各阶段耗时
  *
  * 【特性说明】
- * 谷歌商店多模式系统：
- * - 四个独立模式：商店稳定 / 商店极速 / 商店全球 / 商店兜底
- * - 每个模式有独立的：测速URL、地区池、健康检查参数、DNS策略
- * - 切换方式：修改 PLAY_STORE_PRESET 常量（第 270 行）
- * - 四个模式组使用专属候选池，不会出现在其他业务组中
+ * 谷歌商店专用负载均衡：
+ * - 统一负载均衡组「谷歌商店专用」，针对 Google Play 下载与分发链路优化
+ * - 节点池：所有地区自动组（每个地区的最快节点）
+ * - 策略：consistent-hashing 保证相同资源使用相同节点，避免 CDN 缓存失效
+ * - 优化参数：45秒测速间隔 + 600ms超时，快速发现最优节点
+ * - 该组为隐藏辅助组，不在主代理列表展示，仅供规则引用
  *
  * @version 2.0.0
  * @date 2026-07-21
@@ -256,65 +257,14 @@ function buildConfig(config) {
   const REGION_TEST_TIMEOUT = 3000;              // 超时时间（毫秒）
   const REGION_TEST_MAX_FAILED_TIMES = 4;        // 最大失败次数
   // ========================================
-  // 谷歌商店专项配置：多模式负载均衡系统
+  // 谷歌商店专项配置
   // ========================================
-  //
-  // 设计思想：
-  // 谷歌商店下载体验高度依赖节点质量和地区分布，单一策略难以适应所有场景。
-  // 本系统提供4个预设模式，每个模式有独立的测速URL、地区池、DNS策略和健康检查参数。
-  //
-  // 模式特点：
-  // • stable（稳定优先）：兼容性最好，适合日常使用
-  // • speed（速度优先）：测速更激进，适合大文件下载
-  // • global（全球覆盖）：地区池最广，适合特殊分发区域
-  // • rescue（兜底模式）：最宽松配置，适合网络受限环境
-  //
-  // 测速档位：不同探测URL用于不同场景
-  const PLAY_STORE_TEST_PROFILES = {
-    stable: 'https://www.gstatic.com/generate_204',
-    google: 'https://www.google.com/generate_204',
-    'gstatic-connectivity': 'https://connectivitycheck.gstatic.com/generate_204'
-  };
   
-  // 模式预设：一键切换完整策略
-  // 每个模式包含：测速URL、地区池、快速模式、DNS策略
-  const PLAY_STORE_PRESETS = {
-    stable: { test: 'stable', region: 'balanced', fast: false, dns: 'strict' },     // 稳定优先
-    speed: { test: 'google', region: 'asia', fast: true, dns: 'hybrid' },           // 速度优先
-    global: { test: 'stable', region: 'global', fast: false, dns: 'strict' },       // 全球覆盖
-    rescue: { test: 'gstatic-connectivity', region: 'global', fast: true, dns: 'aggressive' } // 兜底模式
-  };
+  // 谷歌商店专用组配置
+  const PLAY_STORE_TEST_URL = 'https://www.gstatic.com/generate_204';  // 测速URL：稳定可靠
+  const PLAY_STORE_SPECIAL_GROUP_NAMES = ['谷歌商店专用'];              // 特殊组名称列表
   
-  // 模式组定义：UI显示名称与预设映射
-  const PLAY_STORE_MODE_GROUP_DEFS = [
-    { key: 'stable', name: '商店稳定', preset: 'stable' },
-    { key: 'speed', name: '商店极速', preset: 'speed' },
-    { key: 'global', name: '商店全球', preset: 'global' },
-    { key: 'rescue', name: '商店兜底', preset: 'rescue' }
-  ];
-  const PLAY_STORE_SPECIAL_GROUP_NAMES = ['谷歌商店负载均衡'].concat(PLAY_STORE_MODE_GROUP_DEFS.map(def => def.name));
-
-  // 运行配置：切换默认模式
-  const PLAY_STORE_PRESET = 'stable';                // 可选：stable | speed | global | rescue
-  const PLAY_STORE_PROFILE_OVERRIDE = {};            // 自定义覆盖：可覆盖预设中的单个字段
-
-  // 地区池定义：不同策略使用不同地区组合
-  const PLAY_STORE_REGION_PROFILES = {
-    asia: ['香港', '台湾', '日本', '新加坡'],                           // 东亚优先
-    balanced: ['香港', '台湾', '日本', '新加坡', '美国', '欧盟'],       // 平衡覆盖（默认）
-    global: ['香港', '台湾', '日本', '韩国', '新加坡', '美国', '欧盟']  // 全球覆盖
-  };
-  
-  // DNS 策略：不同安全级别的解析器组合
-  const PLAY_STORE_DNS_PROFILE_RESOLVERS = {
-    strict: uniqList([...trustDns]),                             // 仅可信境外 DoH
-    hybrid: uniqList([...trustDns, ...cnDns]),                   // 境外 + 国内 DoH
-    aggressive: uniqList([...trustDns, ...cnDns, ...localDns])   // 全部解析器（兜底）
-  };
-  
-  const PLAY_STORE_LOAD_BALANCE_STRATEGY = 'consistent-hashing'; // 负载均衡策略
-
-  const HEALTH_CHECK_LAZY = true;                                  // 延迟健康检查
+  const HEALTH_CHECK_LAZY = true;                                       // 延迟健康检查
 
   // ========================================
   // 内置策略组：直连与特殊选项
@@ -326,8 +276,18 @@ function buildConfig(config) {
     '🇨🇳 直连 | 双栈',
     '全球直连',
   ];
+  const GOOGLE_ANDROID_DISTRIBUTION_DOMAINS = [
+    'play.google.com', 'market.android.com', 'play.googleapis.com', 'android.clients.google.com',
+    'play-fe.googleapis.com', 'play-lh.googleusercontent.com', 'dl.google.com',
+    '+.gvt1.com', '+.gvt2.com', '+.gvt3.com', '+.ggpht.com'
+  ];
+  const YOUTUBE_MEDIA_DOMAINS = [
+    '+.youtubei.googleapis.com', '+.youtube.googleapis.com', 'jnn-pa.googleapis.com',
+    'youtubeembeddedplayer.googleapis.com', 'video.google.com', '+.googlevideo.com', '+.ytimg.com', '+.ggpht.com'
+  ];
 
   const DNS_POLICY_DOMAIN_SETS = {
+
     adguard: [
       '+.pglstatp-toutiao.com', '+.pglstatp.com', '+.pangolin-sdk-toutiao.com', '+.pangolin.snssdk.com', '+.sgsnssdk.com', '+.unionadjs.com',
       '+.adkwai.com', '+.e.kuaishou.com', '+.adukwai.com', '+.tanx.com', '+.alimama.com', '+.mmstat.com', '+.gdt.qq.com',
@@ -361,11 +321,7 @@ function buildConfig(config) {
       '+.google.com', '+.googleapis.com', '+.googleapis.cn', '+.services.googleapis.cn', '+.gstatic.com', '+.googleusercontent.com',
       '+.gvt1.com', '+.gvt2.com', '+.gvt3.com', '+.recaptcha.net', '+.recaptcha-cn.net'
     ],
-    playStore: [
-      'play.google.com', 'market.android.com', 'play.googleapis.com', 'android.clients.google.com',
-      'play-fe.googleapis.com', 'play-lh.googleusercontent.com', 'dl.google.com',
-      '+.gvt1.com', '+.gvt2.com', '+.gvt3.com', '+.ggpht.com', '+.googleusercontent.com'
-    ],
+    playStore: uniqList(GOOGLE_ANDROID_DISTRIBUTION_DOMAINS.concat(['+.googleusercontent.com'])),
 
     aiFinanceRisk: [
       '+.chatgpt.com', '+.openai.com', '+.metamask.io', '+.neverless.com', '+.noones.com', 'noonessupport.zendesk.com',
@@ -399,12 +355,17 @@ function buildConfig(config) {
     gaming: ['+.steamcommunity.com', '+.steampowered.com', '+.epicgames.com', '+.roblox.com', '+.battle.net', '+.blizzard.com', '+.blizzardentertainment.com', '+.battlenet.com.cn', '+.ea.com', '+.origin.com', '+.uplay.com', '+.nintendo.com', '+.playstation.com', '+.xbox.com', '+.xboxlive.com', '+.supercell.com', '+.supercell.net'],
     bigTech: ['+.apple.com', '+.icloud.com', '+.microsoft.com', '+.live.com', '+.aws.amazon.com', 'account.amazon.com', 'payments.amazon.com'],
     infra: ['+.dns.google', '+.dns.google.com', '+.api2.branch.io', '+.cdn.branch.io'],
-    playStore: [
-      'play.google.com', 'market.android.com', 'play.googleapis.com', 'android.clients.google.com',
-      'play-fe.googleapis.com', 'play-lh.googleusercontent.com', 'dl.google.com',
-      '+.gvt1.com', '+.gvt2.com', '+.gvt3.com', '+.ggpht.com'
+    playStore: GOOGLE_ANDROID_DISTRIBUTION_DOMAINS,
+    youtubeMedia: YOUTUBE_MEDIA_DOMAINS,
+    privacyAndCaptivePortal: [
+      '+.cloudflare-dns.com', '+.one.one.one.one', '+.quad9.net', '+.dns9.quad9.net',
+      '+.nextdns.io', '+.controld.com', '+.mullvad.net', '+.dns.sb',
+      'connectivitycheck.android.com', 'connectivitycheck.gstatic.com', 'www.gstatic.com'
     ],
-    youtubeMedia: ['+.youtubei.googleapis.com', '+.youtube.googleapis.com', 'jnn-pa.googleapis.com', 'youtubeembeddedplayer.googleapis.com', 'video.google.com', '+.googlevideo.com', '+.ytimg.com', '+.ggpht.com']
+    googlePlayIntegrity: [
+      'www.googleapis.com', 'android.googleapis.com', 'firebaseinstallations.googleapis.com',
+      'firebase-settings.crashlytics.com', '+.firebaseio.com', '+.firebaseapp.com'
+    ]
   };
 
 
@@ -444,6 +405,14 @@ function buildConfig(config) {
     ],
     cloudflareChallenge: [
       'challenges.cloudflare.com', 'turnstile.cloudflare.com', 'assets.cloudflare.com', '*.cloudflare.com'
+    ],
+    paymentAndRiskLocal: [
+      'localhost', '*.localhost', '*.invalid', '*.test', '*.example',
+      '*.home', '*.home.arpa', '*.local', '*.lan'
+    ],
+    pushAndCast: [
+      'mtalk.google.com', 'alt*.mtalk.google.com', '*.push.apple.com',
+      '*.push-apple.com.akadns.net', '*.ipp.local', '*.mesh.local', '*.matter.local'
     ]
   };
 
@@ -487,7 +456,13 @@ function buildConfig(config) {
       ...DNS_FAKE_IP_FILTER_SETS.gamingPlatforms,
 
       // Cloudflare 挑战 / 验证资源：验证码与挑战链路对真实地址更敏感。
-      ...DNS_FAKE_IP_FILTER_SETS.cloudflareChallenge
+      ...DNS_FAKE_IP_FILTER_SETS.cloudflareChallenge,
+
+      // 支付 / 风控 / 本地域名：尽量保留真实解析，减少 App 内校验、回环服务与局域网发现异常。
+      ...DNS_FAKE_IP_FILTER_SETS.paymentAndRiskLocal,
+
+      // 推送 / 投屏 / Matter 等设备发现链路：fake-ip 容易破坏长连接或 mDNS/局域网发现。
+      ...DNS_FAKE_IP_FILTER_SETS.pushAndCast
     ]),
 
     nameserver: uniqList([
@@ -545,10 +520,8 @@ function buildConfig(config) {
   // Google 主生态：搜索、接口、静态资源与验证码统一走境外可信 DNS。
   appendDnsPolicyDomains(nameserverPolicy, DNS_POLICY_DOMAIN_SETS.google, trustDns);
  
-  // 谷歌商店 / Android 分发链路：单独走 Play 专用解析器，方便与下载模式联动调优。
-  // 注：DNS 模式现在从 buildPlayStoreModeArtifacts 中按各模式独立确定，这里保留 stable 作为兜底。
-  const playStoreDnsResolvers = PLAY_STORE_DNS_PROFILE_RESOLVERS.strict || trustDns;
-  appendDnsPolicyDomains(nameserverPolicy, DNS_POLICY_DOMAIN_SETS.playStore, playStoreDnsResolvers);
+  // 谷歌商店 / Android 分发链路：使用可信境外 DNS，避免劫持和污染
+  appendDnsPolicyDomains(nameserverPolicy, DNS_POLICY_DOMAIN_SETS.playStore, trustDns);
  
   // 通用海外 AI / 钱包 / 风控站点：避免被国内解析劫持或区域收敛。
 
@@ -559,6 +532,10 @@ function buildConfig(config) {
 
   // YouTube 视频资源链路：单独点名，避免视频域名被错误落到国内 DNS。
   appendDnsPolicyDomains(nameserverPolicy, DNS_POLICY_DOMAIN_SETS.youtubeMedia, trustDns);
+
+  // 隐私 DNS / 连通性 / Google Play Integrity：强制可信解析，减少系统检测和商店校验被污染。
+  appendDnsPolicyDomains(nameserverPolicy, DNS_POLICY_DOMAIN_SETS.privacyAndCaptivePortal, trustDns);
+  appendDnsPolicyDomains(nameserverPolicy, DNS_POLICY_DOMAIN_SETS.googlePlayIntegrity, trustDns);
   config.dns['nameserver-policy'] = nameserverPolicy;
   // fallback 过滤器：决定哪些域名 / IP 结果需要优先参考 fallback DNS。
   config.dns['fallback-filter'] = {
@@ -613,7 +590,11 @@ function buildConfig(config) {
       ...DNS_FALLBACK_FILTER_DOMAIN_SETS.playStore,
  
       // YouTube 视频与媒体资源链路。
-      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.youtubeMedia
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.youtubeMedia,
+
+      // 隐私 DNS / 连通性检测与 Google Play Integrity 相关链路。
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.privacyAndCaptivePortal,
+      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.googlePlayIntegrity
     ]
   };
 
@@ -627,14 +608,22 @@ function buildConfig(config) {
   // ========================================
   
   // 过滤非真实代理的正则表达式
-  const PROXY_INFO_RE = /(?:https?:\/\/|www\.|导航网址|网址导航|距离下次重置|剩余流量|流量已用|流量余额|套餐(?:到期|余额)?|订阅(?:链接)?|官网|官方|公告|通知|使用说明|更新订阅|复制链接|浏览器打开|更新时间|到期|剩余|重置|请使用|客户端|最新|售后|工单|教程|返利|邀请|购买|续费|维护)/i;
+  const PROXY_INFO_RE = /(?:https?:\/\/|www\.|导航网址|网址导航|距离下次重置|剩余流量|流量已用|流量余额|已用流量|总流量|流量(?:剩余|到期|重置)|套餐(?:到期|余额|剩余)?|订阅(?:链接|地址|信息)?|官网|官方|公告|通知|使用说明|更新订阅|复制链接|浏览器打开|更新时间|到期|剩余|重置|请使用|客户端|最新|售后|工单|教程|返利|邀请|购买|续费|维护|客服|群组|频道|TG群|Telegram|永久官网|备用地址|节点状态|账户|邮箱|验证码|防失联|网址|域名|无法使用|禁止|过期|失效)/i;
+  const PROXY_INFO_LINE_RE = /(?:^|[\s|｜:：,，;；-])(?:剩余|到期|过期|已用|重置|官网|订阅|套餐|流量|更新|通知|公告|客服|网址|邮箱|账户)(?:[\s|｜:：,，;；-]|$)/i;
+  const PROXY_TRAFFIC_RE = /(?:\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T)\s*[\/\|]\s*\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T)|(?:剩余|已用|总计|流量).{0,12}\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T))/i;
+  const PROXY_DATE_RE = /(?:20\d{2}[-\/.年]\d{1,2}[-\/.月]\d{1,2}|\d{1,2}[-\/.月]\d{1,2}日?).{0,8}(?:到期|过期|重置|更新|expire|reset)/i;
 
   function isRealProxyName(name) {
     const text = String(name || '').trim();
     if (!text) return false;
-    if (/^(urltest|select|fallback|load-balance)\b/i.test(text)) return false;
-    if (/\b\d+\/\d+\b/.test(text)) return false;
-    return !PROXY_INFO_RE.test(text);
+    if (/^(urltest|select|fallback|load-balance)/i.test(text)) return false;
+    if (/^(DIRECT|REJECT|REJECT-DROP|PASS)$/i.test(text)) return false;
+    if (/^[-=*_\s|｜]+$/.test(text)) return false;
+    if (/^\d+$/.test(text)) return false;
+    if (/\d+\/\d+/.test(text)) return false;
+    if (PROXY_INFO_RE.test(text) || PROXY_INFO_LINE_RE.test(text)) return false;
+    if (PROXY_TRAFFIC_RE.test(text) || PROXY_DATE_RE.test(text)) return false;
+    return true;
   }
 
   // ========================================
@@ -814,7 +803,7 @@ function buildConfig(config) {
   const REGION_MATCH_DB = [
     {
       id: '香港',
-      keywords: ['香港', 'hong kong', 'hongkong', 'kowloon', 'tsim sha tsui'],
+      keywords: ['香港', '港', '港区', '港服', 'hong kong', 'hongkong', 'hkbn', 'hkt', 'kowloon', 'tsim sha tsui'],
       iso: ['HK', 'HKG']
     },
     {
@@ -830,7 +819,7 @@ function buildConfig(config) {
 
     {
       id: '新加坡',
-      keywords: ['新加坡', 'singapore'],
+      keywords: ['新加坡', '狮城', '星加坡', 'singapore', 'singtel'],
       iso: ['SG', 'SGP', 'SIN']
     },
     {
@@ -847,7 +836,7 @@ function buildConfig(config) {
 
     {
       id: '俄罗斯',
-      keywords: ['俄罗斯', 'russia', 'moscow', 'moskva', 'saint petersburg', 'st. petersburg', 'novosibirsk'],
+      keywords: ['俄罗斯', '俄国', '俄', 'russia', 'russian federation', 'moscow', 'moskva', 'saint petersburg', 'st. petersburg', 'novosibirsk'],
       iso: ['RU', 'RUS', 'SVO', 'DME']
     },
     {
@@ -878,7 +867,7 @@ function buildConfig(config) {
         '欧盟', '欧洲', 'europe', 'european union'
       ],
 
-      iso: ['EU', 'GB', 'UK', 'DE', 'FR', 'NL', 'TR', 'IT', 'ES', 'SE', 'PL', 'CH', 'AT', 'BE', 'DK', 'FI', 'NO', 'LHR', 'LGW', 'MAN', 'CDG', 'ORY', 'FRA', 'MUC', 'BER', 'AMS', 'MAD', 'BCN', 'ZRH', 'VIE']
+      iso: ['EU', 'GB', 'UK', 'DE', 'FR', 'NL', 'TR', 'IT', 'ES', 'SE', 'PL', 'CH', 'AT', 'BE', 'DK', 'FI', 'NO', 'IE', 'PT', 'GR', 'CZ', 'HU', 'RO', 'BG', 'UA', 'LHR', 'LGW', 'MAN', 'CDG', 'ORY', 'FRA', 'MUC', 'BER', 'AMS', 'MAD', 'BCN', 'ZRH', 'VIE']
     },
     {
       id: '东南亚',
@@ -948,10 +937,10 @@ function buildConfig(config) {
     '台湾': /🇹🇼/,
     '日本': /🇯🇵/,
     '新加坡': /🇸🇬/,
-    '美国': /🇺🇸/,
+    '美国': /🇺🇸|🇺🇲/,
     '韩国': /🇰🇷/,
     '俄罗斯': /🇷🇺/,
-    '欧盟': /🇪🇺|🇬🇧|🇩🇪|🇫🇷|🇳🇱|🇮🇹|🇪🇸|🇸🇪|🇵🇱|🇨🇭|🇦🇹|🇧🇪|🇩🇰|🇫🇮|🇳🇴|🇹🇷/,
+    '欧盟': /🇪🇺|🇬🇧|🇩🇪|🇫🇷|🇳🇱|🇮🇹|🇪🇸|🇸🇪|🇵🇱|🇨🇭|🇦🇹|🇧🇪|🇩🇰|🇫🇮|🇳🇴|🇹🇷|🇮🇪|🇵🇹|🇬🇷|🇨🇿|🇭🇺|🇺🇦|🇷🇴|🇧🇬/,
     '东南亚': /🇲🇾|🇮🇩|🇹🇭|🇻🇳|🇵🇭|🇰🇭|🇲🇲|🇱🇦|🇧🇳/,
     '美洲其它': /🇨🇦|🇲🇽|🇧🇷|🇦🇷|🇨🇱|🇵🇪|🇨🇴|🇻🇪|🇪🇨|🇧🇴|🇵🇾|🇺🇾/,
     '非洲': /🇪🇬|🇲🇦|🇰🇪|🇿🇦|🇳🇬|🇬🇭|🇪🇹|🇹🇿|🇺🇬|🇷🇼|🇹🇳|🇩🇿/,
@@ -993,6 +982,7 @@ function buildConfig(config) {
     'netflix', 'disney', 'hbo', 'max', 'prime', 'chatgpt', 'gpt', 'ai',
     'home', 'residential', 'station', 'server', 'node', 'premium', 'traffic',
     'test', 'testing', 'expire', 'plan', 'used', 'aws', 'hy2', 'anytls',
+    'relay', 'direct', 'standard', 'basic', 'pro', 'plus', '专线', '中转', '原生',
   ];
   const noisePattern = new RegExp('\\b(' + noiseKeywords.join('|') + ')\\b', 'gi');
 
@@ -1004,6 +994,7 @@ function buildConfig(config) {
       .toLowerCase()
       .replace(/(?:\uD83C[\uDDE6-\uDDFF]){2}/g, ' ')
       .replace(/[\u2600-\u27BF]/g, ' ')
+      .replace(/[\d]+(?:\.\d+)?\s*(?:x|倍|gb|mb|tb|g|m|t)\b/gi, ' ')
       .replace(/[|｜¦•·・,，;；:：/\_+-–—()\[\]{}<>【】「」『』]/g, ' ')
       .replace(noisePattern, ' ')
       .replace(/\s+/g, ' ')
@@ -1514,13 +1505,23 @@ function buildConfig(config) {
     }
     return chain;
   }
+  function sortProxyNamesByMultiplier(names) {
+    return asArray(names).slice().sort((a, b) => {
+      const ai = getMultiplierSortInfo(a);
+      const bi = getMultiplierSortInfo(b);
+      return ai.value - bi.value || String(a).localeCompare(String(b), 'zh-Hans-CN');
+    });
+  }
+
   function getRegionNodes(regionName, options = {}) {
-    const { includeResidential = true, residentialOnly = false } = options;
+    const { includeResidential = true, residentialOnly = false, sortByMultiplier = false } = options;
     const info = regionCatalog[regionName];
     if (!info) return [];
-    if (residentialOnly) return info.residentialNodes.slice();
-    if (includeResidential) return info.nodes.slice();
-    return info.nodes.filter(name => !isResidentialProxyName(name));
+    let nodes;
+    if (residentialOnly) nodes = info.residentialNodes.slice();
+    else if (includeResidential) nodes = info.nodes.slice();
+    else nodes = info.nodes.filter(name => !isResidentialProxyName(name));
+    return sortByMultiplier ? sortProxyNamesByMultiplier(nodes) : nodes;
   }
   function buildRegionNodeList(names, options = {}) {
     const regions = asArray(names);
@@ -1833,71 +1834,26 @@ function buildConfig(config) {
       .map(regionName => `${regionName}下载`)
       .filter(name => availableNameSet.has(name));
   }
-  function buildPlayStoreProfileFromPreset(presetName) {
-    return Object.assign({}, PLAY_STORE_PRESETS[presetName] || PLAY_STORE_PRESETS.stable);
-  }
-  function buildPlayStoreModeArtifacts(def) {
-    const profile = buildPlayStoreProfileFromPreset(def && def.preset);
-    const regionOrder = PLAY_STORE_REGION_PROFILES[profile.region] || PLAY_STORE_REGION_PROFILES.balanced;
-    const fastMode = !!profile.fast;
-    const dnsMode = profile.dns || (fastMode ? 'hybrid' : 'strict');
-    const resolvers = PLAY_STORE_DNS_PROFILE_RESOLVERS[dnsMode] || PLAY_STORE_DNS_PROFILE_RESOLVERS.strict;
-    const downloadChoices = makeRegionDownloadGroupNames(regionOrder, downloadRegionGroupArtifacts.names);
-    const regionNodes = buildRegionNodeList(regionOrder, { includeResidential: false });
-    const balanceChoices = filterOutDirectEntries(buildChoiceList(
-      regionNodes,
-      def.preset === 'rescue' ? ['自动选择'] : []
-    ));
-    const serviceChoices = [def.name]
-      .concat(downloadChoices, fastMode ? [] : ['负载均衡'], ['自动选择']);
-    const loadBalanceOptions = {
-      url: PLAY_STORE_TEST_PROFILES[profile.test] || PLAY_STORE_TEST_PROFILES.stable,
-      interval: 60,
-      timeout: 800,
-      maxFailedTimes: fastMode ? 1 : 2,
-      strategy: PLAY_STORE_LOAD_BALANCE_STRATEGY,
-      lazy: false
-    };
-    return {
-      profile,
-      dnsMode,
-      resolvers,
-      downloadChoices,
-      balanceChoices,
-      serviceChoices,
-      loadBalanceOptions
-    };
-  }
-  // 谷歌商店负载均衡走“方案 E”：
-  // 1) 保留一个默认模式供规则直接使用；
-  // 2) 额外拆出多个可手选模式，直接在 UI 中切换；
-  // 3) 各模式共享地区下载组，但独立健康检查参数。
-  const playStoreModeArtifactMap = {};
-  const playStoreModeLoadBalanceGroups = [];
-  const playStoreModeGroupNames = [];
-  for (let i = 0; i < PLAY_STORE_MODE_GROUP_DEFS.length; i++) {
-    const def = PLAY_STORE_MODE_GROUP_DEFS[i];
-    const artifact = buildPlayStoreModeArtifacts(def);
-    playStoreModeArtifactMap[def.key] = artifact;
-    const group = makeLoadBalanceGroup(def.name, iconMap.playstore, ensureGroupList(artifact.balanceChoices, def.preset === 'rescue' ? ['自动选择'] : []), artifact.loadBalanceOptions);
-    if (!group || !group.name) continue;
-    playStoreModeLoadBalanceGroups.push(group);
-    playStoreModeGroupNames.push(group.name);
-  }
-  const activePlayStoreModeDef = PLAY_STORE_MODE_GROUP_DEFS.find(def => def.preset === PLAY_STORE_PRESET) || PLAY_STORE_MODE_GROUP_DEFS[0];
-  const activePlayStoreModeArtifact = playStoreModeArtifactMap[activePlayStoreModeDef.key] || buildPlayStoreModeArtifacts(activePlayStoreModeDef);
-  const playStoreDownloadRegionChoices = activePlayStoreModeArtifact.downloadChoices;
-  const playStoreBalanceChoices = activePlayStoreModeArtifact.balanceChoices;
-  const playStoreServiceChoices = []
-    .concat(playStoreModeGroupNames, ['自动选择']);
-  const playStoreLoadBalanceOptions = activePlayStoreModeArtifact.loadBalanceOptions;
+  // 谷歌商店专用组：使用地区自动组负载均衡，保证稳定性与连接一致性
+  // 策略：consistent-hashing 确保相同资源使用相同节点，避免 CDN 缓存失效
+  // 节点池：各地区最快节点，质量优先
+  // 测速：45秒间隔 + 600ms超时，快速发现并切换到最优节点
+  const playStoreBalanceChoices = buildChoiceList(regionAutoNames, ['自动选择']);
+  const playStoreServiceChoices = ['谷歌商店专用', '自动选择'];
+  const playStoreLoadBalanceOptions = {
+    url: PLAY_STORE_TEST_URL,
+    interval: 45,
+    timeout: 600,
+    'max-failed-times': 2,
+    strategy: 'consistent-hashing',
+    lazy: false
+  };
 
 
   // 负载均衡组：一个面向全局通用，一个面向谷歌商店下载 / 分发链路。
   const loadBalanceGroupArtifacts = collectNamedGroups([
     makeLoadBalanceGroup('负载均衡', iconMap.balance, ensureGroupList(allProxyNames, []), { interval: 60, timeout: 800, strategy: 'consistent-hashing' }),
-    makeLoadBalanceGroup('谷歌商店负载均衡', iconMap.playstore, ensureGroupList(playStoreBalanceChoices, ['自动选择']), playStoreLoadBalanceOptions),
-    ...playStoreModeLoadBalanceGroups
+    makeLoadBalanceGroup('谷歌商店专用', iconMap.playstore, ensureGroupList(playStoreBalanceChoices, ['自动选择']), playStoreLoadBalanceOptions)
   ]);
 
 
@@ -1939,8 +1895,8 @@ function buildConfig(config) {
     globalStreamingGroup ? ['全球流媒体'] : []
   );
   // 候选菜单总索引：把 fallback、负载均衡、特征组、地区组与原始节点拼成通用候选池。
-  // 排除谷歌商店专属组：谷歌商店负载均衡 + 四个模式组（商店稳定/极速/全球/兜底）
-  const playStoreExclusiveSet = new Set(['谷歌商店负载均衡', ...playStoreModeGroupNames]);
+  // 排除谷歌商店专属组
+  const playStoreExclusiveSet = new Set(['谷歌商店专用']);
   const commonLoadBalanceNames = loadBalanceNames.filter(name => !playStoreExclusiveSet.has(name));
   const regionFallbackNames = ['港台故障转移', '日韩故障转移', '欧美故障转移'];
   const fallbackNameSet = makeNameSet(fallbackNames);
@@ -1957,7 +1913,7 @@ function buildConfig(config) {
     '全球手动',
     '全球直连',
     '负载均衡',
-    '谷歌商店负载均衡',
+    '谷歌商店专用',
     '家宽故障转移',
     '自动兜底',
     ...regionFallbackNames,
@@ -2129,7 +2085,7 @@ function buildConfig(config) {
      { key: 'Niconico', first: ['日韩故障转移'], poolKey: 'common' },
      { key: '去中心化平台', first: ['欧美故障转移'], poolKey: 'common' },
      { key: '微软服务', first: ['自动选择', '全球直连'], poolKey: 'common' },
-     // 谷歌商店：专属候选池，四个模式组（商店稳定/极速/全球/兜底）仅在此组可见
+     // 谷歌商店：专属候选池，「谷歌商店专用」负载均衡组仅在此组可见
      { key: '谷歌商店', first: playStoreServiceChoices, poolKey: 'playStore' },
 
      { key: 'AI', first: ['国外AI故障转移', '节点选择'], poolKey: 'aiOnly' }
@@ -2329,10 +2285,9 @@ function buildConfig(config) {
     for (let j = 0; j < bucket.length; j++) {
       let group = bucket[j];
       if (!group) continue;
-      // 隐藏辅助组：下载组、谷歌商店负载均衡及其四个模式组不在主列表展示。
+      // 隐藏辅助组：下载组、谷歌商店专用组不在主列表展示。
       const shouldHide = /^(香港|台湾|日本|韩国|新加坡|美国|欧盟)下载$/.test(group.name)
-        || group.name === '谷歌商店负载均衡'
-        || playStoreModeGroupNames.includes(group.name);
+        || group.name === '谷歌商店专用';
       if (shouldHide) {
         group = Object.assign({}, group, { hidden: true });
       }
@@ -2434,8 +2389,7 @@ function buildConfig(config) {
   function buildRealChoiceCandidateSet() {
     return makeNameSet(allProxyNames.concat(
       getAllScopedChoiceNames(),
-      playStoreModeGroupNames,
-      ['谷歌商店负载均衡']
+      ['谷歌商店专用']
     ));
   }
 
