@@ -606,25 +606,29 @@ function buildConfig(config) {
   // ========================================
   // 节点处理：清洗、特征识别、去重
   // ========================================
-  
   // 过滤非真实代理的正则表达式
-  const PROXY_INFO_RE = /(?:https?:\/\/|www\.|导航网址|网址导航|距离下次重置|剩余流量|流量已用|流量余额|已用流量|总流量|流量(?:剩余|到期|重置)|套餐(?:到期|余额|剩余)?|订阅(?:链接|地址|信息)?|官网|官方|公告|通知|使用说明|更新订阅|复制链接|浏览器打开|更新时间|到期|剩余|重置|请使用|客户端|最新|售后|工单|教程|返利|邀请|购买|续费|维护|客服|群组|频道|TG群|Telegram|永久官网|备用地址|节点状态|账户|邮箱|验证码|防失联|网址|域名|无法使用|禁止|过期|失效)/i;
-  const PROXY_INFO_LINE_RE = /(?:^|[\s|｜:：,，;；-])(?:剩余|到期|过期|已用|重置|官网|订阅|套餐|流量|更新|通知|公告|客服|网址|邮箱|账户)(?:[\s|｜:：,，;；-]|$)/i;
+  // 说明：这里必须保守过滤。很多真实节点名会带有 airport / vpn / proxy / 流量倍率等字样，
+  // 不能仅凭单个关键词就删除；只有明显是订阅说明、流量信息、广告联系方式的条目才丢弃。
+  const PROXY_INFO_RE = /(?:https?:\/\/|www\.|导航网址|网址导航|距离下次重置|流量已用|流量余额|已用流量|总流量|流量(?:剩余|到期|重置)|套餐(?:到期|余额|剩余)?|订阅(?:链接|地址|信息)?|官方(?:网站|网址|公告|通知|频道|群组)?|公告|通知|使用说明|更新订阅|复制链接|浏览器打开|更新时间|请使用|客户端|售后|工单|教程|返利|邀请|购买|续费|维护|客服|永久官网|备用地址|节点状态|账户|邮箱|验证码|防失联|网址|域名|无法使用|禁止|过期|失效|广告|推广|赞助|加群|进群|群聊|交流群|频道订阅|关注频道)/i;
+  const PROXY_INFO_LINE_RE = /(?:^|[\s|｜:：,，;；\-+_\[\]【】()（）])(?:剩余|到期|过期|已用|重置|官网|订阅|套餐|更新|通知|公告|客服|网址|邮箱|账户|广告|推广|赞助|频道订阅|关注频道|加群|进群|交流群|官方群)(?:[\s|｜:：,，;；\-+_\[\]【】()（）]|$)/i;
   const PROXY_TRAFFIC_RE = /(?:\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T)\s*[\/\|]\s*\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T)|(?:剩余|已用|总计|流量).{0,12}\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T))/i;
   const PROXY_DATE_RE = /(?:20\d{2}[-\/.年]\d{1,2}[-\/.月]\d{1,2}|\d{1,2}[-\/.月]\d{1,2}日?).{0,8}(?:到期|过期|重置|更新|expire|reset)/i;
+  const PROXY_PROMO_HANDLE_RE = /(?:^|[\s|｜:：,，;；\-+_\[\]【】()（）])@?[a-z0-9_]{2,}(?:tg|telegram|channel|group)[a-z0-9_]*(?:[\s|｜:：,，;；\-+_\[\]【】()（）]|$)/i;
 
   function isRealProxyName(name) {
     const text = String(name || '').trim();
     if (!text) return false;
-    if (/^(urltest|select|fallback|load-balance)/i.test(text)) return false;
+    if (/^(urltest|select|fallback|load-balance)\b/i.test(text)) return false;
     if (/^(DIRECT|REJECT|REJECT-DROP|PASS)$/i.test(text)) return false;
     if (/^[-=*_\s|｜]+$/.test(text)) return false;
     if (/^\d+$/.test(text)) return false;
-    if (/\d+\/\d+/.test(text)) return false;
-    if (PROXY_INFO_RE.test(text) || PROXY_INFO_LINE_RE.test(text)) return false;
+    if (/\b\d+\/\d+\b/.test(text)) return false;
     if (PROXY_TRAFFIC_RE.test(text) || PROXY_DATE_RE.test(text)) return false;
+    if (PROXY_PROMO_HANDLE_RE.test(text)) return false;
+    if (PROXY_INFO_RE.test(text) || PROXY_INFO_LINE_RE.test(text)) return false;
     return true;
   }
+
 
   // ========================================
   // 节点特征识别：家宽 / 倍率 / 流媒体
@@ -773,7 +777,7 @@ function buildConfig(config) {
     const key = String(word || '').toLowerCase();
     let pattern = wholeWordPatternCache.get(key);
     if (!pattern) {
-      const escaped = key.replace(/[-/\^$*+?.()|[]{}]/g, '\\$&');
+      const escaped = key.replace(/[.*+?^${}()|[\]\\/\-]/g, '\\$&');
       pattern = new RegExp('(^|[^a-z])' + escaped + '([^a-z]|$)', 'i');
       wholeWordPatternCache.set(key, pattern);
     }
@@ -2338,8 +2342,8 @@ function buildConfig(config) {
 
     // 全球直连组固定只保留 DIRECT，避免被旧配置或别处逻辑污染。
     if (group.name === '全球直连') return ['DIRECT'];
-    // 全球手动组若被清空，则回填全部真实节点，确保用户始终能手动选线。
-    if (group.name === '全球手动') return proxies.length ? proxies : allProxyNames.slice();
+    // 全球手动组若被清空，则回填全部真实节点；极端情况下至少保留 DIRECT，避免 select 组缺失 proxies。
+    if (group.name === '全球手动') return ensureGroupList(proxies.length ? proxies : allProxyNames, ['DIRECT']);
     // fallback 组只保留构建阶段明确给它的候选；这里不额外补“自动选择”。
     // 如果清洗后彻底为空，ensureGroupList(..., []) 会退到 DIRECT，至少保证配置仍可导入。
     if (group.type === 'fallback') return ensureGroupList(proxies, []);
