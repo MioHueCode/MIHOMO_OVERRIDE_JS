@@ -1339,7 +1339,23 @@ function buildConfig(config) {
     '美洲其它': qIcon('America_Map'),
     '非洲': qIcon('Africa_Map'),
     '其它地区': qIcon('World_Map')
+  };
 
+  // 家宽地区组使用 Orz-3/mini 的彩色国旗图标；聚合地区保留区域图标。
+  const MINI_COLOR_BASE = 'https://raw.githubusercontent.com/Orz-3/mini/master/Color/';
+  const homeRegionIconMap = {
+    '香港': MINI_COLOR_BASE + 'HK.png',
+    '台湾': MINI_COLOR_BASE + 'TW.png',
+    '日本': MINI_COLOR_BASE + 'JP.png',
+    '新加坡': MINI_COLOR_BASE + 'SG.png',
+    '美国': MINI_COLOR_BASE + 'US.png',
+    '韩国': MINI_COLOR_BASE + 'KR.png',
+    '俄罗斯': MINI_COLOR_BASE + 'RU.png',
+    '欧盟': MINI_COLOR_BASE + 'EU.png',
+    '东南亚': regionIconMap['东南亚'],
+    '美洲其它': regionIconMap['美洲其它'],
+    '非洲': regionIconMap['非洲'],
+    '其它地区': regionIconMap['其它地区']
   };
 
 
@@ -1429,7 +1445,7 @@ function buildConfig(config) {
       maxFailedTimes: regionUrlTestMaxFailedTimes
     });
     const homeAutoGroup = residentialNodes.length
-      ? makeUrlTestGroup(names.homeAuto, regionIconMap[regionName], residentialNodes, regionUrlTestInterval, regionUrlTestTolerance, {
+      ? makeUrlTestGroup(names.homeAuto, homeRegionIconMap[regionName], residentialNodes, regionUrlTestInterval, regionUrlTestTolerance, {
         timeout: regionUrlTestTimeout,
         maxFailedTimes: regionUrlTestMaxFailedTimes
       })
