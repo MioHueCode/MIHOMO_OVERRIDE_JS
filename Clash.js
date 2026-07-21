@@ -312,7 +312,7 @@ function buildConfig(config) {
     aggressive: uniqList([...trustDns, ...cnDns, ...localDns])   // 全部解析器（兜底）
   };
   
-  const PLAY_STORE_LOAD_BALANCE_STRATEGY = 'round-robin';        // 负载均衡策略
+  const PLAY_STORE_LOAD_BALANCE_STRATEGY = 'consistent-hashing'; // 负载均衡策略
 
   const HEALTH_CHECK_LAZY = true;                                  // 延迟健康检查
 
@@ -1794,7 +1794,7 @@ function buildConfig(config) {
   const downloadRegionGroupArtifacts = makeLoadBalanceGroupArtifacts(
     DOWNLOAD_REGION_DEFS,
     def => getRegionNodes(def.key, { includeResidential: false }),
-    () => ({ interval: 600 })
+    () => ({ interval: 60, timeout: 800, strategy: 'consistent-hashing' })
   );
   const downloadRegionGroups = downloadRegionGroupArtifacts.groups;
 
@@ -1843,16 +1843,17 @@ function buildConfig(config) {
     const dnsMode = profile.dns || (fastMode ? 'hybrid' : 'strict');
     const resolvers = PLAY_STORE_DNS_PROFILE_RESOLVERS[dnsMode] || PLAY_STORE_DNS_PROFILE_RESOLVERS.strict;
     const downloadChoices = makeRegionDownloadGroupNames(regionOrder, downloadRegionGroupArtifacts.names);
+    const regionNodes = buildRegionNodeList(regionOrder, { includeResidential: false });
     const balanceChoices = filterOutDirectEntries(buildChoiceList(
-      downloadChoices,
-      ['自动选择']
+      regionNodes,
+      def.preset === 'rescue' ? ['自动选择'] : []
     ));
     const serviceChoices = [def.name]
       .concat(downloadChoices, fastMode ? [] : ['负载均衡'], ['自动选择']);
     const loadBalanceOptions = {
       url: PLAY_STORE_TEST_PROFILES[profile.test] || PLAY_STORE_TEST_PROFILES.stable,
-      interval: fastMode ? 120 : 180,
-      timeout: fastMode ? 1200 : 1500,
+      interval: 60,
+      timeout: 800,
       maxFailedTimes: fastMode ? 1 : 2,
       strategy: PLAY_STORE_LOAD_BALANCE_STRATEGY,
       lazy: false
@@ -1878,7 +1879,7 @@ function buildConfig(config) {
     const def = PLAY_STORE_MODE_GROUP_DEFS[i];
     const artifact = buildPlayStoreModeArtifacts(def);
     playStoreModeArtifactMap[def.key] = artifact;
-    const group = makeLoadBalanceGroup(def.name, iconMap.playstore, ensureGroupList(artifact.balanceChoices, ['自动选择']), artifact.loadBalanceOptions);
+    const group = makeLoadBalanceGroup(def.name, iconMap.playstore, ensureGroupList(artifact.balanceChoices, def.preset === 'rescue' ? ['自动选择'] : []), artifact.loadBalanceOptions);
     if (!group || !group.name) continue;
     playStoreModeLoadBalanceGroups.push(group);
     playStoreModeGroupNames.push(group.name);
@@ -1894,7 +1895,7 @@ function buildConfig(config) {
 
   // 负载均衡组：一个面向全局通用，一个面向谷歌商店下载 / 分发链路。
   const loadBalanceGroupArtifacts = collectNamedGroups([
-    makeLoadBalanceGroup('负载均衡', iconMap.balance, ensureGroupList(allProxyNames, [])),
+    makeLoadBalanceGroup('负载均衡', iconMap.balance, ensureGroupList(allProxyNames, []), { interval: 60, timeout: 800, strategy: 'consistent-hashing' }),
     makeLoadBalanceGroup('谷歌商店负载均衡', iconMap.playstore, ensureGroupList(playStoreBalanceChoices, ['自动选择']), playStoreLoadBalanceOptions),
     ...playStoreModeLoadBalanceGroups
   ]);
