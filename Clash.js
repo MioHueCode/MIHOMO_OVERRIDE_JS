@@ -19,7 +19,7 @@
  * 【特性说明】
  * 谷歌商店专用负载均衡（consistent-hashing，地区自动组节点池）
  *
- * @version 3.8.1
+ * @version 3.9.0
  * @date 2026-07-22
  * @license MIT
  */
@@ -1807,11 +1807,19 @@ function buildConfig(config) {
     usableChoiceDef('playStore', playStoreServiceChoices, commonBaseChoices),
     usableChoiceDef('streaming', globalStreamingGroup ? ['全球流媒体', '节点选择', '自动选择'] : ['节点选择', '自动选择'], commonBaseChoices),
     usableChoiceDef('taiwanMedia', unique(['港台故障转移', taiwanAutoChoice, '节点选择', '自动选择'].filter(Boolean)), commonBaseChoices),
-    usableChoiceDef('riskControl', ['家宽故障转移', globalHomeGroup ? '全球家宽' : null, '全球手动', '节点选择', '自动选择'].filter(Boolean), [
+    usableChoiceDef('riskControl', [
+      '家宽故障转移',
+      globalHomeGroup ? '全球家宽' : null,
+      // 地区家宽紧跟全球家宽
+      ...regionHomeAutoNames.filter(name => name && name !== '全球家宽'),
+      '全球手动',
+      '节点选择',
+      '自动选择'
+    ].filter(Boolean), [
       '港台故障转移', '日韩故障转移', '欧美故障转移',
-      ...regionAutoNames,
-      ...regionHomeAutoNames.filter(name => name !== '全球家宽'),
-      '自动兜底', '全球直连'
+      ...regionAutoNames.filter(name => name && !String(name).includes('家宽')),
+      '自动兜底',
+      '全球直连'
     ])
   ];
 
@@ -1854,9 +1862,9 @@ function buildConfig(config) {
     riskControl: usableChoices(CHOICE_POOLS.riskControl)
   };
   const preferredHomeFailover = [
-    '香港家宽自动', '香港自动', '新加坡家宽自动', '新加坡自动',
-    '日本家宽自动', '日本自动', '韩国家宽自动', '韩国自动',
-    '美国家宽自动', '美国自动', '欧盟家宽自动', '欧盟自动'
+    '香港家宽', '香港自动', '新加坡家宽', '新加坡自动',
+    '日本家宽', '日本自动', '韩国家宽', '韩国自动',
+    '美国家宽', '美国自动', '欧盟家宽', '欧盟自动'
   ];
   const availableHomeAutoNames = new Set(regionHomeAutoNames);
   const homeFailoverChoices = unique([
