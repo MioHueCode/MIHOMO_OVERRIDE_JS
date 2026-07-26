@@ -36,33 +36,33 @@ function buildConfig(config) {
   // 运行时工具：性能分析、调试与安全执行
   const PERF_ENABLED = false;
   const RULE_DIAGNOSTICS_ENABLED = false;
-  
+
   const perfMarks = Object.create(null);
   const perfNow = () => Date.now();
-  
+
   const debugLog = (...args) => {
     if (typeof console !== 'undefined' && typeof console.log === 'function') {
       console.log(...args);
     }
   };
-  
+
   function perfStart(label) {
     if (!PERF_ENABLED) return;
     perfMarks[label] = perfNow();
   }
-  
+
   function perfEnd(label) {
     if (!PERF_ENABLED || !perfMarks[label]) return;
     perfMarks[label] = perfNow() - perfMarks[label];
   }
-  
+
   function perfFlush() {
     if (!PERF_ENABLED) return;
     console.log('[Clash.js][perf]', JSON.stringify(perfMarks));
   }
 
   // 通用工具函数
-  
+
   // 图标资源：统一走 Qure 图标仓库
   const QURE_BASE = 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/';
   const qIcon = name => QURE_BASE + name + '.png';
@@ -75,7 +75,7 @@ function buildConfig(config) {
   function uniqList(arr) {
     return Array.from(new Set(asArray(arr).filter(Boolean)));
   }
-  
+
   // 通用去重别名（保持向后兼容）
   const unique = uniqList;
 
@@ -221,7 +221,7 @@ function buildConfig(config) {
   );
 
   // 基础配置：运行参数、网络栈、实验特性
-  
+
   // Profile：持久化配置
   config.profile = {
     ...(config.profile || {}),
@@ -235,19 +235,19 @@ function buildConfig(config) {
   config['mode'] = 'rule';
   config['log-level'] = config['log-level'] || 'error';
   config.ipv6 = true;
-  
+
   // TCP 优化
   config['tcp-concurrent'] = true;
   config['keep-alive-interval'] = 15;
   config['keep-alive-idle'] = 600;
   config['disable-keep-alive'] = false;
-  
+
   // 其他特性
   config['etag-support'] = true;
   config['unified-delay'] = true;
   config['find-process-mode'] = 'strict';
   config['global-client-fingerprint'] = config['global-client-fingerprint'] || 'chrome';
-  
+
   // 实验特性：QUIC 兼容性优化
   config['experimental'] = Object.assign({}, config['experimental'] || {}, {
     'quic-go-disable-gso': true,
@@ -256,7 +256,7 @@ function buildConfig(config) {
   });
 
   // 嗅探模块：域名感知与流量识别
-  
+
   if (!config.sniffer || typeof config.sniffer !== 'object') config.sniffer = {};
   config.sniffer['force-dns-mapping'] = true;
 
@@ -298,7 +298,7 @@ function buildConfig(config) {
   ]);
 
   // Hosts 映射：关键服务域名兜底
-  
+
   if (!config.hosts || typeof config.hosts !== 'object') config.hosts = {};
   config.hosts['dns.alidns.com'] = ['223.5.5.5', '223.6.6.6'];
 
@@ -313,7 +313,7 @@ function buildConfig(config) {
   config.hosts['t.me'] = 'telegram.me';
 
   // DNS 配置：解析器、策略与路由
-  
+
   // DNS 端点定义
   const DNS_ENDPOINTS = {
     local: ['223.6.6.6', '119.29.29.29'],
@@ -1089,7 +1089,7 @@ function buildConfig(config) {
   }
   // 内置直连名称
   const builtInDirectProxyNames = new Set(['🇨🇳 直连 | IPv4优先', '🇨🇳 直连 | IPv6优先', '🇨🇳 直连 | 双栈']);
-  
+
   perfStart('region_classify');
   for (let i = 0; i < cleanProxies.length; i++) {
     const proxy = cleanProxies[i];
@@ -2015,7 +2015,7 @@ function buildConfig(config) {
     { key: '谷歌商店', first: playStoreServiceChoices, poolKey: 'playStore' },
     { key: 'AI', first: ['国外AI故障转移', '节点选择'], poolKey: 'aiOnly' },
     { key: '支付服务', first: ['港台故障转移', '节点选择', '自动选择'], poolKey: 'common' },
-    { key: '个人媒体', first: ['港台故障转移', '节点选择', '自动选择'], poolKey: 'streaming' },
+    { key: '个人媒体', first: [globalStreamingGroup ? '全球流媒体' : null, '港台故障转移', '节点选择', '自动选择'].filter(Boolean), poolKey: 'streaming' },
     { key: '新闻资讯', first: ['欧美故障转移', '节点选择', '自动选择'], poolKey: 'common' }
   ];
   const BUSINESS_SERVICE_HEAD = [
@@ -2257,11 +2257,11 @@ function buildConfig(config) {
   function shouldDropEmptyGroup(group) {
     if (!group || !group.name) return true;
     if (!Array.isArray(group.proxies)) return false;
-    
+
     // 核心组永不删除
     const coreGroups = ['自动选择', '全球手动', '全球直连'];
     if (coreGroups.includes(group.name)) return false;
-    
+
     // 测速/负载组通常必须包含真实节点；谷歌商店专用组允许包含地区自动组。
     if (group.type === 'url-test' || group.type === 'load-balance') {
       if (PLAY_STORE_SPECIAL_GROUP_NAMES.includes(group.name)) return !asArray(group.proxies).length;
@@ -2336,22 +2336,22 @@ function buildConfig(config) {
         for (let i = 0; i < group.proxies.length; i++) {
           const proxyName = group.proxies[i];
           const targetGroup = groupMap[proxyName];
-          
+
           // 不是组引用，直接保留
           if (!targetGroup || !Array.isArray(targetGroup.proxies)) {
             nextProxies.push(proxyName);
             continue;
           }
-          
+
           // 自引用 A -> A：丢弃
           if (targetGroup.name === group.name) continue;
-          
+
           // 互环引用 A -> B && B -> A：丢弃
           if (targetGroup.proxies.includes(group.name)) continue;
-          
+
           nextProxies.push(proxyName);
         }
-        
+
         return Object.assign({}, group, { proxies: finalizeGroupChoices(group, nextProxies) });
       })
       .filter(group => !shouldDropEmptyGroup(group));
@@ -2407,11 +2407,11 @@ function buildConfig(config) {
     const parts = rule.split(',').map(p => String(p || '').trim());
     return parts.length ? parts : null;
   }
-  
+
   function extractRulePolicyTarget(ruleOrParts) {
     const parts = Array.isArray(ruleOrParts) ? ruleOrParts : parseRuleParts(ruleOrParts);
     if (!parts || parts.length < 3) return null;
-    
+
     // 从后往前找第一个非标志位的值作为目标
     for (let i = parts.length - 1; i >= 2; i--) {
       const value = parts[i];
@@ -2423,21 +2423,21 @@ function buildConfig(config) {
   function extractRuleMatchValue(ruleOrParts) {
     const parts = Array.isArray(ruleOrParts) ? ruleOrParts : parseRuleParts(ruleOrParts);
     if (!parts || parts.length < 2) return null;
-    
+
     return {
       type: parts[0].toUpperCase(),
       value: parts[1],
       target: extractRulePolicyTarget(parts)
     };
   }
-  
+
   function getRuleIdentityKey(rule) {
     const parts = parseRuleParts(rule);
     if (!parts) return null;
-    
+
     const meta = extractRuleMatchValue(parts);
     if (!meta || !meta.type || !meta.value) return `RAW@@${rule}`;
-    
+
     const extraParts = parts.length > 3 ? parts.slice(3).join(',') : '';
     return `${meta.type}@@${meta.value}@@${extraParts}`;
   }
@@ -2461,10 +2461,10 @@ function buildConfig(config) {
     for (const def of ruleSetDefs) {
       const rules = Array.isArray(def && def.rules) ? def.rules : [];
       const validRules = rules.filter(rule => typeof rule === 'string');
-      
+
       diagnostics.totalSourceRules += validRules.length;
       diagnostics.ruleSetSizes.push({ name: def && def.name ? def.name : 'UNKNOWN', count: validRules.length });
-      
+
       for (const rule of validRules) {
         // 记录完整规则的所有权
         if (!exactRuleOwners.has(rule)) exactRuleOwners.set(rule, []);
@@ -2473,7 +2473,7 @@ function buildConfig(config) {
         // 记录匹配键的所有权（用于检测目标覆盖）
         const meta = extractRuleMatchValue(rule);
         if (!meta || !meta.type || !meta.value || !meta.target) continue;
-        
+
         const ownerKey = `${meta.type}@@${meta.value}`;
         if (!normalizedMatchOwners.has(ownerKey)) normalizedMatchOwners.set(ownerKey, []);
         normalizedMatchOwners.get(ownerKey).push({ target: meta.target, set: def.name, rule });
@@ -2487,7 +2487,7 @@ function buildConfig(config) {
         diagnostics.duplicateRulesAcrossSets.push({ rule, sets: uniqOwners });
       }
     }
-    
+
     for (const [matchKey, entries] of normalizedMatchOwners.entries()) {
       const uniqTargets = Array.from(new Set(entries.map(item => item.target)));
       if (uniqTargets.length > 1) {
@@ -2506,14 +2506,14 @@ function buildConfig(config) {
     // 第三轮：分析合并后的规则
     const suffixRuleMap = new Map();
     const keywordRules = [];
-    
+
     for (const rule of mergedRules) {
       const meta = extractRuleMatchValue(rule);
       if (!meta || !meta.type || !meta.value || !meta.target) continue;
-      
+
       // 统计规则类型
       diagnostics.mergedRuleTypeCounts[meta.type] = (diagnostics.mergedRuleTypeCounts[meta.type] || 0) + 1;
-      
+
       // 收集后缀和关键词规则用于后续检查
       if (meta.type === 'DOMAIN-SUFFIX') suffixRuleMap.set(`${meta.value}@@${meta.target}`, rule);
       if (meta.type === 'DOMAIN-KEYWORD') keywordRules.push(meta);
@@ -2524,7 +2524,7 @@ function buildConfig(config) {
     for (const rule of mergedRules) {
       const meta = extractRuleMatchValue(rule);
       if (!meta || meta.type !== 'DOMAIN' || !meta.value || !meta.target) continue;
-      
+
       if (suffixRuleMap.has(`${meta.value}@@${meta.target}`)) {
         diagnostics.redundantDomainCoveredBySuffix.push(rule);
       }
@@ -2536,20 +2536,20 @@ function buildConfig(config) {
         diagnostics.riskyShortKeywords.push(`DOMAIN-KEYWORD,${meta.value},${meta.target}`);
       }
     }
-    
+
     // 检测关键词重叠
     for (let i = 0; i < keywordRules.length; i++) {
       for (let j = i + 1; j < keywordRules.length; j++) {
         const a = keywordRules[i];
         const b = keywordRules[j];
-        
+
         // 同目标或空值跳过
         if (a.target === b.target || !a.value || !b.value) continue;
-        
+
         const av = a.value.toLowerCase();
         const bv = b.value.toLowerCase();
         if (av === bv) continue;
-        
+
         // 检测包含关系
         if (av.length >= 4 && bv.includes(av)) {
           diagnostics.broadKeywordOverlapHints.push({ broader: a, narrower: b });
@@ -3158,34 +3158,34 @@ function buildConfig(config) {
   ];
 
   // 规则装配
-  
-  const RULE_SET_DEFS = RULE_ASSEMBLY_ORDER.map(name => ({ 
-    name, 
-    rules: RULE_SET_MAP[name] 
+
+  const RULE_SET_DEFS = RULE_ASSEMBLY_ORDER.map(name => ({
+    name,
+    rules: RULE_SET_MAP[name]
   }));
-  
+
   perfStart('rules_assemble');
   const assembledRules = collectRuleSets(RULE_SET_DEFS, RULE_ASSEMBLY_ORDER);
   config.rules = mergeRuleSets(assembledRules);
   perfEnd('rules_assemble');
-  
+
   // 规则健康检查：确保存在最终兜底规则
   if (!config.rules.length || !config.rules.some(rule => typeof rule === 'string' && /^MATCH\s*,/i.test(rule))) {
     throw new Error('rules health check failed: missing fallback MATCH rule');
   }
   // 规则目标校验：确保所有目标都指向有效策略组
-  
+
   const missingRuleTargets = [];
   const seenMissingRuleTargets = new Set();
-  
+
   for (let i = 0; i < config.rules.length; i++) {
     const rule = config.rules[i];
     const target = extractRulePolicyTarget(rule);
-    
+
     // 跳过有效目标和已记录的缺失目标
     if (!target || availableRuleTargets.has(target)) continue;
     if (seenMissingRuleTargets.has(target)) continue;
-    
+
     seenMissingRuleTargets.add(target);
     missingRuleTargets.push(target);
   }
@@ -3223,12 +3223,12 @@ function buildConfig(config) {
   if (dnsBindingErrors.length) {
     throw new Error('DNS service binding check failed: ' + dnsBindingErrors.join(' | '));
   }
-  
+
   // 规则诊断：可选的深度分析（开发调试用）
-  
+
   if (RULE_DIAGNOSTICS_ENABLED) {
     const ruleDiagnostics = buildRuleDiagnostics(RULE_SET_DEFS, config.rules);
-    
+
     // 警告：风险关键词规则
     if (ruleDiagnostics.riskyShortKeywords.length && typeof console !== 'undefined' && typeof console.warn === 'function') {
       console.warn('rules health check warning: risky short DOMAIN-KEYWORD rule(s): ' + ruleDiagnostics.riskyShortKeywords.join(', '));
@@ -3239,7 +3239,7 @@ function buildConfig(config) {
   }
 
   // 完成：性能统计与配置返回
-  
+
   perfFlush();
   return config;
 }
@@ -3247,18 +3247,18 @@ function buildConfig(config) {
 // 辅助工具
 function clonePlainConfig(value) {
   if (!value || typeof value !== 'object') return {};
-  
+
   const config = Object.assign({}, value);
-  
+
   // 克隆核心配置字段
   config.proxies = Array.isArray(value.proxies)
     ? value.proxies.map(proxy => (proxy && typeof proxy === 'object' ? Object.assign({}, proxy) : proxy))
     : [];
-    
+
   config['proxy-groups'] = Array.isArray(value['proxy-groups'])
     ? value['proxy-groups'].map(group => (group && typeof group === 'object' ? Object.assign({}, group) : group))
     : [];
-    
+
   config.rules = Array.isArray(value.rules) ? value.rules.slice() : [];
   config.dns = value.dns && typeof value.dns === 'object' ? Object.assign({}, value.dns) : {};
   config.profile = value.profile && typeof value.profile === 'object' ? Object.assign({}, value.profile) : {};
