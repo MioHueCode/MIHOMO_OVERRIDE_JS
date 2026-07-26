@@ -19,8 +19,8 @@
  * 【特性说明】
  * 谷歌商店专用负载均衡（consistent-hashing，地区自动组节点池）
  *
- * @version 3.9.0
- * @date 2026-07-22
+ * @version 3.12.0
+ * @date 2026-07-27
  * @license MIT
  */
 function buildConfig(config) {
@@ -114,35 +114,98 @@ function buildConfig(config) {
     '+.gvt1.com','+.gvt2.com','+.gvt3.com','+.xn--ngstr-lra8j.com','+.xn--ngstr-cn-8za9o.com','+.services.googleapis.cn','+.googleapis.cn'
   ];
 
-  const cryptoDomains = () => d('binance.com','coinbase.com','okx.com','bybit.com','kucoin.com','metamask.io','trustwallet.com','walletconnect.com','oklink.com','okx-dns.com','okx-dns1.com','okx-dns2.com','byapis.com','bycsi.com','bybit-global.com','bybitglobal.com','bnbstatic.com','binanceapi.com');
+  const cryptoDomains = () => d(
+    'binance.com','binance.us','binanceapi.com','bnbstatic.com','coinbase.com','okx.com','okx.ac','okx.cab','oklink.com','okx-dns.com','okx-dns1.com','okx-dns2.com',
+    'bybit.com','bytick.com','byapis.com','bycsi.com','bybit-global.com','bybitglobal.com','kucoin.com','kucoin.plus','gate.io','gateimg.com','gatedata.org',
+    'kraken.com','bitget.com','mexc.com','huobi.com','htx.com','metamask.io','trustwallet.com','walletconnect.com','walletconnect.org','ethereum.org','etherscan.io',
+    'opensea.io','uniswap.org','ledger.com','trezor.io','hyperliquid.xyz','polymarket.com'
+  );
 
-  const financeDomains = () => [...d('paypal.com','stripe.com','wise.com','revolut.com','card.io','paypalhere.com','venmo.com','xoom.com','stripe.network','stripe-terminal-local-reader.net','checkout.com','checkoutcdn.com','checkoutshopper.com','payoneer.com','airwallex.com','worldpay.com','skrill.com','neteller.com','authy.com'), 'hcaptcha.com', 'newassets.hcaptcha.com'];
+  const financeDomains = () => [...d(
+    'paypal.com','paypal.com.hk','paypal.com.sg','paypal.me','paypalservice.com','paypalcredit.com','braintreegateway.com','braintreepayments.com',
+    'stripe.com','stripe.network','stripe-terminal-local-reader.net','wise.com','transferwise.com','revolut.com','card.io','paypalhere.com','venmo.com','xoom.com',
+    'checkout.com','checkoutcdn.com','checkoutshopper.com','payoneer.com','airwallex.com','worldpay.com','skrill.com','neteller.com','authy.com','adyen.com',
+    'visa.com','mastercard.com','amex.com','ibkr.com','interactivebrokers.com','schwab.com'
+  ), 'hcaptcha.com', 'newassets.hcaptcha.com'];
 
-  const streamingDomains = () => d('netflix.com','nflxvideo.net','disneyplus.com','primevideo.com','spotify.com','hulu.com','hbomax.com','twitch.tv','twtrdns.net');
+  const streamingDomains = () => d(
+    'netflix.com','nflxvideo.net','nflximg.net','nflxext.com','nflxso.net','netflix.net',
+    'disneyplus.com','disney-plus.net','dssott.com','bamgrid.com','primevideo.com','amazonvideo.com','media-amazon.com',
+    'spotify.com','scdn.co','spoti.fi','hulu.com','huluim.com','max.com','hbomax.com','hbo.com','twitch.tv','twitchcdn.net','ttvnw.net','jtvnw.net','live-video.net','twtrdns.net',
+    'crunchyroll.com','crunchyrollsvc.com','paramountplus.com','peacocktv.com','appletvplus.com'
+  );
 
-  const gamingDomains = () => d('steamcommunity.com','steampowered.com','epicgames.com','roblox.com','battle.net','blizzard.com','blizzardentertainment.com','battlenet.com.cn','ea.com','origin.com','uplay.com','nintendo.com','playstation.com','xbox.com','xboxlive.com','supercell.com','supercell.net');
+  const gamingDomains = () => d(
+    'steamcommunity.com','steampowered.com','steamstatic.com','steamcontent.com','steamserver.net','epicgames.com','unrealengine.com','epicgames-download1.akamaized.net',
+    'roblox.com','rbxcdn.com','battle.net','blizzard.com','blizzardentertainment.com','battlenet.com.cn','ea.com','origin.com','uplay.com','ubisoft.com',
+    'nintendo.com','nintendo.net','playstation.com','playstation.net','xbox.com','xboxlive.com','xboxservices.com','supercell.com','supercell.net',
+    'riotgames.com','leagueoflegends.com','playvalorant.com','minecraft.net','mojang.com'
+  );
 
   const discordDomains = () => d('discord.com','discord.gg','discord.gift','discord.new','discordapp.com','discordapp.net','discordcdn.com','discord.media','discordsays.com','dis.gd');
+  const telegramDomains = () => d('telegram.org','t.me','telegra.ph','telegram.me','telegram.dog','telegram-cdn.org','telegram.space','tg.dev','tdesktop.com','telesco.pe','usercontent.dev','graph.org');
+  const collaborationDomains = () => d(
+    'zoom.us','zoom.com','zoomgov.com','slack.com','slack-edge.com','slack-msgs.com','notion.so','notion.site','notion.com',
+    'dropbox.com','dropboxapi.com','dropboxusercontent.com','box.com','boxcloud.com','figma.com','figma-gov.com','canva.com',
+    'atlassian.com','atlassian.net','jira.com','trello.com','asana.com','monday.com','miro.com','airtable.com','linear.app','clickup.com'
+  );
+  const developerDomains = () => d(
+    'stackoverflow.com','stackexchange.com','serverfault.com','superuser.com','askubuntu.com',
+    'docker.com','docker.io','dockerstatic.com','pypi.org','pythonhosted.org','files.pythonhosted.org',
+    'crates.io','static.crates.io','static.rust-lang.org','golang.org','proxy.golang.org','pkg.go.dev','sum.golang.org',
+    'maven.org','repo1.maven.org','repo.maven.apache.org','gradle.org','services.gradle.org',
+    'registry.npmjs.org','npmjs.com','npmjs.org','yarnpkg.com','rubygems.org','packagist.org','nuget.org','cdn.nuget.org',
+    'gcr.io','ghcr.io','quay.io','k8s.io','kubernetes.io','hashicorp.com','terraform.io','vagrantup.com'
+  );
+  const socialExtraDomains = () => d(
+    'linkedin.com','licdn.com','pinterest.com','pinimg.com','snapchat.com','sc-cdn.net','signal.org','signal.art','signal.tube',
+    'medium.com','wikipedia.org','wikimedia.org','wikidata.org','v2ex.com','quora.com','quoracdn.net'
+  );
 
-  const tiktokDomains = () => d('tiktok.com','tiktokv.com','byteoversea.com','ibytedtos.com','tiktokcdn.com','tiktokcdn-us.com','tiktokcdn-eu.com','tiktokrow-cdn.com','tiktokv.us','ibyteimg.com','muscdn.com','musical.ly','bytefcdn-oversea.com');
+  const tiktokDomains = () => d(
+    'tiktok.com','tiktokv.com','byteoversea.com','ibytedtos.com','tiktokcdn.com','tiktokcdn-us.com','tiktokcdn-eu.com','tiktokrow-cdn.com','tiktokv.us',
+    'ibyteimg.com','muscdn.com','musical.ly','bytefcdn-oversea.com','tiktokd.org','tiktokd.net','tiktokmusic.app','ttwebview.com','ttwstatic.com',
+    'bytegecko-i18n.com','byteintlapi.com','isnssdk.com','snssdk.com'
+  );
 
-  const aiDomains = () => d('openai.com','chatgpt.com','claude.ai','anthropic.com','perplexity.ai','poe.com','midjourney.com','character.ai','c.ai','groq.com','mistral.ai','x.ai','cohere.com','huggingface.co','replicate.com','cursor.sh');
+  const aiDomains = () => d(
+    'openai.com','chatgpt.com','oaistatic.com','oaiusercontent.com','claude.ai','anthropic.com','anthropiccdn.com','claudeusercontent.com',
+    'perplexity.ai','perplexity.com','pplx.ai','poe.com','poecdn.net','midjourney.com','character.ai','c.ai','groq.com','mistral.ai','lechat.ai',
+    'x.ai','grok.com','cohere.com','huggingface.co','replicate.com','cursor.sh','cursor.com','gemini.google.com','generativeai.google',
+    'notebooklm.google.com','copilot.microsoft.com','stability.ai'
+  );
 
-  const metaDomains = () => d('facebook.com','fbcdn.net','instagram.com','whatsapp.com','whatsapp.net');
-  const devCommunityDomains = () => [...d('github.com','githubusercontent.com','reddit.com'), '+.reddit.map.fastly.net'];
-  const bigTechDomains = () => [...d('apple.com','icloud.com','microsoft.com','live.com','aws.amazon.com'), 'account.amazon.com', 'payments.amazon.com'];
-  const privacyDomains = () => [...d('cloudflare-dns.com','one.one.one.one','quad9.net','dns9.quad9.net','nextdns.io','controld.com','mullvad.net','dns.sb'), 'connectivitycheck.android.com', 'connectivitycheck.gstatic.com', 'www.gstatic.com'];
-  const googlePlayIntegrityDomains = () => ['www.googleapis.com','android.googleapis.com','firebaseinstallations.googleapis.com','firebase-settings.crashlytics.com','+.firebaseio.com','+.firebaseapp.com'];
+  const metaDomains = () => d(
+    'facebook.com','facebook.net','fb.com','fbcdn.net','fbsbx.com','tfbnw.net','messenger.com','m.me',
+    'instagram.com','cdninstagram.com','ig.me','threads.net','threadsdotnet.com','whatsapp.com','whatsapp.net'
+  );
+  const devCommunityDomains = () => uniqList([
+    ...d('github.com','githubusercontent.com','githubassets.com','github.io','ghcr.io','reddit.com','redditmedia.com','redditstatic.com','redd.it'),
+    '+.reddit.map.fastly.net',
+    ...developerDomains()
+  ]);
+  const bigTechDomains = () => [...d('apple.com','icloud.com','icloud-content.com','microsoft.com','microsoftonline.com','live.com','office.com','office365.com','onedrive.com','bing.com','aws.amazon.com'), 'account.amazon.com', 'payments.amazon.com'];
+  const privacyDomains = () => [...d('cloudflare-dns.com','one.one.one.one','quad9.net','dns9.quad9.net','nextdns.io','controld.com','mullvad.net','dns.sb','dns.adguard-dns.com'), 'connectivitycheck.android.com', 'connectivitycheck.gstatic.com', 'www.gstatic.com'];
+  const googlePlayIntegrityDomains = () => ['www.googleapis.com','android.googleapis.com','firebaseinstallations.googleapis.com','firebase-settings.crashlytics.com','+.firebaseio.com','+.firebaseapp.com','play-fe.googleapis.com','clientservices.googleapis.com'];
   const translationDomains = () => d('translate.google.com','translate.google.cn','translate.googleapis.com','translation.googleapis.com','translate-pa.googleapis.com','deepl.com','deeplpro.com','deeplusercontent.com','linguee.com');
-  const browserRiskDomains = () => [...d('addons.mozilla.org','addons.cdn.mozilla.net','online-metrix.net'), 'api.ipify.org','fpjs.checkout.com','fpjscache.checkout.com','risk.checkout.com','challenges.cloudflare.com','turnstile.cloudflare.com','assets.cloudflare.com','hcaptcha.com','newassets.hcaptcha.com','volatile-pa.googleapis.com','settings-win.data.microsoft.com'];
-  const adguardServiceDomains = () => d('adtidy.org','adguard.com','adguard.org','adguard-dns.io');
-  const openaiRealtimeDomains = () => d('auth0.openai.com','oaistatic.com','oaiusercontent.com','files.oaiusercontent.com','cdn.openai.com','livekit.cloud','statsigapi.net');
-  const aiFinanceRiskDomains = () => [...aiDomains(), ...d('metamask.io','neverless.com','noones.com','okx.com','okx.ac','okx.cab','xlayer.tech','ifastgb.com','fundsupermart.com','giffgaff.com'), 'noonessupport.zendesk.com', 'stest.zimperium.com', 'cdn-eu.dynamicyield.com', 'privacyportal-uk.onetrust.com', 'mobile-data.onetrust.io'];
-  const mainstreamOverseasDomains = () => [...streamingDomains(), ...d('discord.com','discordapp.com','reddit.com','telegram.org','t.me','github.com','githubusercontent.com','steamcommunity.com','steampowered.com','epicgames.com','roblox.com')];
-  const youtubeMediaDomains = () => ['jnn-pa.googleapis.com','youtubeembeddedplayer.googleapis.com','video.google.com','+.googlevideo.com','+.ytimg.com','+.ggpht.com'];
-  const baseOverseasDomains = () => d('google.com','youtube.com','twitter.com','x.com','telegram.org','t.me');
-  const infraDomains = () => d('dns.google','dns.google.com','api2.branch.io','cdn.branch.io');
-  const productivityDomains = () => d('cloudflare.com');
+  const browserRiskDomains = () => [...d('addons.mozilla.org','addons.cdn.mozilla.net','online-metrix.net'), 'api.ipify.org','fpjs.checkout.com','fpjscache.checkout.com','risk.checkout.com','challenges.cloudflare.com','turnstile.cloudflare.com','assets.cloudflare.com','hcaptcha.com','newassets.hcaptcha.com','volatile-pa.googleapis.com','settings-win.data.microsoft.com','accounts.google.com','myaccount.google.com','login.live.com','login.microsoftonline.com','appleid.apple.com'];
+  const adguardServiceDomains = () => d('adtidy.org','adguard.com','adguard.org','adguard-dns.io','dns.adguard-dns.com');
+  const openaiRealtimeDomains = () => d('auth0.openai.com','oaistatic.com','oaiusercontent.com','files.oaiusercontent.com','cdn.openai.com','livekit.cloud','statsigapi.net','chatgpt.livekit.cloud','openaiapi-site.azureedge.net');
+  const aiFinanceRiskDomains = () => [...aiDomains(), ...d('metamask.io','neverless.com','noones.com','okx.com','okx.ac','okx.cab','xlayer.tech','ifastgb.com','fundsupermart.com','giffgaff.com','binance.com','coinbase.com','trustwallet.com'), 'noonessupport.zendesk.com', 'stest.zimperium.com', 'cdn-eu.dynamicyield.com', 'privacyportal-uk.onetrust.com', 'mobile-data.onetrust.io'];
+  const mainstreamOverseasDomains = () => uniqList([
+    ...streamingDomains(),
+    ...telegramDomains(),
+    ...collaborationDomains(),
+    ...socialExtraDomains(),
+    ...d('discord.com','discordapp.com','reddit.com','github.com','githubusercontent.com','steamcommunity.com','steampowered.com','epicgames.com','roblox.com','instagram.com','whatsapp.com','facebook.com')
+  ]);
+  const youtubeMediaDomains = () => ['jnn-pa.googleapis.com','youtubeembeddedplayer.googleapis.com','video.google.com','+.googlevideo.com','+.ytimg.com','+.ggpht.com','+.youtube.com','+.youtu.be'];
+  const baseOverseasDomains = () => d('google.com','youtube.com','twitter.com','x.com','telegram.org','t.me','instagram.com','whatsapp.com');
+  const infraDomains = () => d('dns.google','dns.google.com','cloudflare-dns.com','api2.branch.io','cdn.branch.io');
+  const productivityDomains = () => uniqList([
+    ...d('cloudflare.com','workers.dev','pages.dev','trycloudflare.com'),
+    ...collaborationDomains()
+  ]);
   const adguardDomains = () => d(
     'pglstatp-toutiao.com','pglstatp.com','pangolin-sdk-toutiao.com','pangolin.snssdk.com','sgsnssdk.com','unionadjs.com',
     'adkwai.com','e.kuaishou.com','adukwai.com','tanx.com','alimama.com','mmstat.com','gdt.qq.com','e.qq.com',
@@ -208,7 +271,12 @@ function buildConfig(config) {
     ...openaiRealtimeDomains(),
     ...tiktokDomains(),
     ...googleDomains(),
-    ...playStoreDomains()
+    ...playStoreDomains(),
+    ...telegramDomains(),
+    ...metaDomains(),
+    ...discordDomains(),
+    ...streamingDomains(),
+    ...aiDomains()
   ]);
   config.sniffer['skip-domain'] = uniqList([
     ...asArray(config.sniffer['skip-domain']),
@@ -216,8 +284,11 @@ function buildConfig(config) {
     // DoH 域名：解析器自身不参与嗅探，避免请求链路互相干扰。
     'dns.adguard-dns.com',
     'dns.google',
+    'dns.google.com',
     'cloudflare-dns.com',
+    'one.one.one.one',
     'doh.pub',
+    'doh.360.cn',
     'dns.alidns.com',
 
     // 时间同步：校时请求应尽量保持简单直接，避免额外嗅探干预。
@@ -267,20 +338,27 @@ function buildConfig(config) {
   const directChoices = ['🇨🇳 直连 | IPv4优先', '🇨🇳 直连 | IPv6优先', '🇨🇳 直连 | 双栈', '全球直连'];
 
   const DNS_POLICY_DOMAIN_SETS = {
-
     adguard: adguardDomains(),
     tiktok: tiktokDomains(),
     adguardService: adguardServiceDomains(),
     browserRisk: browserRiskDomains(),
-
     openaiRealtime: openaiRealtimeDomains(),
     google: googleDomains(),
     playStore: playStoreDomains(),
-
     aiFinanceRisk: aiFinanceRiskDomains(),
     mainstreamOverseas: mainstreamOverseasDomains(),
     youtubeMedia: youtubeMediaDomains(),
-    translation: translationDomains()
+    translation: translationDomains(),
+    telegram: telegramDomains(),
+    meta: metaDomains(),
+    discord: discordDomains(),
+    streaming: streamingDomains(),
+    gaming: gamingDomains(),
+    collaboration: collaborationDomains(),
+    developer: developerDomains(),
+    socialExtra: socialExtraDomains(),
+    crypto: cryptoDomains(),
+    finance: financeDomains()
   };
   const DNS_FALLBACK_FILTER_DOMAIN_SETS = {
     baseOverseas: baseOverseasDomains(),
@@ -288,13 +366,14 @@ function buildConfig(config) {
     ai: aiDomains(),
     devCommunity: devCommunityDomains(),
     discord: discordDomains(),
-
+    telegram: telegramDomains(),
     tiktok: tiktokDomains(),
     productivity: productivityDomains(),
-
+    collaboration: collaborationDomains(),
+    developer: developerDomains(),
+    socialExtra: socialExtraDomains(),
     crypto: cryptoDomains(),
     finance: financeDomains(),
-
     streaming: streamingDomains(),
     gaming: gamingDomains(),
     bigTech: bigTechDomains(),
@@ -353,6 +432,10 @@ function buildConfig(config) {
   };
 
   // DNS 主配置：负责 fake-ip、nameserver、hosts 与策略分流的统一落盘。
+  // 防泄露原则：
+  // 1) fake-ip 接管应用 DNS，避免系统直连 ISP DNS；
+  // 2) respect-rules=true 让 DNS 查询跟随分流规则（境外走代理、国内直连）；
+  // 3) nameserver 用境外可信 DoH；direct-nameserver / proxy-server-nameserver 用国内解析，避免环依赖与污染。
   config.dns = Object.assign({}, config.dns || {}, {
     enable: true,
     listen: '0.0.0.0:1053',
@@ -362,10 +445,12 @@ function buildConfig(config) {
     'cache-algorithm': 'arc',
     'prefer-h3': true,
     'use-system-hosts': false,
-    'respect-rules': false,
+    // DNS 跟随规则：境外域名的解析请求经代理发出，显著降低 DNS 泄露面。
+    'respect-rules': true,
     'use-hosts': true,
     'enhanced-mode': 'fake-ip',
     'fake-ip-range': '198.18.0.0/15',
+    'fake-ip-filter-mode': 'blacklist',
     'fake-ip-ttl': 60,
     'fake-ip-filter': uniqList([
       ...asArray(config.dns && config.dns['fake-ip-filter']),
@@ -401,15 +486,19 @@ function buildConfig(config) {
       ...DNS_FAKE_IP_FILTER_SETS.pushAndCast
     ]),
 
+    // 经代理发出的 DNS 查询使用境外可信 DoH，避免解析结果被本地 ISP 窥探/污染。
     nameserver: uniqList([
       ...asArray(config.dns && config.dns.nameserver),
-      ...cnDns,
-      ...localDns
+      ...trustDns
     ]),
+    // 仅允许 IP 形态的 bootstrap DNS，禁止再写 DoH 域名造成解析环。
     'default-nameserver': uniqList([
       ...asArray(config.dns && config.dns['default-nameserver']),
-      ...localDns
+      ...localDns,
+      '1.1.1.1',
+      '8.8.8.8'
     ]),
+    // 节点服务器域名必须直连解析，不能再走代理，否则会形成启动环依赖。
     'proxy-server-nameserver': uniqList([
       ...asArray(config.dns && config.dns['proxy-server-nameserver']),
       ...cnDns,
@@ -438,8 +527,15 @@ function buildConfig(config) {
     // 广告与追踪域名：交给 AdGuard DNS，尽量在解析层先做拦截。
     'geosite:category-ads-all': adguardDns,
 
-    // 国内 DoH 服务自身：强制回落本地 DNS，避免解析自循环。
+    // DoH / 上游解析器自举：强制回落本地 DNS，避免解析自循环。
     'dns.alidns.com': localDns,
+    'doh.pub': localDns,
+    'doh.360.cn': localDns,
+    'dns.google': localDns,
+    'dns.google.com': localDns,
+    'cloudflare-dns.com': localDns,
+    'one.one.one.one': localDns,
+    'dns.adguard-dns.com': localDns,
   });
   function appendDnsPolicyDomains(target, domains, dnsList) {
     const list = asArray(domains);
@@ -455,13 +551,29 @@ function buildConfig(config) {
     { key: '广告拦截', policyDomains: DNS_POLICY_DOMAIN_SETS.adguard, dns: adguardDns },
     { key: 'TikTok', policyDomains: DNS_POLICY_DOMAIN_SETS.tiktok, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok, dns: trustDns },
     { key: 'AdGuard服务', policyDomains: DNS_POLICY_DOMAIN_SETS.adguardService, dns: trustDns, auxiliary: true },
-    { key: '风控安全', policyDomains: DNS_POLICY_DOMAIN_SETS.browserRisk, fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: trustDns },
+    { key: '风控安全', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.browserRisk, DNS_POLICY_DOMAIN_SETS.finance, DNS_POLICY_DOMAIN_SETS.crypto)), fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: trustDns },
     { key: 'AI', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.openaiRealtime, DNS_POLICY_DOMAIN_SETS.aiFinanceRisk)), fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.ai, dns: trustDns },
     { key: 'Google', policyDomains: DNS_POLICY_DOMAIN_SETS.google, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.baseOverseas, dns: trustDns },
     { key: '谷歌商店', policyDomains: DNS_POLICY_DOMAIN_SETS.playStore, fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.playStore, DNS_FALLBACK_FILTER_DOMAIN_SETS.googlePlayIntegrity)), dns: trustDns },
-    { key: '海外通用', policyDomains: DNS_POLICY_DOMAIN_SETS.mainstreamOverseas, fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.meta, DNS_FALLBACK_FILTER_DOMAIN_SETS.devCommunity, DNS_FALLBACK_FILTER_DOMAIN_SETS.discord, DNS_FALLBACK_FILTER_DOMAIN_SETS.streaming, DNS_FALLBACK_FILTER_DOMAIN_SETS.gaming, DNS_FALLBACK_FILTER_DOMAIN_SETS.bigTech)), dns: trustDns, auxiliary: true },
     { key: 'YouTube', policyDomains: DNS_POLICY_DOMAIN_SETS.youtubeMedia, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.youtubeMedia, dns: trustDns },
     { key: '翻译服务', policyDomains: DNS_POLICY_DOMAIN_SETS.translation, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.translation, dns: trustDns },
+    { key: 'Telegram', policyDomains: DNS_POLICY_DOMAIN_SETS.telegram, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.telegram, dns: trustDns },
+    { key: 'Meta', policyDomains: DNS_POLICY_DOMAIN_SETS.meta, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.meta, dns: trustDns },
+    { key: 'Discord', policyDomains: DNS_POLICY_DOMAIN_SETS.discord, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.discord, dns: trustDns },
+    { key: '流媒体', policyDomains: DNS_POLICY_DOMAIN_SETS.streaming, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.streaming, dns: trustDns },
+    { key: '国外游戏', policyDomains: DNS_POLICY_DOMAIN_SETS.gaming, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.gaming, dns: trustDns },
+    { key: 'GitHub', policyDomains: DNS_POLICY_DOMAIN_SETS.developer, fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.developer, DNS_FALLBACK_FILTER_DOMAIN_SETS.devCommunity)), dns: trustDns },
+    { key: '海外通用', policyDomains: DNS_POLICY_DOMAIN_SETS.mainstreamOverseas, fallbackDomains: uniqList([].concat(
+      DNS_FALLBACK_FILTER_DOMAIN_SETS.meta,
+      DNS_FALLBACK_FILTER_DOMAIN_SETS.devCommunity,
+      DNS_FALLBACK_FILTER_DOMAIN_SETS.discord,
+      DNS_FALLBACK_FILTER_DOMAIN_SETS.telegram,
+      DNS_FALLBACK_FILTER_DOMAIN_SETS.streaming,
+      DNS_FALLBACK_FILTER_DOMAIN_SETS.gaming,
+      DNS_FALLBACK_FILTER_DOMAIN_SETS.collaboration,
+      DNS_FALLBACK_FILTER_DOMAIN_SETS.socialExtra,
+      DNS_FALLBACK_FILTER_DOMAIN_SETS.bigTech
+    )), dns: trustDns, auxiliary: true },
     { key: '隐私与连通性', policyDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.privacyAndCaptivePortal, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.privacyAndCaptivePortal, dns: trustDns, auxiliary: true }
   ];
   const dnsBindingFallbackDomains = [];
@@ -489,10 +601,28 @@ function buildConfig(config) {
     ])
   };
 
-  // DNS fallback 与 direct-nameserver：保持保守的 strict 行为，不再全局联动模式开关。
+  // DNS fallback：仅在 nameserver 失败或结果命中 fallback-filter 时使用境外可信 DoH。
   config.dns.fallback = trustDns;
-  config.dns['direct-nameserver'] = [...cnDns, ...localDns];
+  // 直连域名（国内 / 局域网 / 直连策略）使用国内 DoH + 本地 DNS，避免境外绕路。
+  config.dns['direct-nameserver'] = uniqList([...cnDns, ...localDns]);
   config.dns['direct-nameserver-follow-policy'] = true;
+
+  // default-nameserver 只能是 IP，避免 DoH 域名在 bootstrap 阶段形成解析环。
+  config.dns['default-nameserver'] = asArray(config.dns['default-nameserver']).filter(server => {
+    const text = String(server || '').trim();
+    if (!text) return false;
+    if (/^https?:\/\//i.test(text) || /^tls:\/\//i.test(text) || /^quic:\/\//i.test(text)) return false;
+    return /^(?:\d{1,3}\.){3}\d{1,3}$/.test(text) || text.includes(':');
+  });
+  if (!config.dns['default-nameserver'].length) {
+    config.dns['default-nameserver'] = ['223.6.6.6', '119.29.29.29', '1.1.1.1', '8.8.8.8'];
+  }
+
+  // 防泄露收口：禁用系统 hosts 参与代理决策，强制 fake-ip + respect-rules。
+  config.dns.enable = true;
+  config.dns['enhanced-mode'] = 'fake-ip';
+  config.dns['respect-rules'] = true;
+  config.dns['use-system-hosts'] = false;
 
   // 节点处理
   // 过滤非真实代理的正则表达式
@@ -603,11 +733,42 @@ function buildConfig(config) {
     return streamingNamePatterns.some(re => re.test(String(name || '')));
   }
 
+  // 专线识别：与家宽同级特征池，供全球专线聚合
+  const dedicatedNamePatterns = [
+    /专线|精品专线|国际专线|跨境专线|直连专线|专线节点|专线线路|专线优化|企业专线|游戏专线|加速专线|高速专线|隧道专线|独享专线|独享线路|静态专线|内网专线|跨区专线|跨洋专线/,
+    /联通精品|电信精品|移动精品|精品网|精品线路|陆缆|海缆专线|商宽专线|商业专线/,
+    /独享\s*IP|静态\s*IP|固定\s*IP/,
+    /\biplc\b/i,
+    /\biepl\b/i,
+    /\bcni?2(?:\s|-|_)*gia\b/i,
+    /\bcn2gia\b/i,
+    /\bbgp(?:\s|-|_)*(?:transit|direct|line|专线)\b/i,
+    /\bdedicated(?:\s|-|_)*(?:line|link|route|ip)?\b/i,
+    /\bprivate(?:\s|-|_)*(?:line|link|route)\b/i,
+    /\bleased(?:\s|-|_)*line\b/i,
+    /\bpremium(?:\s|-|_)*(?:line|route|link)\b/i,
+    /\bexpress(?:\s|-|_)*(?:line|route)\b/i,
+    /\bas(?:9929|4837|4134|4809|9808|58453)\b/i,
+    /(?:^|[^0-9])(?:9929|4837)(?:[^0-9]|$)/
+  ];
+  const dedicatedContextPatterns = [
+    /(?:优化|高速|低延迟|低延时|直达|直连).{0,6}(?:专线|线路|通道|隧道)/,
+    /(?:专线|线路|通道|隧道).{0,6}(?:优化|高速|低延迟|低延时|直达|直连)/,
+    /(?:iplc|iepl|cn2|gia|bgp).{0,8}(?:专线|线路|直连|直达)/i
+  ];
+  function isDedicatedProxyName(name) {
+    const text = String(name || '');
+    if (!text) return false;
+    if (dedicatedNamePatterns.some(re => re.test(text))) return true;
+    return dedicatedContextPatterns.some(re => re.test(text));
+  }
+
   perfStart('proxy_classify');
   // 节点清洗
   const cleanProxies = [];
   const allProxyNames = [];
   const residentialProxyNames = [];
+  const dedicatedProxyNames = [];
   const multiplierProxyNames = [];
   const streamingProxyNames = [];
   const seenProxyNames = new Set();
@@ -620,6 +781,7 @@ function buildConfig(config) {
     cleanProxies.push(proxy);
     allProxyNames.push(proxyName);
     if (isResidentialProxyName(proxyName)) residentialProxyNames.push(proxyName);
+    if (isDedicatedProxyName(proxyName)) dedicatedProxyNames.push(proxyName);
     if (isMultiplierProxyName(proxyName)) multiplierProxyNames.push(proxyName);
     if (isStreamingProxyName(proxyName)) streamingProxyNames.push(proxyName);
   }
@@ -1159,7 +1321,10 @@ function buildConfig(config) {
   };
   const iconMap = {
     rocket: qIcon('Rocket'), auto: qIcon('Auto'), select: qIcon('Static'), balance: qIcon('Round_Robin'),
-    direct: qIcon('Direct'), final: qIcon('Final'), global: qIcon('Global'),
+    direct: qIcon('Direct'),
+    // 漏网之鱼：鱼图标
+    final: 'https://api.iconify.design/tabler:fish.svg?color=%2306b6d4',
+    global: qIcon('Global'),
     fallback: qIcon('Available'), fallbackFinal: qIcon('Airport'),
     flare: 'https://api.iconify.design/tabler:flame-filled.svg?color=%2300d1b2',
     lowMultiplier: 'https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b',
@@ -1176,6 +1341,11 @@ function buildConfig(config) {
     spotify: qIcon('Spotify'), twitch: qIcon('Twitch'), discord: qIcon('Discord'),
     niconico: 'https://api.iconify.design/simple-icons:niconico.svg?color=%23EAB20C',
     taiwanMedia: qIcon('Bahamut'),
+    dedicated: 'https://api.iconify.design/tabler:route-2.svg?color=%233b82f6',
+    privacy: qIcon('Lock'),
+    payment: 'https://api.iconify.design/tabler:credit-card.svg?color=%23f59e0b',
+    personalMedia: qIcon('Emby'),
+    news: 'https://api.iconify.design/simple-icons:bbc.svg?color=%230068BD',
     social: 'https://api.iconify.design/simple-icons:reddit.svg?color=%23FF4500',
     reddit: 'https://api.iconify.design/simple-icons:reddit.svg',
     china: qIcon('China_Map'), russia: qIcon('Russia'), jpkr: qIcon('AbemaTV'),
@@ -1424,6 +1594,9 @@ function buildConfig(config) {
   // 全局家宽池：从全部节点中抽出住宅线路，供风控 / 支付 / 登录等敏感业务优先选择。
   const globalHomeNodes = residentialProxyNames.slice();
 
+  // 全球专线：与全球家宽同级，聚合所有识别为专线的节点
+  const globalDedicatedNodes = dedicatedProxyNames.slice();
+
   // 可见地区链：把地区自动组与家宽自动组统一并入手动候选菜单。
   const fusionVisibleRegions = unique(regionAutoNames.concat(regionHomeAutoNames));
 
@@ -1625,6 +1798,9 @@ function buildConfig(config) {
   const globalHomeGroup = globalHomeNodes.length
     ? makeUrlTestGroup('全球家宽', iconMap.home, globalHomeNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
+  const globalDedicatedGroup = globalDedicatedNodes.length
+    ? makeUrlTestGroup('全球专线', iconMap.dedicated, globalDedicatedNodes, regionUrlTestInterval, regionUrlTestTolerance)
+    : null;
 
   // 倍率聚合：先按识别出的倍率值排序，再派生低倍率节点池。
 
@@ -1651,6 +1827,7 @@ function buildConfig(config) {
     : null;
   const globalFeatureChoices = buildChoiceList(
     globalHomeGroup ? ['全球家宽'] : [],
+    globalDedicatedGroup ? ['全球专线'] : [],
     lowMultiplierGroup ? ['低倍率节点'] : [],
     globalMultiplierGroup ? ['全球倍率'] : [],
     globalStreamingGroup ? ['全球流媒体'] : []
@@ -1810,6 +1987,7 @@ function buildConfig(config) {
     usableChoiceDef('riskControl', [
       '家宽故障转移',
       globalHomeGroup ? '全球家宽' : null,
+      globalDedicatedGroup ? '全球专线' : null,
       // 地区家宽紧跟全球家宽
       ...regionHomeAutoNames.filter(name => name && name !== '全球家宽'),
       '全球手动',
@@ -1835,7 +2013,10 @@ function buildConfig(config) {
     { key: '去中心化平台', first: ['欧美故障转移'], poolKey: 'common' },
     { key: '微软服务', first: ['节点选择', '自动选择', '全球直连'], poolKey: 'common' },
     { key: '谷歌商店', first: playStoreServiceChoices, poolKey: 'playStore' },
-    { key: 'AI', first: ['国外AI故障转移', '节点选择'], poolKey: 'aiOnly' }
+    { key: 'AI', first: ['国外AI故障转移', '节点选择'], poolKey: 'aiOnly' },
+    { key: '支付服务', first: ['港台故障转移', '节点选择', '自动选择'], poolKey: 'common' },
+    { key: '个人媒体', first: ['港台故障转移', '节点选择', '自动选择'], poolKey: 'streaming' },
+    { key: '新闻资讯', first: ['欧美故障转移', '节点选择', '自动选择'], poolKey: 'common' }
   ];
   const BUSINESS_SERVICE_HEAD = [
     ['YouTube', iconMap.youtube], ['TikTok', iconMap.tiktok], ['Meta', iconMap.meta],
@@ -1844,9 +2025,13 @@ function buildConfig(config) {
     ['谷歌商店', iconMap.playstore], ['微软服务', iconMap.microsoft]
   ];
   const BUSINESS_SERVICE_TAIL = [
-    ['翻译服务', iconMap.translate], ['Twitch', iconMap.twitch], ['GitHub', iconMap.github],
+    ['翻译服务', iconMap.translate],
+    ['支付服务', iconMap.payment],
+    ['Twitch', iconMap.twitch], ['GitHub', iconMap.github],
     ['AI', iconMap.ai], ['国外游戏', iconMap.game], ['社交信息流', iconMap.social],
-    ['去中心化平台', iconMap.decentralized], ['Discord', iconMap.discord]
+    ['去中心化平台', iconMap.decentralized], ['Discord', iconMap.discord],
+    ['个人媒体', iconMap.personalMedia],
+    ['新闻资讯', iconMap.news]
   ];
   const BUSINESS_SERVICE_ICON_DEFS = BUSINESS_SERVICE_HEAD.concat(BUSINESS_SERVICE_TAIL);
   const businessChoiceMap = makeBusinessChoiceMap(BUSINESS_CHOICE_DEFS, CHOICE_POOLS);
@@ -1909,6 +2094,7 @@ function buildConfig(config) {
   }
   const specialFeatureGroups = [];
   if (globalHomeGroup) specialFeatureGroups.push(globalHomeGroup);
+  if (globalDedicatedGroup) specialFeatureGroups.push(globalDedicatedGroup);
   if (lowMultiplierGroup) specialFeatureGroups.push(lowMultiplierGroup);
   if (globalMultiplierGroup) specialFeatureGroups.push(globalMultiplierGroup);
   if (globalStreamingGroup) specialFeatureGroups.push(globalStreamingGroup);
@@ -1936,6 +2122,7 @@ function buildConfig(config) {
   const UTILITY_GROUP_PRESET_DEFS = makeSelectGroupDefList([
     { name: '广告拦截', icon: iconMap.adblock, choices: ['REJECT', 'REJECT-DROP', 'PASS'], extraDefaults: ['REJECT-DROP'] },
     { name: '跟踪分析', icon: qIcon('Reject'), choices: ['REJECT', 'DIRECT', '自动选择'], extraDefaults: ['REJECT'] },
+    { name: '隐私保护', icon: iconMap.privacy, choices: ['REJECT', 'DIRECT', '自动选择'], extraDefaults: ['REJECT'] },
     { name: '全球直连', icon: iconMap.direct, choices: ['DIRECT'], extraDefaults: [] },
     { name: '漏网之鱼', icon: iconMap.final, choices: MAIN_CHOICE_POOLS.finalFallback }
   ]);
@@ -2427,18 +2614,97 @@ function buildConfig(config) {
     ...ruleDomain(['www.youtube.com', 'm.youtube.com', 'youtubeembeddedplayer.googleapis.com', 'jnn-pa.googleapis.com', 'video.google.com'], 'YouTube'),
     ...ruleSuffix(['youtube.com', 'youtubei.googleapis.com', 'youtube.googleapis.com', 'googlevideo.com', 'ytimg.com', 'ggpht.com', 'youtu.be'], 'YouTube')
   ];
-  // 应用进程规则
+  // 应用进程规则：Android 包名优先，覆盖主流海外 App 与常见客户端变体。
   const RULES_APP_PROCESS = [
-    ...ruleProcess(['ai.perplexity.app.android', 'com.google.android.apps.bard'], 'AI'),
-    ...ruleProcess(['com.spotify.music'], 'Spotify'),
-    ...ruleProcess(['com.netflix.mediaclient', 'com.disney.disneyplus', 'com.amazon.avod.thirdpartyclient', 'com.hulu.plus', 'com.hbo.hbonow', 'com.hbo.max'], '流媒体'),
+    // AI
+    ...ruleProcess([
+      'ai.perplexity.app.android', 'com.google.android.apps.bard', 'com.google.android.apps.gemini',
+      'com.openai.chatgpt', 'com.openai.chat', 'com.anthropic.claude', 'ai.x.grok',
+      'ai.cici.android', 'com.ciciai.app', 'com.coze.android', 'ai.coze.app',
+      'com.microsoft.copilot', 'com.microsoft.bing', 'com.deepseek.chat', 'com.moonshot.kimichat'
+    ], 'AI'),
+    // 音乐 / 流媒体
+    ...ruleProcess(['com.spotify.music', 'com.spotify.lite', 'com.aspiro.tidal'], 'Spotify'),
+    ...ruleProcess([
+      'com.netflix.mediaclient', 'com.disney.disneyplus', 'com.amazon.avod.thirdpartyclient',
+      'com.hulu.plus', 'com.hbo.hbonow', 'com.hbo.max', 'com.wbd.stream',
+      'com.paramount.android.pplus', 'com.peacocktv.peacockandroid', 'com.crunchyroll.crunchyroid',
+      'com.plexapp.android', 'org.jellyfin.mobile', 'com.mb.android'
+    ], '流媒体'),
+    // 社交 / 通讯
     ...ruleProcess(['com.discord'], 'Discord'),
-    ...ruleProcess(['com.twitter.android'], 'Twitter'),
-    ...ruleProcess(['com.reddit.frontpage'], '社交信息流'),
-    ...ruleProcess(['com.valvesoftware.android.steam.community', 'com.microsoft.xboxone.smartglass'], '国外游戏'),
-    ...ruleProcess(['com.google.android.apps.translate', 'com.deepl.mobiletranslator'], '翻译服务'),
-    ...ruleProcess(['com.google.android.gms', 'com.google.android.gsf', 'com.google.android.apps.maps'], 'Google'),
-    ...ruleProcess(['com.deniscerri.ytdl', 'com.deniscerri.ytdlnis', 'io.github.deniscerri.ytdlnis'], '下载专用组')
+    ...ruleProcess(['com.twitter.android', 'com.twitter.android.lite'], 'Twitter'),
+    ...ruleProcess(['com.reddit.frontpage', 'com.linkedin.android', 'com.pinterest', 'com.snapchat.android', 'com.medium.reader'], '社交信息流'),
+    ...ruleProcess([
+      'com.facebook.katana', 'com.facebook.lite', 'com.facebook.orca', 'com.facebook.mlite',
+      'com.instagram.android', 'com.instagram.barcelona', 'com.whatsapp', 'com.whatsapp.w4b'
+    ], 'Meta'),
+    ...ruleProcess([
+      'com.zhiliaoapp.musically', 'com.ss.android.ugc.trill', 'com.ss.android.ugc.aweme.mobile',
+      'com.ss.android.ugc.trill.go'
+    ], 'TikTok'),
+    ...ruleProcess([
+      'org.telegram.messenger', 'org.telegram.messenger.web', 'org.telegram.plus',
+      'com.exteragram.messenger', 'nekox.messenger', 'tw.nekomimi.nekogram',
+      'xyz.nextalone.nagram', 'ellipi.messenger', 'org.thunderdog.challegram',
+      'org.aka.messenger', 'org.telegram.BifToGram'
+    ], 'Telegram'),
+    ...ruleProcess(['org.thoughtcrime.securesms', 'org.thoughtcrime.securesms.donations'], '隐私保护'),
+    ...ruleProcess([
+      'jp.naver.line.android', 'com.linecorp.linelite', 'com.kakao.talk', 'com.nhn.android.search',
+      'com.nhn.android.band', 'jp.gocro.smartnews.android'
+    ], '日韩生态区'),
+    // 协作 / 云办公：暂挂 GitHub 组（开发与生产力同池，避免再拆一组）
+    ...ruleProcess([
+      'us.zoom.videomeetings', 'com.Slack', 'notion.id', 'com.notion.android',
+      'com.dropbox.android', 'com.box.android', 'com.figma.mirror', 'com.canva.editor',
+      'com.atlassian.android.jira.core', 'com.trello', 'com.asana.app', 'com.monday.monday'
+    ], 'GitHub'),
+    // 游戏
+    ...ruleProcess([
+      'com.valvesoftware.android.steam.community', 'com.epicgames.portal',
+      'com.roblox.client', 'com.mojang.minecraftpe', 'com.activision.callofduty.shooter',
+      'com.riotgames.league.wildrift', 'com.riotgames.league.teamfighttactics',
+      'com.supercell.clashofclans', 'com.supercell.clashroyale', 'com.supercell.brawlstars',
+      'com.nintendo.znca', 'com.playstation.remoteplay', 'com.microsoft.xboxone.smartglass',
+      'com.ea.gp.fifamobile', 'com.miHoYo.GenshinImpact', 'com.HoYoverse.hkrpgoversea',
+      'com.garena.game.codm', 'com.pubg.imobile', 'com.tencent.ig'
+    ], '国外游戏'),
+    // 翻译 / Google 基础服务
+    ...ruleProcess(['com.google.android.apps.translate', 'com.deepl.mobiletranslator', 'com.google.android.apps.googlevoice'], '翻译服务'),
+    ...ruleProcess([
+      'com.google.android.gms', 'com.google.android.gsf', 'com.google.android.apps.maps',
+      'com.google.android.googlequicksearchbox', 'com.google.android.apps.photos',
+      'com.google.android.apps.docs', 'com.google.android.apps.docs.editors.docs',
+      'com.google.android.apps.docs.editors.sheets', 'com.google.android.apps.docs.editors.slides',
+      'com.google.android.gm', 'com.google.android.calendar', 'com.google.android.contacts',
+      'com.google.android.keep', 'com.google.android.apps.tachyon', 'com.google.android.apps.nbu.files',
+      'com.google.android.apps.chromecast.app', 'com.google.android.apps.youtube.creator'
+    ], 'Google'),
+    // 微软 / Apple / GitHub / 支付 / 下载 / 新闻
+    ...ruleProcess([
+      'com.microsoft.office.outlook', 'com.microsoft.teams', 'com.microsoft.skydrive',
+      'com.microsoft.office.officehubrow', 'com.microsoft.office.excel', 'com.microsoft.office.word',
+      'com.microsoft.office.powerpoint', 'com.microsoft.bing', 'com.xbox.gamepass',
+      'com.azure.authenticator', 'com.microsoft.windowsintune.companyportal'
+    ], '微软服务'),
+    ...ruleProcess(['com.apple.android.music', 'com.apple.movetoios', 'com.icloud.mobile'], 'Apple'),
+    ...ruleProcess(['com.github.android', 'com.github.mobile', 'com.jetradarmobile.stackoverflow'], 'GitHub'),
+    ...ruleProcess([
+      'com.paypal.android.p2pmobile', 'com.stripe.android.dashboard', 'com.wise.android',
+      'com.revolut.revolut', 'com.coinbase.android', 'com.binance.dev', 'io.metamask',
+      'com.wallet.crypto.trustapp', 'exodusmovement.exodus', 'piuk.blockchain.android',
+      'com.okinc.okex.gp', 'com.bybit.app', 'com.kraken.trade', 'com.kubi.kucoin'
+    ], '风控安全'),
+    ...ruleProcess([
+      'com.deniscerri.ytdl', 'com.deniscerri.ytdlnis', 'io.github.deniscerri.ytdlnis',
+      'com.dv.adm', 'com.dv.adm.pay', 'idm.internet.download.manager', 'idm.internet.download.manager.plus',
+      'com.xunlei.downloadprovider', 'com.aria2.downloader', 'com.molink.john.hummingbird'
+    ], '下载专用组'),
+    ...ruleProcess([
+      'bbc.mobile.news.ww', 'com.nytimes.android', 'com.reuters', 'com.bloomberg.android.plus',
+      'com.cnn.mobile.android.phone', 'com.guardian', 'flipboard.app', 'com.google.android.apps.magazines'
+    ], '新闻资讯')
   ];
 
   // 翻译服务规则
@@ -2534,41 +2800,114 @@ function buildConfig(config) {
     ...ruleSuffix(['apple.com', 'icloud.com', 'icloud-content.com', 'itunes.apple.com', 'apps.apple.com', 'mzstatic.com', 'apple-dns.net', 'apple-mapkit.com', 'cdn-apple.com', 'apple.news', 'applemusic.com', 'appstore.com'], 'Apple')
   ];
   // 全球 AI 规则
-  const RULES_AI_GLOBAL = ruleSuffix(['oaistatic.com', 'oaiusercontent.com', 'openaiusercontent.com', 'chatgpt.livekit.cloud', 'openaiapi-site.azureedge.net', 'ai.com', 'claude.ai', 'claudeusercontent.com', 'anthropiccdn.com', 'perplexity.ai', 'perplexity.com', 'pplx.ai', 'groq.com', 'grok.com', 'x.ai', 'api.x.ai', 'mistral.ai', 'lechat.ai', 'poe.com', 'poecdn.net', 'stability.ai', 'character.ai', 'c.ai', 'midjourney.com'], 'AI');
+  const RULES_AI_GLOBAL = [
+
+
+    ...ruleSuffix([
+      'oaistatic.com', 'oaiusercontent.com', 'openaiusercontent.com', 'chatgpt.livekit.cloud', 'openaiapi-site.azureedge.net',
+      'ai.com', 'claude.ai', 'claudeusercontent.com', 'anthropiccdn.com', 'perplexity.ai', 'perplexity.com', 'pplx.ai',
+      'groq.com', 'grok.com', 'x.ai', 'api.x.ai', 'mistral.ai', 'lechat.ai', 'poe.com', 'poecdn.net', 'stability.ai',
+      'character.ai', 'c.ai', 'midjourney.com', 'cursor.sh', 'cursor.com', 'huggingface.co', 'replicate.com', 'cohere.com'
+    ], 'AI')
+  ];
   // 去中心化与 Cloudflare 规则
   const RULES_DECENTRALIZED_AND_CLOUDFLARE = [
     ...ruleProcess(['io.metamask', 'io.metamask:bridge', 'io.metamask:fileprovider'], '去中心化平台'),
     ...ruleDomain(['api2.branch.io', 'cdn.branch.io'], '去中心化平台'),
     ...ruleSuffix(['metamask.io'], '去中心化平台'),
     ...ruleDomain(['1.1.1.1'], 'Cloudflare'),
+
     ...ruleSuffix(['cloudflare.com', 'cloudflare-dns.com', 'cloudflareclient.com', 'workers.dev', 'pages.dev', 'trycloudflare.com', 'cdnjs.cloudflare.com'], 'Cloudflare')
   ];
   // 下载规则
-  const RULES_DOWNLOAD = ruleSuffix(['download.windowsupdate.com', 'windowsupdate.com', 'update.microsoft.com', 'delivery.mp.microsoft.com', 'download.jetbrains.com', 'download.docker.com', 'packages.microsoft.com', 'download.visualstudio.microsoft.com', 'speed.hetzner.de'], '下载专用组');
+  const RULES_DOWNLOAD = ruleSuffix([
+    'download.windowsupdate.com', 'windowsupdate.com', 'update.microsoft.com', 'delivery.mp.microsoft.com',
+    'download.jetbrains.com', 'download.docker.com', 'packages.microsoft.com', 'download.visualstudio.microsoft.com',
+    'speed.hetzner.de', 'github-releases.githubusercontent.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com',
+    'cdn.mysql.com', 'nodejs.org', 'static.rust-lang.org', 'golang.org', 'proxy.golang.org',
+    'repo.huaweicloud.com', 'mirrors.edge.kernel.org', 'cdn.kernel.org'
+  ], '下载专用组');
   // 国外游戏规则
-  const RULES_GLOBAL_GAMING = ruleSuffix(['steamcommunity.com', 'steampowered.com', 'steamstatic.com', 'steamcdn-a.akamaihd.net', 'steamserver.net', 'steamcontent.com', 'steampipe.akamaized.net', 'epicgames.com', 'unrealengine.com', 'epicgames-download1.akamaized.net', 'download.epicgames.com', 'riotgames.com', 'leagueoflegends.com', 'playvalorant.com', 'riotcdn.net', 'lol.secure.dyn.riotcdn.net', 'battle.net', 'blizzard.com', 'blzddist1-a.akamaihd.net', 'ea.com', 'origin.com', 'origin-a.akamaihd.net', 'uplay.com', 'ubisoft.com', 'cdn.ubisoft.com', 'rockstargames.com', 'gog.com', 'roblox.com', 'rbxcdn.com', 'minecraft.net', 'mojang.com', 'launcher.mojang.com', 'piston-meta.mojang.com', 'nintendo.com', 'nintendo.net', 'nintendo.co.jp', 'cdn.nintendo.net', 'sonyentertainmentnetwork.com', 'playstation.com', 'playstation.net', 'psnprofiles.com', 'xboxservices.com', 'supercell.com', 'supercell.net'], '国外游戏');
+  const RULES_GLOBAL_GAMING = [
+
+
+    ...ruleSuffix([
+      'steamcommunity.com', 'steampowered.com', 'steamstatic.com', 'steamcdn-a.akamaihd.net', 'steamserver.net', 'steamcontent.com', 'steampipe.akamaized.net',
+      'epicgames.com', 'unrealengine.com', 'epicgames-download1.akamaized.net', 'download.epicgames.com',
+      'riotgames.com', 'leagueoflegends.com', 'playvalorant.com', 'riotcdn.net', 'lol.secure.dyn.riotcdn.net',
+      'battle.net', 'blizzard.com', 'blzddist1-a.akamaihd.net', 'ea.com', 'origin.com', 'origin-a.akamaihd.net',
+      'uplay.com', 'ubisoft.com', 'cdn.ubisoft.com', 'rockstargames.com', 'gog.com', 'roblox.com', 'rbxcdn.com',
+      'minecraft.net', 'mojang.com', 'launcher.mojang.com', 'piston-meta.mojang.com',
+      'nintendo.com', 'nintendo.net', 'nintendo.co.jp', 'cdn.nintendo.net',
+      'sonyentertainmentnetwork.com', 'playstation.com', 'playstation.net', 'psnprofiles.com',
+      'xboxservices.com', 'supercell.com', 'supercell.net'
+    ], '国外游戏')
+  ];
   // GitHub 规则
-  const RULES_GITHUB = ruleSuffix(['github.com','github.io','githubusercontent.com','githubassets.com','githubstatus.com','ghcr.io','npmjs.com','npmjs.org','yarnpkg.com','github.dev'], 'GitHub');
+  const RULES_GITHUB = [
+
+    ...ruleSuffix(['github.com','github.io','githubusercontent.com','githubassets.com','githubstatus.com','ghcr.io','npmjs.com','npmjs.org','yarnpkg.com','github.dev','raw.githubusercontent.com'], 'GitHub')
+  ];
   // 微软规则
-  const RULES_MICROSOFT = ruleSuffix(['microsoft.com', 'microsoftonline.com', 'live.com', 'live.net', 'outlook.com', 'officeapps.live.com', 'onedrive.com', 'bing.com', 'bingapis.com', 'bingstatic.com', 'copilot.microsoft.com', 'msn.com', 'office.com', 'office.net', 'office365.com', 'microsoft365.com', 'sharepoint.com', 'skype.com', 'teams.microsoft.com', 'xbox.com', 'xboxlive.com'], '微软服务');
+  const RULES_MICROSOFT = [
+
+    ...ruleSuffix([
+      'microsoft.com', 'microsoftonline.com', 'live.com', 'live.net', 'outlook.com', 'officeapps.live.com',
+      'onedrive.com', 'bing.com', 'bingapis.com', 'bingstatic.com', 'copilot.microsoft.com', 'msn.com',
+      'office.com', 'office.net', 'office365.com', 'microsoft365.com', 'sharepoint.com', 'skype.com',
+      'teams.microsoft.com', 'xbox.com', 'xboxlive.com', 'azure.com', 'windows.net', 'msftauth.net', 'msauth.net'
+    ], '微软服务')
+  ];
   // 流媒体规则
-  const RULES_STREAMING = ruleSuffix(['netflix.com', 'nflxvideo.net', 'nflximg.net', 'nflxext.com', 'nflxso.net', 'netflix.net', 'disneyplus.com', 'disney-plus.net', 'dssott.com', 'bamgrid.com', 'primevideo.com', 'amazonvideo.com', 'media-amazon.com', 'max.com', 'hbomax.com', 'hbo.com', 'hulu.com', 'huluim.com', 'appletvplus.com', 'paramountplus.com', 'cbsi.com', 'peacocktv.com', 'crunchyroll.com', 'crunchyrollsvc.com'], '流媒体');
+  const RULES_STREAMING = [
+
+
+
+
+    ...ruleSuffix([
+      'netflix.com', 'nflxvideo.net', 'nflximg.net', 'nflxext.com', 'nflxso.net', 'netflix.net',
+      'disneyplus.com', 'disney-plus.net', 'dssott.com', 'bamgrid.com', 'primevideo.com', 'amazonvideo.com', 'media-amazon.com',
+      'max.com', 'hbomax.com', 'hbo.com', 'hulu.com', 'huluim.com', 'appletvplus.com',
+      'paramountplus.com', 'cbsi.com', 'peacocktv.com', 'crunchyroll.com', 'crunchyrollsvc.com'
+    ], '流媒体')
+  ];
   // 台湾媒体规则
   const RULES_TAIWAN_MEDIA = ruleSuffix(['hamivideo.hinet.net', 'hami.video', 'litv.tv', '4gtv.tv', 'myvideo.net.tw', 'ofiii.com', 'catchplay.com', 'catchplay.com.tw', 'garageplay.tw', 'friday.tw', 'video.friday.tw', 'kktv.com.tw', 'linetv.tw', 'bahamut.com.tw', 'gamer.com.tw', 'ani.gamer.com.tw', 'ptsplus.tv', 'pts.org.tw', 'cts.com.tw', 'ftvnews.com.tw', 'news.tvbs.com.tw', 'tvbs.com.tw', 'setn.com', 'ettoday.net', 'mirrormedia.mg', 'bcc.com.tw', 'dcard.tw', 'dcard.video', 'udn.com', 'udngroup.com', 'ltn.com.tw', 'thenewslens.com', 'businessweekly.com.tw', 'cmmedia.com.tw', 'storm.mg', 'nownews.com', 'cna.com.tw', 'books.com.tw', 'readmoo.com', 'mojim.com', 'kkbox.com'], '台湾媒体');
   // Twitch 规则
   const RULES_TWITCH = [
     ...ruleProcess(['tv.twitch.android.app','tv.twitch.android.viewer'], 'Twitch'),
+
     ...ruleSuffix(['twitch.tv','twitchcdn.net','ttvnw.net','jtvnw.net','live-video.net'], 'Twitch')
   ];
   // Meta 规则
-  const RULES_META = ruleSuffix(['facebook.com', 'facebook.net', 'fb.com', 'fbcdn.net', 'fbsbx.com', 'tfbnw.net', 'messenger.com', 'm.me', 'instagram.com', 'cdninstagram.com', 'ig.me', 'threads.net', 'threadsdotnet.com', 'whatsapp.com', 'whatsapp.net'], 'Meta');
+  const RULES_META = [
+
+
+
+    ...ruleSuffix([
+      'facebook.com', 'facebook.net', 'fb.com', 'fbcdn.net', 'fbsbx.com', 'tfbnw.net',
+      'messenger.com', 'm.me', 'instagram.com', 'cdninstagram.com', 'ig.me',
+      'threads.net', 'threadsdotnet.com', 'whatsapp.com', 'whatsapp.net'
+    ], 'Meta')
+  ];
   // Spotify 规则
-  const RULES_SPOTIFY = ruleSuffix(['spotify.com','scdn.co','spoti.fi'], 'Spotify');
+  const RULES_SPOTIFY = [
+
+    ...ruleSuffix(['spotify.com','scdn.co','spoti.fi','pscdn.co','spotifycdn.com'], 'Spotify')
+  ];
   // Telegram 规则
   const RULES_TELEGRAM = [
-    ...ruleProcess(['org.telegram.messenger', 'org.telegram.messenger.web', 'com.exteragram.messenger', 'nekox.messenger', 'tw.nekomimi.nekogram', 'xyz.nextalone.nagram', 'org.telegram.plus', 'ellipi.messenger'], 'Telegram'),
+    ...ruleProcess([
+      'org.telegram.messenger', 'org.telegram.messenger.web', 'com.exteragram.messenger',
+      'nekox.messenger', 'tw.nekomimi.nekogram', 'xyz.nextalone.nagram', 'org.telegram.plus',
+      'ellipi.messenger', 'org.thunderdog.challegram'
+    ], 'Telegram'),
+
     ...ruleKeyword(['telegram'], 'Telegram'),
-    ...ruleSuffix(['telegra.ph', 'telegram.org', 't.me', 'telesco.pe', 'telegram.me', 'telegram.dog', 'telegram-cdn.org', 'telegram.space', 'tg.dev', 'tdesktop.com', 'usercontent.dev', 'graph.org'], 'Telegram'),
+    ...ruleSuffix([
+      'telegra.ph', 'telegram.org', 't.me', 'telesco.pe', 'telegram.me', 'telegram.dog',
+      'telegram-cdn.org', 'telegram.space', 'tg.dev', 'tdesktop.com', 'usercontent.dev', 'graph.org'
+    ], 'Telegram'),
     ...ruleIpCidr([
       '91.108.4.0/22', '91.108.8.0/21', '91.108.12.0/22', '91.108.16.0/22', '91.108.20.0/22', '91.108.56.0/22',
       '91.105.192.0/23', '91.108.128.0/17', '149.154.160.0/20', '149.154.192.0/18', '46.17.44.0/22', '46.17.47.0/24',
@@ -2577,20 +2916,35 @@ function buildConfig(config) {
   ];
   // Google 通用规则
   const RULES_GOOGLE = [
+
     ...ruleDomain(['dns.google', 'dns.google.com', 'mail.google.com'], 'Google'),
-    ...ruleSuffix(['google.com', 'googleapis.com', 'gstatic.com', 'gmail.com', 'googlemail.com', 'ggpht.cn', 'googleusercontent.com', 'googleusercontent.cn', 'withgoogle.com', 'g.co', 'goo.gl', 'googleearth.com', 'clients1.google.com', 'clients2.google.com', 'clients3.google.com', 'clients4.google.com', 'clients5.google.com', 'clients6.google.com', 'clients.googleapis.com', 'one.google.com', 'lens.google.com', 'photos.google.com', 'maps.google.com', 'maps.gstatic.com', 'news.google.com', 'meet.google.com', 'chat.google.com', 'drive.google.com', 'docs.google.com', 'sheets.google.com', 'slides.google.com', 'classroom.google.com', 'calendar.google.com', 'contacts.google.com', 'keep.google.com', 'earth.google.com'], 'Google'),
+    ...ruleSuffix([
+      'google.com', 'googleapis.com', 'gstatic.com', 'gmail.com', 'googlemail.com', 'ggpht.cn',
+      'googleusercontent.com', 'googleusercontent.cn', 'withgoogle.com', 'g.co', 'goo.gl', 'googleearth.com',
+      'clients1.google.com', 'clients2.google.com', 'clients3.google.com', 'clients4.google.com',
+      'clients5.google.com', 'clients6.google.com', 'clients.googleapis.com', 'one.google.com',
+      'lens.google.com', 'photos.google.com', 'maps.google.com', 'maps.gstatic.com', 'news.google.com',
+      'meet.google.com', 'chat.google.com', 'drive.google.com', 'docs.google.com', 'sheets.google.com',
+      'slides.google.com', 'classroom.google.com', 'calendar.google.com', 'contacts.google.com',
+      'keep.google.com', 'earth.google.com'
+    ], 'Google'),
     ...ruleSuffix(['gvt1.com', 'gvt2.com', 'gvt3.com', 'xn--ngstr-lra8j.com', 'xn--ngstr-cn-8za9o.com'], '谷歌商店')
   ];
 
   // Twitter / X 规则
-  const RULES_TWITTER = ruleSuffix(['x.com','twitter.com','twimg.com','t.co','pscp.tv','periscope.tv'], 'Twitter');
+  const RULES_TWITTER = [
+
+    ...ruleSuffix(['x.com','twitter.com','twimg.com','t.co','pscp.tv','periscope.tv'], 'Twitter')
+  ];
   // Discord 规则：主站、邀请、资源与客户端
   const RULES_DISCORD = [
     ...ruleProcess(['com.discord'], 'Discord'),
+
     ...ruleSuffix(['discord.com','discord.gg','discord.gift','discord.new','discordapp.com','discordapp.net','discordcdn.com','discord.media','discordsays.com','dis.gd'], 'Discord')
   ];
   // 社交信息流规则：Reddit
   const RULES_SOCIAL_FEED = [
+
     ...ruleSuffix(['reddit.com','redditinc.com','redditmedia.com','redditstatic.com','redditspace.com','redd.it','flr.app'], '社交信息流'),
     ...ruleDomain(['reddit.map.fastly.net'], '社交信息流')
   ];
@@ -2603,22 +2957,114 @@ function buildConfig(config) {
     ...ruleSuffix(['tiktok.com', 'tiktokcdn.com', 'tiktokv.com', 'tiktokcdn-us.com', 'tiktokcdn-eu.com', 'tiktokrow-cdn.com', 'tiktokv.us', 'ibyteimg.com', 'ibytedtos.com', 'byteoversea.com', 'muscdn.com', 'musical.ly', 'tiktokd.org'], 'TikTok')
   ];
   // 日韩生态规则
-  const RULES_JP_KR_ECOSYSTEM = ruleSuffix(['line.me', 'line-apps.com', 'line-scdn.net', 'naver.com', 'naver.net', 'naver.jp', 'linecorp.com', 'band.us', 'weverse.io', 'weverseapi.io', 'weverseassets.io', 'ameba.jp', 'note.com', 'tapple.me', 'pixiv.net', 'pximg.net', 'fc2.com', 'fc2blog.net', 'livedoor.com', 'hatena.ne.jp', 'goo.ne.jp', 'abema.tv', 'tver.jp', 'ntv.co.jp', 'tbs.co.jp', 'nhk.or.jp', 'dmm.com', 'fanbox.cc', 'kakao.com', 'kakao.co.kr', 'kakaocdn.net', 'daum.net', 'dcinside.com', 'afreecatv.com', 'sooplive.co.kr', 'coupang.com', 'coupangcdn.com', 'nexon.com', 'nexon.co.jp'], '日韩生态区');
+  const RULES_JP_KR_ECOSYSTEM = [
+
+
+    ...ruleSuffix([
+      'line.me', 'line-apps.com', 'line-scdn.net', 'naver.com', 'naver.net', 'naver.jp', 'linecorp.com', 'band.us',
+      'weverse.io', 'weverseapi.io', 'weverseassets.io', 'ameba.jp', 'note.com', 'tapple.me', 'pixiv.net', 'pximg.net',
+      'fc2.com', 'fc2blog.net', 'livedoor.com', 'hatena.ne.jp', 'goo.ne.jp', 'abema.tv', 'tver.jp', 'ntv.co.jp',
+      'tbs.co.jp', 'nhk.or.jp', 'dmm.com', 'fanbox.cc', 'kakao.com', 'kakao.co.kr', 'kakaocdn.net', 'daum.net',
+      'dcinside.com', 'afreecatv.com', 'sooplive.co.kr', 'coupang.com', 'coupangcdn.com', 'nexon.com', 'nexon.co.jp'
+    ], '日韩生态区')
+  ];
   // Niconico 规则
   const RULES_NICONICO = ruleSuffix(['nicovideo.jp','nimg.jp','nicofarre.com','smilevideo.jp','dmc.nico'], 'Niconico');
   // 社交补充规则
   const RULES_SOCIAL_FEED_SUPPLEMENT = [
     ...ruleDomain(['connect.facebook.net', 'graph.facebook.com'], 'Meta')
   ];
-  // 兜底规则：国内直连 / 境外自动 / 漏网之鱼
+  // 隐私保护规则：与跟踪分析同逻辑，默认走动作型策略组。
+  const RULES_PRIVACY = [
+    ...ruleDomain(['api.ipify.org', 'icanhazip.com', 'ipleak.net', 'browserleaks.com', 'whoer.net'], '隐私保护'),
+    ...ruleSuffix([
+      'ipleak.net', 'browserleaks.com', 'whoer.net', 'ipinfo.io', 'ipapi.co', 'ipify.org', 'dnsleaktest.com',
+      'hotjar.com', 'fullstory.com', 'clarity.ms', 'mouseflow.com', 'heapanalytics.com', 'crazyegg.com',
+      'inspectlet.com', 'logrocket.com', 'smartlook.com', 'luckyorange.com', 'contentsquare.net',
+      'signal.org', 'signal.art', 'signal.tube'
+    ], '隐私保护'),
+    ...ruleKeyword(['fingerprint', 'browserleaks', 'ipleak', 'dnsleak', 'hotjar', 'fullstory', 'clarity', 'mouseflow', 'heapanalytics', 'crazyegg', 'inspectlet', 'logrocket', 'smartlook', 'luckyorange', 'contentsquare', 'fingerprintjs', 'fpjs.io', 'cdn.fpjs.io', 'metrics.hotjar.io', 'rs.fullstory.com', 'edge.fullstory.com'], '隐私保护')
+  ];
+  // 个人媒体规则：Emby / Jellyfin / Plex 等私有媒体服
+  const RULES_PERSONAL_MEDIA = [
+    ...ruleSuffix(['emby.media', 'jellyfin.org', 'plex.tv', 'plex.direct'], '个人媒体'),
+    'PROCESS-NAME-REGEX,(?i).*(emby|jellyfin|plex).*,个人媒体'
+  ];
+  // 新闻资讯规则
+  const RULES_NEWS = [
+
+
+
+    ...ruleSuffix([
+      'bbc.com', 'bbc.co.uk', 'bbci.co.uk', 'nytimes.com', 'nyt.com', 'reuters.com', 'bloomberg.com',
+      'cnn.com', 'wsj.com', 'ft.com', 'theguardian.com', 'apnews.com', 'npr.org', 'economist.com',
+      'nhk.or.jp', 'voachinese.com', 'rfi.fr', 'dw.com', 'aljazeera.com', 'scmp.com', 'time.com',
+      'washingtonpost.com', 'latimes.com', 'abcnews.go.com', 'nbcnews.com', 'cbsnews.com', 'foxnews.com'
+    ], '新闻资讯')
+  ];
+  // 局域网 / 私有网络：最高优先直连，避免内网服务被代理。
+  const RULES_LAN_PRIVATE = [
+    'GEOSITE,private,全球直连',
+    'GEOIP,private,全球直连,no-resolve',
+    ...ruleIpCidr([
+      // 注意：不要写入 198.18.0.0/15，那是 fake-ip 保留段，强行直连会破坏 DNS 接管。
+      '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16',
+      '172.16.0.0/12', '192.0.0.0/24', '192.0.2.0/24', '192.168.0.0/16',
+      '198.51.100.0/24', '203.0.113.0/24', '224.0.0.0/4', '240.0.0.0/4',
+      '::1/128', 'fc00::/7', 'fe80::/10', 'ff00::/8'
+    ], '全球直连')
+  ];
+  // 协作办公 / 云生产力
+  const RULES_COLLABORATION = [
+    ...ruleSuffix([
+      'zoom.us', 'zoom.com', 'zoomgov.com', 'slack.com', 'slack-edge.com', 'slack-msgs.com',
+      'notion.so', 'notion.site', 'notion.com', 'dropbox.com', 'dropboxapi.com', 'dropboxusercontent.com',
+      'box.com', 'boxcloud.com', 'figma.com', 'figma-gov.com', 'canva.com',
+      'atlassian.com', 'atlassian.net', 'jira.com', 'trello.com', 'asana.com', 'monday.com',
+      'miro.com', 'airtable.com', 'linear.app', 'clickup.com'
+    ], 'GitHub')
+  ];
+  // 开发者生态 / 包管理 / 容器镜像
+  const RULES_DEVELOPER = [
+    ...ruleSuffix([
+      'stackoverflow.com', 'stackexchange.com', 'serverfault.com', 'superuser.com', 'askubuntu.com',
+      'docker.com', 'docker.io', 'dockerstatic.com', 'pypi.org', 'pythonhosted.org', 'files.pythonhosted.org',
+      'crates.io', 'static.crates.io', 'static.rust-lang.org', 'golang.org', 'proxy.golang.org', 'pkg.go.dev', 'sum.golang.org',
+      'maven.org', 'repo1.maven.org', 'repo.maven.apache.org', 'gradle.org', 'services.gradle.org',
+      'registry.npmjs.org', 'rubygems.org', 'packagist.org', 'nuget.org', 'cdn.nuget.org',
+      'gcr.io', 'quay.io', 'k8s.io', 'kubernetes.io', 'hashicorp.com', 'terraform.io', 'vagrantup.com'
+    ], 'GitHub')
+  ];
+  // 扩展社交 / 知识社区
+  const RULES_SOCIAL_EXTRA = [
+
+
+    ...ruleSuffix([
+      'linkedin.com', 'licdn.com', 'pinterest.com', 'pinimg.com', 'snapchat.com', 'sc-cdn.net',
+      'medium.com', 'v2ex.com', 'quora.com', 'quoracdn.net'
+    ], '社交信息流'),
+    ...ruleSuffix(['wikipedia.org', 'wikimedia.org', 'wikidata.org', 'wiktionary.org', 'wikiquote.org'], '新闻资讯')
+  ];
+  // 支付服务规则补强
+  const RULES_PAYMENT = [
+
+    ...ruleSuffix([
+      'paypal.com', 'stripe.com', 'wise.com', 'revolut.com', 'payoneer.com', 'worldpay.com',
+      'skrill.com', 'neteller.com', 'authy.com', 'adyen.com', 'transferwise.com', 'checkout.com',
+      'braintreegateway.com', 'braintreepayments.com', 'venmo.com', 'xoom.com', 'airwallex.com'
+    ], '支付服务')
+  ];
+  // 兜底规则：国内直连 / 境外走节点选择 / 漏网之鱼
   const RULES_DIRECT_AND_FALLBACK = [
     'GEOIP,CN,全球直连',
-    'GEOIP,!CN,自动选择',
+    'GEOSITE,geolocation-!cn,节点选择',
+    'GEOIP,!CN,节点选择',
     'MATCH,漏网之鱼'
   ];
 
   // 规则内容与装配顺序分离
   const RULE_SET_MAP = {
+    LAN_PRIVATE: RULES_LAN_PRIVATE,
     YOUTUBE: RULES_YOUTUBE,
     TRANSLATION: RULES_TRANSLATION,
     RISK_SECURITY: RULES_RISK_SECURITY,
@@ -2626,6 +3072,10 @@ function buildConfig(config) {
     APP_PROCESS: RULES_APP_PROCESS,
     ADBLOCK: RULES_ADBLOCK,
     TRACKER: RULES_TRACKER,
+    PRIVACY: RULES_PRIVACY,
+    PAYMENT: RULES_PAYMENT,
+    PERSONAL_MEDIA: RULES_PERSONAL_MEDIA,
+    NEWS: RULES_NEWS,
     AI_TIKTOK_EXTRA: RULES_AI_TIKTOK_EXTRA,
     DOMESTIC: RULES_DOMESTIC,
     APPLE_MEDIA: RULES_APPLE_MEDIA,
@@ -2634,6 +3084,8 @@ function buildConfig(config) {
     DECENTRALIZED_AND_CLOUDFLARE: RULES_DECENTRALIZED_AND_CLOUDFLARE,
     DOWNLOAD: RULES_DOWNLOAD,
     GLOBAL_GAMING: RULES_GLOBAL_GAMING,
+    COLLABORATION: RULES_COLLABORATION,
+    DEVELOPER: RULES_DEVELOPER,
     GITHUB: RULES_GITHUB,
     MICROSOFT: RULES_MICROSOFT,
     STREAMING: RULES_STREAMING,
@@ -2646,8 +3098,8 @@ function buildConfig(config) {
     TWITTER: RULES_TWITTER,
     DISCORD: RULES_DISCORD,
     SOCIAL_FEED: RULES_SOCIAL_FEED,
+    SOCIAL_EXTRA: RULES_SOCIAL_EXTRA,
     DECENTRALIZED_SUPPLEMENT: RULES_DECENTRALIZED_SUPPLEMENT,
-
     TIKTOK: RULES_TIKTOK,
     JP_KR_ECOSYSTEM: RULES_JP_KR_ECOSYSTEM,
     NICONICO: RULES_NICONICO,
@@ -2656,6 +3108,8 @@ function buildConfig(config) {
   };
 
   const RULE_ASSEMBLY_ORDER = [
+    // 局域网 / 私有地址永远最先，避免内网被后续业务或 GEOIP 误伤。
+    'LAN_PRIVATE',
     // 登录/支付风控必须先于其父域业务规则，避免 accounts.youtube.com 等子域被提前吞掉。
     'RISK_SECURITY',
     // 专项业务优先：视频、翻译与 Google Play 精确链路。
@@ -2664,12 +3118,15 @@ function buildConfig(config) {
     'RISK_CONTROL',
     // 进程兜底必须位于精确域名之后，避免 GMS/下载器吞掉专项流量。
     'APP_PROCESS',
-    // 广告与跟踪位于登录/支付保护之后，降低核心链路误拦截概率。
+    // 广告 / 跟踪 / 隐私 / 支付 / 个人媒体 / 资讯位于登录支付保护之后，降低核心链路误拦截概率。
     'ADBLOCK',
     'TRACKER',
+    'PRIVACY',
+    'PAYMENT',
+    'PERSONAL_MEDIA',
+    'NEWS',
     // 补丁型专项规则
     'AI_TIKTOK_EXTRA',
-
     'DOMESTIC',
     'APPLE_MEDIA',
     'APPLE',
@@ -2677,6 +3134,8 @@ function buildConfig(config) {
     'DECENTRALIZED_AND_CLOUDFLARE',
     'DOWNLOAD',
     'GLOBAL_GAMING',
+    'COLLABORATION',
+    'DEVELOPER',
     'GITHUB',
     'MICROSOFT',
     'STREAMING',
@@ -2689,7 +3148,7 @@ function buildConfig(config) {
     'TWITTER',
     'DISCORD',
     'SOCIAL_FEED',
-
+    'SOCIAL_EXTRA',
     'DECENTRALIZED_SUPPLEMENT',
     'TIKTOK',
     'JP_KR_ECOSYSTEM',
