@@ -220,6 +220,39 @@ function buildConfig(config) {
     'adsrvr.org','criteo.com','criteo.net','taboola.com','taboolasyndication.com','outbrain.com','analytics.google.com','ads.google.com'
   );
 
+  // 国内服务域名分层：主站 / CDN / AI
+  const domesticMainDomains = () => d(
+    'wechat.com', 'weixin.qq.com', 'qq.com', 'tenpay.com', 'v.qq.com',
+    'hunyuan.tencent.com', 'yuanbao.tencent.com',
+    'taobao.com', 'tmall.com', 'alipay.com', 'tongyi.com', 'tongyi.aliyun.com',
+    'jd.com', 'pinduoduo.com', 'smzdm.com', 'meituan.com', 'dianping.com', 'ctrip.com', '12306.cn',
+    'bilibili.com', 'iqiyi.com', 'mgtv.com', 'douyin.com', 'kuaishou.com', 'zhihu.com', 'weibo.com',
+    'xiaohongshu.com', 'baidu.com', '163.com', '126.com', '126.net', 'sina.com.cn', 'sohu.com'
+  );
+
+  const domesticCdnDomains = () => d(
+    'gtimg.com', 'qpic.cn', 'qqvideo.tc.qq.com',
+    'alicdn.com', 'aliyuncs.com', 'alipayobjects.com',
+    'youkuimg.com', 'jdstatic.com',
+    'biliapi.com', 'biliimg.com', 'bilivideo.com', 'bilivideo.cn', 'hdslb.com', 'iqiyipic.com',
+    'douyincdn.com', 'bytecdn.cn', 'byteimg.com', 'byted.org', 'iesdouyin.com',
+    'ksapisrv.com', 'kspkg.com', 'ksyuncdn.com',
+    'zhimg.com', 'weibocdn.com', 'xhscdn.com', 'xhsglobal.com',
+    'bdimg.com', 'bdstatic.com'
+  );
+
+  const domesticAiDomains = () => d(
+    'doubao.com', 'volces.com', 'qianfan.baidu.com', 'erniebot.com', 'yiyan.baidu.com',
+    'deepseek.com', 'deepseek.cn', 'moonshot.cn', 'kimi.com', 'minimaxi.com',
+    'xinghuo.xfyun.cn', 'sensenova.cn'
+  );
+
+  const domesticServiceDomains = () => uniqList([
+    ...domesticMainDomains(),
+    ...domesticCdnDomains(),
+    ...domesticAiDomains()
+  ]);
+
   // 基础配置：运行参数、网络栈、实验特性
 
   // Profile：持久化配置
@@ -327,7 +360,7 @@ function buildConfig(config) {
   const adguardDns = DNS_ENDPOINTS.adguard;
 
   // 健康检查参数
-  const TEST_URL = 'https://www.gstatic.com/generate_204';
+  const TEST_URL = 'https://cp.cloudflare.com/generate_204';
   const TEST_INTERVAL = 360, TEST_TOLERANCE = 80, TEST_TIMEOUT = 2000, TEST_MAX_FAILED_TIMES = 3;
   const FALLBACK_INTERVAL = 300, FALLBACK_TOLERANCE = 80, FALLBACK_TIMEOUT = 2500, FALLBACK_MAX_FAILED_TIMES = 2;
   const REGION_TEST_INTERVAL = 480, REGION_TEST_TOLERANCE = 160, REGION_TEST_TIMEOUT = 3000, REGION_TEST_MAX_FAILED_TIMES = 4;
@@ -339,6 +372,10 @@ function buildConfig(config) {
 
   const DNS_POLICY_DOMAIN_SETS = {
     adguard: adguardDomains(),
+    domesticMain: domesticMainDomains(),
+    domesticCdn: domesticCdnDomains(),
+    domesticAi: domesticAiDomains(),
+    domestic: domesticServiceDomains(),
     tiktok: tiktokDomains(),
     adguardService: adguardServiceDomains(),
     browserRisk: browserRiskDomains(),
@@ -549,6 +586,12 @@ function buildConfig(config) {
   // 新增或扩展业务时优先修改此表及对应域名集合，避免 nameserver-policy 与 fallback-filter 分散维护。
   const DNS_SERVICE_BINDINGS = [
     { key: '广告拦截', policyDomains: DNS_POLICY_DOMAIN_SETS.adguard, dns: adguardDns },
+    { key: '国内服务', policyDomains: uniqList([].concat(
+      DNS_POLICY_DOMAIN_SETS.domesticMain,
+      DNS_POLICY_DOMAIN_SETS.domesticCdn,
+      DNS_POLICY_DOMAIN_SETS.domesticAi,
+      DNS_POLICY_DOMAIN_SETS.domestic
+    )), dns: cnDns },
     { key: 'TikTok', policyDomains: DNS_POLICY_DOMAIN_SETS.tiktok, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok, dns: trustDns },
     { key: 'AdGuard服务', policyDomains: DNS_POLICY_DOMAIN_SETS.adguardService, dns: trustDns, auxiliary: true },
     { key: '风控安全', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.browserRisk, DNS_POLICY_DOMAIN_SETS.finance, DNS_POLICY_DOMAIN_SETS.crypto)), fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: trustDns },
@@ -2787,11 +2830,16 @@ function buildConfig(config) {
     ...RULES_FINANCE_EXTRA,
     ...RULES_STREAMING_EXTRA,
   ];
-
-  // 国内服务规则
   const RULES_DOMESTIC = [
+    // 国内主站
+    ...ruleSuffix(domesticMainDomains(), '国内服务'),
+    // 国内 CDN / 静态资源
+    ...ruleSuffix(domesticCdnDomains(), '国内服务'),
+    // 国内 AI
+    ...ruleSuffix(domesticAiDomains(), '国内服务'),
+    // 总兜底：CN 域名与 CN IP
     'GEOSITE,CN,国内服务',
-    ...ruleSuffix(['wechat.com', 'weixin.qq.com', 'qq.com', 'gtimg.com', 'qpic.cn', 'tenpay.com', 'qqvideo.tc.qq.com', 'v.qq.com', 'hunyuan.tencent.com', 'yuanbao.tencent.com', 'alicdn.com', 'aliyun.com', 'aliyuncs.com', 'taobao.com', 'tmall.com', 'alipay.com', 'alipayobjects.com', 'youku.com', 'youkuimg.com', 'tongyi.com', 'tongyi.aliyun.com', 'jd.com', 'jdstatic.com', 'pinduoduo.com', 'smzdm.com', 'meituan.com', 'dianping.com', 'ctrip.com', '12306.cn', 'bilibili.com', 'biliapi.com', 'biliimg.com', 'bilivideo.com', 'bilivideo.cn', 'hdslb.com', 'iqiyi.com', 'iqiyipic.com', 'mgtv.com', 'douyin.com', 'douyincdn.com', 'bytecdn.cn', 'byteimg.com', 'byted.org', 'iesdouyin.com', 'amemv.com', 'doubao.com', 'volces.com', 'kuaishou.com', 'ksapisrv.com', 'kspkg.com', 'ksyuncdn.com', 'zhihu.com', 'zhimg.com', 'weibo.com', 'weibocdn.com', 'xiaohongshu.com', 'xhscdn.com', 'xhsglobal.com', 'baidu.com', 'bdimg.com', 'bdstatic.com', 'qianfan.baidu.com', 'erniebot.com', 'yiyan.baidu.com', '163.com', '126.net', '126.com', 'sina.com.cn', 'sohu.com', 'deepseek.com', 'deepseek.cn', 'moonshot.cn', 'kimi.com', 'minimaxi.com', 'xinghuo.xfyun.cn', 'sensenova.cn'], '国内服务')
+    'GEOIP,CN,国内服务,no-resolve'
   ];
   const RULES_APPLE_MEDIA = ruleSuffix(['tv.apple.com', 'video.apple.com'], '流媒体');
   // Apple 生态规则
@@ -2801,7 +2849,6 @@ function buildConfig(config) {
   ];
   // 全球 AI 规则
   const RULES_AI_GLOBAL = [
-
 
     ...ruleSuffix([
       'oaistatic.com', 'oaiusercontent.com', 'openaiusercontent.com', 'chatgpt.livekit.cloud', 'openaiapi-site.azureedge.net',
@@ -2829,7 +2876,6 @@ function buildConfig(config) {
   ], '下载专用组');
   // 国外游戏规则
   const RULES_GLOBAL_GAMING = [
-
 
     ...ruleSuffix([
       'steamcommunity.com', 'steampowered.com', 'steamstatic.com', 'steamcdn-a.akamaihd.net', 'steamserver.net', 'steamcontent.com', 'steampipe.akamaized.net',
@@ -2861,9 +2907,6 @@ function buildConfig(config) {
   // 流媒体规则
   const RULES_STREAMING = [
 
-
-
-
     ...ruleSuffix([
       'netflix.com', 'nflxvideo.net', 'nflximg.net', 'nflxext.com', 'nflxso.net', 'netflix.net',
       'disneyplus.com', 'disney-plus.net', 'dssott.com', 'bamgrid.com', 'primevideo.com', 'amazonvideo.com', 'media-amazon.com',
@@ -2881,8 +2924,6 @@ function buildConfig(config) {
   ];
   // Meta 规则
   const RULES_META = [
-
-
 
     ...ruleSuffix([
       'facebook.com', 'facebook.net', 'fb.com', 'fbcdn.net', 'fbsbx.com', 'tfbnw.net',
@@ -2959,7 +3000,6 @@ function buildConfig(config) {
   // 日韩生态规则
   const RULES_JP_KR_ECOSYSTEM = [
 
-
     ...ruleSuffix([
       'line.me', 'line-apps.com', 'line-scdn.net', 'naver.com', 'naver.net', 'naver.jp', 'linecorp.com', 'band.us',
       'weverse.io', 'weverseapi.io', 'weverseassets.io', 'ameba.jp', 'note.com', 'tapple.me', 'pixiv.net', 'pximg.net',
@@ -2992,8 +3032,6 @@ function buildConfig(config) {
   ];
   // 新闻资讯规则
   const RULES_NEWS = [
-
-
 
     ...ruleSuffix([
       'bbc.com', 'bbc.co.uk', 'bbci.co.uk', 'nytimes.com', 'nyt.com', 'reuters.com', 'bloomberg.com',
@@ -3037,7 +3075,6 @@ function buildConfig(config) {
   ];
   // 扩展社交 / 知识社区
   const RULES_SOCIAL_EXTRA = [
-
 
     ...ruleSuffix([
       'linkedin.com', 'licdn.com', 'pinterest.com', 'pinimg.com', 'snapchat.com', 'sc-cdn.net',
