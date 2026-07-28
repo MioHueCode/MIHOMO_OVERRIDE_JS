@@ -2106,9 +2106,9 @@ function buildConfig(config) {
     usableChoiceDef('systemService', ['节点选择', '自动选择', '全球手动', '全球直连'], fusionVisibleRegions, allProxyNames),
     // 国内服务放行内置直连
     makeScopedChoiceDef('domesticService', '国内服务', ['全球直连'], builtInDirectChoiceNames, domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x))),
-
     // 最终兜底候选
-    usableChoiceDef('finalFallback', ['自动选择', '全球手动'], fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name)), fusionVisibleRegions)
+    usableChoiceDef('finalFallback', ['节点选择', '自动选择', '全球手动'], fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name)), fusionVisibleRegions)
+
   ];
   const MAIN_CHOICE_POOLS = buildChoicePoolsFromDefs(MAIN_CHOICE_POOL_DEFS);
   // Choice Scope 自检
