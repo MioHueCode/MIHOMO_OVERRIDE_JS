@@ -25,7 +25,6 @@
  */
 function buildConfig(config) {
   if (!config || !Array.isArray(config.proxies)) return config;
-
   // 运行上下文：保留旧分组选项顺序
   const existingGroups = Array.isArray(config['proxy-groups']) ? config['proxy-groups'] : [];
   const existingGroupMap = Object.create(null);
@@ -36,49 +35,38 @@ function buildConfig(config) {
   // 运行时工具：性能分析、调试与安全执行
   const PERF_ENABLED = false;
   const RULE_DIAGNOSTICS_ENABLED = false;
-
   const perfMarks = Object.create(null);
   const perfNow = () => Date.now();
-
   const debugLog = (...args) => {
     if (typeof console !== 'undefined' && typeof console.log === 'function') {
       console.log(...args);
     }
   };
-
   function perfStart(label) {
     if (!PERF_ENABLED) return;
     perfMarks[label] = perfNow();
   }
-
   function perfEnd(label) {
     if (!PERF_ENABLED || !perfMarks[label]) return;
     perfMarks[label] = perfNow() - perfMarks[label];
   }
-
   function perfFlush() {
     if (!PERF_ENABLED) return;
     console.log('[Clash.js][perf]', JSON.stringify(perfMarks));
   }
-
   // 通用工具函数
-
   // 图标资源：统一走 Qure 图标仓库
   const QURE_BASE = 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/';
   const qIcon = name => QURE_BASE + name + '.png';
-
   // 数组工具：统一处理外部输入
   function asArray(value) {
     return Array.isArray(value) ? value : [];
   }
-
   function uniqList(arr) {
     return Array.from(new Set(asArray(arr).filter(Boolean)));
   }
-
   // 通用去重别名（保持向后兼容）
   const unique = uniqList;
-
   // 规则工厂：统一 DOMAIN / DOMAIN-SUFFIX / PROCESS / KEYWORD 生成
   function stripDomainPrefix(domain) {
     return String(domain || '').replace(/^\+\./, '').replace(/^\*\./, '').trim();
@@ -103,45 +91,37 @@ function buildConfig(config) {
         : type + ',' + cidr + ',' + target;
     });
   }
-
   // 域名生成器：压缩重复模式
   const d = (...domains) => domains.map(x => x.startsWith('+.') || x.startsWith('*.') ? x : '+.' + x);
-
   const googleDomains = () => d('google.com','googleapis.com','googleapis.cn','services.googleapis.cn','gstatic.com','googleusercontent.com','gvt1.com','gvt2.com','gvt3.com','recaptcha.net','recaptcha-cn.net','youtube.com','ytimg.com','googlevideo.com','youtubei.googleapis.com','youtube.googleapis.com','translate.googleapis.com','translation.googleapis.com','translate-pa.googleapis.com','twitter.com','x.com','twimg.com','t.co');
-
   const playStoreDomains = () => [
     'play.google.com','market.android.com','play.googleapis.com','play-fe.googleapis.com','play-pa.googleapis.com','playatoms-pa.googleapis.com','play-apps-fe-pa.googleapis.com','play-apps-download-frontend.googleapis.com','android.googleapis.com','android.clients.google.com','android.clients.google.com.cn','play-lh.googleusercontent.com','play-games.googleusercontent.com','dl.google.com','dl.l.google.com',
     '+.gvt1.com','+.gvt2.com','+.gvt3.com','+.xn--ngstr-lra8j.com','+.xn--ngstr-cn-8za9o.com','+.services.googleapis.cn','+.googleapis.cn'
   ];
-
   const cryptoDomains = () => d(
     'binance.com','binance.us','binanceapi.com','bnbstatic.com','coinbase.com','okx.com','okx.ac','okx.cab','oklink.com','okx-dns.com','okx-dns1.com','okx-dns2.com',
     'bybit.com','bytick.com','byapis.com','bycsi.com','bybit-global.com','bybitglobal.com','kucoin.com','kucoin.plus','gate.io','gateimg.com','gatedata.org',
     'kraken.com','bitget.com','mexc.com','huobi.com','htx.com','metamask.io','trustwallet.com','walletconnect.com','walletconnect.org','ethereum.org','etherscan.io',
     'opensea.io','uniswap.org','ledger.com','trezor.io','hyperliquid.xyz','polymarket.com'
   );
-
   const financeDomains = () => [...d(
     'paypal.com','paypal.com.hk','paypal.com.sg','paypal.me','paypalservice.com','paypalcredit.com','braintreegateway.com','braintreepayments.com',
     'stripe.com','stripe.network','stripe-terminal-local-reader.net','wise.com','transferwise.com','revolut.com','card.io','paypalhere.com','venmo.com','xoom.com',
     'checkout.com','checkoutcdn.com','checkoutshopper.com','payoneer.com','airwallex.com','worldpay.com','skrill.com','neteller.com','authy.com','adyen.com',
     'visa.com','mastercard.com','amex.com','ibkr.com','interactivebrokers.com','schwab.com'
   ), 'hcaptcha.com', 'newassets.hcaptcha.com'];
-
   const streamingDomains = () => d(
     'netflix.com','nflxvideo.net','nflximg.net','nflxext.com','nflxso.net','netflix.net',
     'disneyplus.com','disney-plus.net','dssott.com','bamgrid.com','primevideo.com','amazonvideo.com','media-amazon.com',
     'spotify.com','scdn.co','spoti.fi','hulu.com','huluim.com','max.com','hbomax.com','hbo.com','twitch.tv','twitchcdn.net','ttvnw.net','jtvnw.net','live-video.net','twtrdns.net',
     'crunchyroll.com','crunchyrollsvc.com','paramountplus.com','peacocktv.com','appletvplus.com'
   );
-
   const gamingDomains = () => d(
     'steamcommunity.com','steampowered.com','steamstatic.com','steamcontent.com','steamserver.net','epicgames.com','unrealengine.com','epicgames-download1.akamaized.net',
     'roblox.com','rbxcdn.com','battle.net','blizzard.com','blizzardentertainment.com','battlenet.com.cn','ea.com','origin.com','uplay.com','ubisoft.com',
     'nintendo.com','nintendo.net','playstation.com','playstation.net','xbox.com','xboxlive.com','xboxservices.com','supercell.com','supercell.net',
     'riotgames.com','leagueoflegends.com','playvalorant.com','minecraft.net','mojang.com'
   );
-
   const discordDomains = () => d('discord.com','discord.gg','discord.gift','discord.new','discordapp.com','discordapp.net','discordcdn.com','discord.media','discordsays.com','dis.gd');
   const telegramDomains = () => d('telegram.org','t.me','telegra.ph','telegram.me','telegram.dog','telegram-cdn.org','telegram.space','tg.dev','tdesktop.com','telesco.pe','usercontent.dev','graph.org');
   const collaborationDomains = () => d(
@@ -161,20 +141,17 @@ function buildConfig(config) {
     'linkedin.com','licdn.com','pinterest.com','pinimg.com','snapchat.com','sc-cdn.net','signal.org','signal.art','signal.tube',
     'medium.com','wikipedia.org','wikimedia.org','wikidata.org','v2ex.com','quora.com','quoracdn.net'
   );
-
   const tiktokDomains = () => d(
     'tiktok.com','tiktokv.com','byteoversea.com','ibytedtos.com','tiktokcdn.com','tiktokcdn-us.com','tiktokcdn-eu.com','tiktokrow-cdn.com','tiktokv.us',
     'ibyteimg.com','muscdn.com','musical.ly','bytefcdn-oversea.com','tiktokd.org','tiktokd.net','tiktokmusic.app','ttwebview.com','ttwstatic.com',
     'bytegecko-i18n.com','byteintlapi.com','isnssdk.com','snssdk.com'
   );
-
   const aiDomains = () => d(
     'openai.com','chatgpt.com','oaistatic.com','oaiusercontent.com','claude.ai','anthropic.com','anthropiccdn.com','claudeusercontent.com',
     'perplexity.ai','perplexity.com','pplx.ai','poe.com','poecdn.net','midjourney.com','character.ai','c.ai','groq.com','mistral.ai','lechat.ai',
     'x.ai','grok.com','cohere.com','huggingface.co','replicate.com','cursor.sh','cursor.com','gemini.google.com','generativeai.google',
     'notebooklm.google.com','copilot.microsoft.com','stability.ai'
   );
-
   const metaDomains = () => d(
     'facebook.com','facebook.net','fb.com','fbcdn.net','fbsbx.com','tfbnw.net','messenger.com','m.me',
     'instagram.com','cdninstagram.com','ig.me','threads.net','threadsdotnet.com','whatsapp.com','whatsapp.net'
@@ -219,7 +196,6 @@ function buildConfig(config) {
     'adservice.google.com','adservice.google.com.hk','pagead2.googlesyndication.com','tpc.googlesyndication.com','googletagservices.com','doubleclick.net',
     'adsrvr.org','criteo.com','criteo.net','taboola.com','taboolasyndication.com','outbrain.com','analytics.google.com','ads.google.com'
   );
-
   // 国内服务域名分层：主站 / CDN / AI
   const domesticMainDomains = () => d(
     'wechat.com', 'weixin.qq.com', 'qq.com', 'tenpay.com', 'v.qq.com',
@@ -229,7 +205,6 @@ function buildConfig(config) {
     'bilibili.com', 'iqiyi.com', 'mgtv.com', 'douyin.com', 'kuaishou.com', 'zhihu.com', 'weibo.com',
     'xiaohongshu.com', 'baidu.com', '163.com', '126.com', '126.net', 'sina.com.cn', 'sohu.com'
   );
-
   const domesticCdnDomains = () => d(
     'gtimg.com', 'qpic.cn', 'qqvideo.tc.qq.com',
     'alicdn.com', 'aliyuncs.com', 'alipayobjects.com',
@@ -240,59 +215,48 @@ function buildConfig(config) {
     'zhimg.com', 'weibocdn.com', 'xhscdn.com', 'xhsglobal.com',
     'bdimg.com', 'bdstatic.com'
   );
-
   const domesticAiDomains = () => d(
     'doubao.com', 'volces.com', 'qianfan.baidu.com', 'erniebot.com', 'yiyan.baidu.com',
     'deepseek.com', 'deepseek.cn', 'moonshot.cn', 'kimi.com', 'minimaxi.com',
     'xinghuo.xfyun.cn', 'sensenova.cn'
   );
-
   const domesticServiceDomains = () => uniqList([
     ...domesticMainDomains(),
     ...domesticCdnDomains(),
     ...domesticAiDomains()
   ]);
-
   // 基础配置：运行参数、网络栈、实验特性
-
   // Profile：持久化配置
   config.profile = {
     ...(config.profile || {}),
     'store-selected': true,
     'store-fake-ip': true
   };
-
   // 网络与端口配置
   config['mixed-port'] = config['mixed-port'] || 7890;
   config['allow-lan'] = false;
   config['mode'] = 'rule';
   config['log-level'] = config['log-level'] || 'error';
   config.ipv6 = true;
-
   // TCP 优化
   config['tcp-concurrent'] = true;
   config['keep-alive-interval'] = 15;
   config['keep-alive-idle'] = 600;
   config['disable-keep-alive'] = false;
-
   // 其他特性
   config['etag-support'] = true;
   config['unified-delay'] = true;
   config['find-process-mode'] = 'strict';
   config['global-client-fingerprint'] = config['global-client-fingerprint'] || 'chrome';
-
   // 实验特性：QUIC 兼容性优化
   config['experimental'] = Object.assign({}, config['experimental'] || {}, {
     'quic-go-disable-gso': true,
     'quic-go-disable-ecn': true,
     'dialer-ip4p-convert': false
   });
-
   // 嗅探模块：域名感知与流量识别
-
   if (!config.sniffer || typeof config.sniffer !== 'object') config.sniffer = {};
   config.sniffer['force-dns-mapping'] = true;
-
   config.sniffer['parse-pure-ip'] = true;
   config.sniffer['override-destination'] = true;
   config.sniffer['sniff'] = {
@@ -313,7 +277,6 @@ function buildConfig(config) {
   ]);
   config.sniffer['skip-domain'] = uniqList([
     ...asArray(config.sniffer['skip-domain']),
-
     // DoH 域名：解析器自身不参与嗅探，避免请求链路互相干扰。
     'dns.adguard-dns.com',
     'dns.google',
@@ -323,18 +286,14 @@ function buildConfig(config) {
     'doh.pub',
     'doh.360.cn',
     'dns.alidns.com',
-
     // 时间同步：校时请求应尽量保持简单直接，避免额外嗅探干预。
     'time.windows.com',
     'time.apple.com',
     'time.android.com'
   ]);
-
   // Hosts 映射：关键服务域名兜底
-
   if (!config.hosts || typeof config.hosts !== 'object') config.hosts = {};
   config.hosts['dns.alidns.com'] = ['223.5.5.5', '223.6.6.6'];
-
   config.hosts['doh.pub'] = ['120.53.53.53', '1.12.12.12'];
   config.hosts['doh.360.cn'] = ['101.198.198.198'];
   config.hosts['dns.google'] = ['8.8.8.8', '8.8.4.4'];
@@ -344,9 +303,7 @@ function buildConfig(config) {
   config.hosts['cn.bing.com'] = 'global.bing.com';
   // Telegram t.me 兼容映射：优先采用域名别名方式，避免直接写死 IP。
   config.hosts['t.me'] = 'telegram.me';
-
   // DNS 配置：解析器、策略与路由
-
   // DNS 端点定义
   const DNS_ENDPOINTS = {
     local: ['223.6.6.6', '119.29.29.29'],
@@ -358,7 +315,6 @@ function buildConfig(config) {
   const cnDns = DNS_ENDPOINTS.cn;
   const trustDns = DNS_ENDPOINTS.trust;
   const adguardDns = DNS_ENDPOINTS.adguard;
-
   // 健康检查参数
   const TEST_URL = 'https://cp.cloudflare.com/generate_204';
   const TEST_INTERVAL = 360, TEST_TOLERANCE = 80, TEST_TIMEOUT = 2000, TEST_MAX_FAILED_TIMES = 3;
@@ -369,7 +325,6 @@ function buildConfig(config) {
   const HEALTH_CHECK_LAZY = true;
   // 内置直连选项
   const directChoices = ['🇨🇳 直连 | IPv4优先', '🇨🇳 直连 | IPv6优先', '🇨🇳 直连 | 双栈', '全球直连'];
-
   const DNS_POLICY_DOMAIN_SETS = {
     adguard: adguardDomains(),
     domesticMain: domesticMainDomains(),
@@ -467,7 +422,6 @@ function buildConfig(config) {
       '*.push-apple.com.akadns.net', '*.ipp.local', '*.mesh.local', '*.matter.local'
     ]
   };
-
   // DNS 主配置：负责 fake-ip、nameserver、hosts 与策略分流的统一落盘。
   // 防泄露原则：
   // 1) fake-ip 接管应用 DNS，避免系统直连 ISP DNS；
@@ -476,7 +430,6 @@ function buildConfig(config) {
   config.dns = Object.assign({}, config.dns || {}, {
     enable: true,
     listen: '0.0.0.0:1053',
-
     ipv6: true,
     'ipv6-timeout': 300,
     'cache-algorithm': 'arc',
@@ -491,38 +444,27 @@ function buildConfig(config) {
     'fake-ip-ttl': 60,
     'fake-ip-filter': uniqList([
       ...asArray(config.dns && config.dns['fake-ip-filter']),
-
       // 局域网 / 本地域名：这类地址通常用于内网发现与本地服务，不适合 fake-ip。
       ...DNS_FAKE_IP_FILTER_SETS.lan,
-
       // 连通性检测：系统用来判断网络状态，使用 fake-ip 容易触发误判。
       ...DNS_FAKE_IP_FILTER_SETS.connectivityCheck,
-
       // 时间同步：NTP / 校时域名应返回真实地址，避免时钟同步异常。
       ...DNS_FAKE_IP_FILTER_SETS.timeSync,
-
       // 路由器 / 网关管理地址：管理页和本地路由器域名不应走 fake-ip。
       ...DNS_FAKE_IP_FILTER_SETS.routerGateway,
-
       // STUN / TURN / Relay：实时通信协商依赖真实地址，fake-ip 容易破坏打洞与中继。
       ...DNS_FAKE_IP_FILTER_SETS.realtimeRelay,
-
       // 主机平台 / 家用设备联机认证：保持真实解析，减少 NAT / 联机检测异常。
       ...DNS_FAKE_IP_FILTER_SETS.consoleAuth,
-
       // 海外 PC / 主机游戏平台：下载器、认证、联机与反作弊链路尽量保留真实 IP。
       ...DNS_FAKE_IP_FILTER_SETS.gamingPlatforms,
-
       // Cloudflare 挑战 / 验证资源：验证码与挑战链路对真实地址更敏感。
       ...DNS_FAKE_IP_FILTER_SETS.cloudflareChallenge,
-
       // 支付 / 风控 / 本地域名：尽量保留真实解析，减少 App 内校验、回环服务与局域网发现异常。
       ...DNS_FAKE_IP_FILTER_SETS.paymentAndRiskLocal,
-
       // 推送 / 投屏 / Matter 等设备发现链路：fake-ip 容易破坏长连接或 mDNS/局域网发现。
       ...DNS_FAKE_IP_FILTER_SETS.pushAndCast
     ]),
-
     // 经代理发出的 DNS 查询使用境外可信 DoH，避免解析结果被本地 ISP 窥探/污染。
     nameserver: uniqList([
       ...asArray(config.dns && config.dns.nameserver),
@@ -557,13 +499,10 @@ function buildConfig(config) {
     // 私有网络与国内站点：优先走本地 DNS / 国内 DoH，减少绕路与污染概率。
     'geosite:private': localDns,
     'geosite:cn': cnDns,
-
     // 境外通用站点：统一交给可信境外 DoH，保证海外服务解析一致性。
     'geosite:geolocation-!cn': trustDns,
-
     // 广告与追踪域名：交给 AdGuard DNS，尽量在解析层先做拦截。
     'geosite:category-ads-all': adguardDns,
-
     // DoH / 上游解析器自举：强制回落本地 DNS，避免解析自循环。
     'dns.alidns.com': localDns,
     'doh.pub': localDns,
@@ -581,7 +520,6 @@ function buildConfig(config) {
       if (domain) target[domain] = dnsList;
     }
   }
-
   // DNS / 分组 / 规则联动注册表：每项声明业务目标、策略域名、解析器和 fallback 域名。
   // 新增或扩展业务时优先修改此表及对应域名集合，避免 nameserver-policy 与 fallback-filter 分散维护。
   const DNS_SERVICE_BINDINGS = [
@@ -632,10 +570,8 @@ function buildConfig(config) {
     // GEOIP 过滤：国内 IP 结果优先视为可信，减少无意义 fallback。
     geoip: true,
     'geoip-code': 'CN',
-
     // 特殊保留地址段：这类结果通常不应作为正常公网解析结果使用。
     ipcidr: ['240.0.0.0/4'],
-
     // 域名白名单：由服务联动表聚合；额外保留仅用于基础设施校验的 fallback 域名。
     domain: uniqList([
       ...dnsBindingFallbackDomains,
@@ -643,13 +579,11 @@ function buildConfig(config) {
       ...DNS_FALLBACK_FILTER_DOMAIN_SETS.infra
     ])
   };
-
   // DNS fallback：仅在 nameserver 失败或结果命中 fallback-filter 时使用境外可信 DoH。
   config.dns.fallback = trustDns;
   // 直连域名（国内 / 局域网 / 直连策略）使用国内 DoH + 本地 DNS，避免境外绕路。
   config.dns['direct-nameserver'] = uniqList([...cnDns, ...localDns]);
   config.dns['direct-nameserver-follow-policy'] = true;
-
   // default-nameserver 只能是 IP，避免 DoH 域名在 bootstrap 阶段形成解析环。
   config.dns['default-nameserver'] = asArray(config.dns['default-nameserver']).filter(server => {
     const text = String(server || '').trim();
@@ -660,13 +594,11 @@ function buildConfig(config) {
   if (!config.dns['default-nameserver'].length) {
     config.dns['default-nameserver'] = ['223.6.6.6', '119.29.29.29', '1.1.1.1', '8.8.8.8'];
   }
-
   // 防泄露收口：禁用系统 hosts 参与代理决策，强制 fake-ip + respect-rules。
   config.dns.enable = true;
   config.dns['enhanced-mode'] = 'fake-ip';
   config.dns['respect-rules'] = true;
   config.dns['use-system-hosts'] = false;
-
   // 节点处理
   // 过滤非真实代理的正则表达式
   // 说明：这里必须保守过滤。很多真实节点名会带有 airport / vpn / proxy / 流量倍率等字样，
@@ -675,7 +607,6 @@ function buildConfig(config) {
   const PROXY_TRAFFIC_RE = /(?:\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T)\s*[\/\|]\s*\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T)|(?:剩余|已用|总计|流量).{0,12}\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T))/i;
   const PROXY_DATE_RE = /(?:20\d{2}[-\/.年]\d{1,2}[-\/.月]\d{1,2}|\d{1,2}[-\/.月]\d{1,2}日?).{0,8}(?:到期|过期|重置|更新|expire|reset)/i;
   const PROXY_PROMO_HANDLE_RE = /(?:^|[\s|｜:：,，;；\-+_\[\]【】()（）])@?[a-z0-9_]{2,}(?:tg|telegram|channel|group)[a-z0-9_]*(?:[\s|｜:：,，;；\-+_\[\]【】()（）]|$)/i;
-
   function isRealProxyName(name) {
     const text = String(name || '').trim();
     if (!text) return false;
@@ -693,7 +624,6 @@ function buildConfig(config) {
   const residentialNamePatterns = [
     /家宽|家庭宽带|家庭住宅|住宅宽带|住宅|宽带/,
     /\bresi(?:dential)?\b/i,
-
     /\bhome(?:\s|-|_)?ip\b/i,
     /\bhome(?:\s|-|_)?broadband\b/i,
     /\bbroadband\b/i,
@@ -702,7 +632,6 @@ function buildConfig(config) {
   function isResidentialProxyName(name) {
     return residentialNamePatterns.some(re => re.test(String(name || '')));
   }
-
   // 倍率识别
   const multiplierNamePatterns = [
     /倍率/,
@@ -715,12 +644,10 @@ function buildConfig(config) {
     /\d+(?:\.\d+)?\s*倍/
   ];
   const multiplierSortInfoCache = new Map();
-
   // 倍率排序提取
   function getMultiplierSortInfo(name) {
     const cacheKey = String(name || '');
     if (multiplierSortInfoCache.has(cacheKey)) return multiplierSortInfoCache.get(cacheKey);
-
     const normalized = cacheKey
       .toLowerCase()
       .replace(/[（【［]/g, '(')
@@ -730,23 +657,19 @@ function buildConfig(config) {
       .replace(/倍/g, ' x ')
       .replace(/\s+/g, ' ')
       .trim();
-
     const candidates = [];
     const numberRegex = /\d+(?:\.\d+)?/g;
     let match;
     while ((match = numberRegex.exec(normalized)) !== null) {
       const value = Number(match[0]);
       if (!Number.isFinite(value)) continue;
-
       const start = match.index;
       const end = start + match[0].length;
       const before = normalized.slice(Math.max(0, start - 6), start);
       const after = normalized.slice(end, Math.min(normalized.length, end + 6));
       const nearMultiplierMark = before.includes('x') || after.includes('x');
-
       if (nearMultiplierMark) candidates.push({ value, index: start });
     }
-
     if (candidates.length) {
       candidates.sort((a, b) => a.value - b.value || a.index - b.index);
       const result = { value: candidates[0].value, recognized: true };
@@ -762,7 +685,6 @@ function buildConfig(config) {
     if (multiplierNamePatterns.some(re => re.test(text))) return true;
     return getMultiplierSortInfo(text).recognized;
   }
-
   // 流媒体识别
   const streamingNamePatterns = [
     /流媒体|streaming|unlock|奈飞|netflix|disney|hbo|max|prime|youtube|ytb|bilibili|b站|爱奇艺|iqiyi|腾讯视频|abema|bahamut|动画疯|tvb|dazn|hulu|pornhub/i,
@@ -775,7 +697,6 @@ function buildConfig(config) {
   function isStreamingProxyName(name) {
     return streamingNamePatterns.some(re => re.test(String(name || '')));
   }
-
   // 专线识别：与家宽同级特征池，供全球专线聚合
   const dedicatedNamePatterns = [
     /专线|精品专线|国际专线|跨境专线|直连专线|专线节点|专线线路|专线优化|企业专线|游戏专线|加速专线|高速专线|隧道专线|独享专线|独享线路|静态专线|内网专线|跨区专线|跨洋专线/,
@@ -805,7 +726,6 @@ function buildConfig(config) {
     if (dedicatedNamePatterns.some(re => re.test(text))) return true;
     return dedicatedContextPatterns.some(re => re.test(text));
   }
-
   perfStart('proxy_classify');
   // 节点清洗
   const cleanProxies = [];
@@ -815,7 +735,6 @@ function buildConfig(config) {
   const multiplierProxyNames = [];
   const streamingProxyNames = [];
   const seenProxyNames = new Set();
-
   for (let i = 0; i < config.proxies.length; i++) {
     const proxy = config.proxies[i];
     const proxyName = proxy && proxy.name;
@@ -828,7 +747,6 @@ function buildConfig(config) {
     if (isMultiplierProxyName(proxyName)) multiplierProxyNames.push(proxyName);
     if (isStreamingProxyName(proxyName)) streamingProxyNames.push(proxyName);
   }
-
   const builtInDirectProxies = [
     { name: '🇨🇳 直连 | IPv4优先', type: 'direct', 'ip-version': 'ipv4-prefer' },
     { name: '🇨🇳 直连 | IPv6优先', type: 'direct', 'ip-version': 'ipv6-prefer' },
@@ -845,10 +763,8 @@ function buildConfig(config) {
   const GROUP_SCOPED_CHOICE_REGISTRY = Object.freeze({
     '国内服务': builtInDirectChoiceNames.slice()
   });
-
   config.proxies = cleanProxies;
   perfEnd('proxy_classify');
-
   const wholeWordPatternCache = new Map();
   function hasWholeWord(text, word) {
     const key = String(word || '').toLowerCase();
@@ -871,11 +787,11 @@ function buildConfig(config) {
     '俄罗斯': [],
     '欧盟': [],
     '东南亚': [],
-    '美洲其它': [],
+    '加拿大': [],
+    '拉美地区': [],
     '非洲': [],
     '其它地区': [],
   };
-
   // 地区匹配库（中文/英文/ISO/机场码）
   const REGION_MATCH_DB = [
     {
@@ -954,13 +870,18 @@ function buildConfig(config) {
         '缅甸', 'myanmar', 'yangon', '老挝', 'laos', 'vientiane', '文莱', 'brunei'
       ],
       iso: ['MY', 'MYS', 'KUL', 'ID', 'IDN', 'CGK', 'TH', 'THA', 'BKK', 'VN', 'VNM', 'SGN', 'HAN', 'PH', 'PHL', 'MNL', 'KH', 'KHM', 'MM', 'MMR', 'LA', 'LAO', 'BN', 'BRN', 'SEA']
-
     },
     {
-      id: '美洲其它',
+      id: '加拿大',
+      keywords: [
+        '加拿大', 'canada', 'toronto', '多伦多', 'vancouver', '温哥华', 'montreal', '蒙特利尔', 'ottawa', '渥太华', 'calgary', '卡尔加里'
+      ],
+      iso: ['CA', 'CAN', 'YYZ', 'YVR', 'YUL']
+    },
+    {
+      id: '拉美地区',
       keywords: [
         '美洲', 'americas', '拉丁美洲', 'latin america', '南美', 'south america', '中美洲', 'central america', '加勒比', 'caribbean',
-        '加拿大', 'canada', 'toronto', '多伦多', 'vancouver', '温哥华', 'montreal', '蒙特利尔', 'ottawa', '渥太华', 'calgary', '卡尔加里',
         '墨西哥', 'mexico', 'mexico city', '墨西哥城', 'cancun', '坎昆', 'guadalajara', 'monterrey',
         '巴西', 'brazil', 'saopaulo', '圣保罗', 'rio de janeiro', '里约热内卢',
         '阿根廷', 'argentina', 'buenos aires', '布宜诺斯艾利斯',
@@ -969,8 +890,7 @@ function buildConfig(config) {
         '厄瓜多尔', 'ecuador', '玻利维亚', 'bolivia', '巴拉圭', 'paraguay', '乌拉圭', 'uruguay', 'montevideo',
         '哥斯达黎加', 'costa rica', '巴拿马', 'panama', '牙买加', 'jamaica'
       ],
-      iso: ['CA', 'CAN', 'YYZ', 'YVR', 'YUL', 'MX', 'MEX', 'BR', 'BRA', 'GRU', 'GIG', 'AR', 'ARG', 'EZE', 'CL', 'CHL', 'PE', 'PER', 'CO', 'COL', 'VE', 'VEN', 'EC', 'ECU', 'BO', 'BOL', 'PY', 'PRY', 'UY', 'URY', 'AM']
-
+      iso: ['MX', 'MEX', 'BR', 'BRA', 'GRU', 'GIG', 'AR', 'ARG', 'EZE', 'CL', 'CHL', 'PE', 'PER', 'CO', 'COL', 'VE', 'VEN', 'EC', 'ECU', 'BO', 'BOL', 'PY', 'PRY', 'UY', 'URY', 'AM']
     },
     {
       id: '非洲',
@@ -982,7 +902,6 @@ function buildConfig(config) {
         '苏丹', 'sudan', '利比亚', 'libya', '安哥拉', 'angola', '喀麦隆', 'cameroon', '塞内加尔', 'senegal', 'dakar'
       ],
       iso: ['EG', 'EGY', 'CAI', 'MA', 'MAR', 'KE', 'KEN', 'NBO', 'ZA', 'ZAF', 'JNB', 'CPT', 'NG', 'NGA', 'GH', 'GHA', 'ET', 'ETH', 'TZ', 'TZA', 'UG', 'UGA', 'RW', 'RWA', 'TN', 'TUN', 'DZ', 'DZA', 'AF']
-
     },
     {
       id: '其它地区',
@@ -997,10 +916,8 @@ function buildConfig(config) {
       iso: ['IN', 'IND', 'BOM', 'DEL', 'BLR', 'AU', 'AUS', 'SYD', 'MEL', 'NZ', 'NZL', 'AKL', 'AE', 'ARE', 'DXB', 'QA', 'QAT', 'DOH', 'SA', 'SAU', 'IL', 'ISR', 'MO', 'MAC', 'MN', 'MNG']
     }
   ];
-
   // 匹配优先级
   const REGION_PRIORITY = REGION_MATCH_DB.map(entry => entry.id);
-
   // 旗帜优先
   const REGION_FLAG_SOURCE = {
     '香港': /🇭🇰/,
@@ -1012,14 +929,13 @@ function buildConfig(config) {
     '俄罗斯': /🇷🇺/,
     '欧盟': /🇪🇺|🇬🇧|🇩🇪|🇫🇷|🇳🇱|🇮🇹|🇪🇸|🇸🇪|🇵🇱|🇨🇭|🇦🇹|🇧🇪|🇩🇰|🇫🇮|🇳🇴|🇹🇷|🇮🇪|🇵🇹|🇬🇷|🇨🇿|🇭🇺|🇺🇦|🇷🇴|🇧🇬/,
     '东南亚': /🇲🇾|🇮🇩|🇹🇭|🇻🇳|🇵🇭|🇰🇭|🇲🇲|🇱🇦|🇧🇳/,
-    '美洲其它': /🇨🇦|🇲🇽|🇧🇷|🇦🇷|🇨🇱|🇵🇪|🇨🇴|🇻🇪|🇪🇨|🇧🇴|🇵🇾|🇺🇾/,
+    '加拿大': /🇨🇦/, '拉美地区': /🇲🇽|🇧🇷|🇦🇷|🇨🇱|🇵🇪|🇨🇴|🇻🇪|🇪🇨|🇧🇴|🇵🇾|🇺🇾/,
     '非洲': /🇪🇬|🇲🇦|🇰🇪|🇿🇦|🇳🇬|🇬🇭|🇪🇹|🇹🇿|🇺🇬|🇷🇼|🇹🇳|🇩🇿/,
   };
   const REGION_FLAG_MAP = REGION_PRIORITY
     .map(regionName => [regionName, REGION_FLAG_SOURCE[regionName]])
     .filter(([, pattern]) => pattern instanceof RegExp);
   const compiledRegionMatcherMap = Object.create(null);
-
   for (let i = 0; i < REGION_MATCH_DB.length; i++) {
     const region = REGION_MATCH_DB[i];
     const terms = []
@@ -1051,7 +967,6 @@ function buildConfig(config) {
     'relay', 'direct', 'standard', 'basic', 'pro', 'plus', '专线', '中转', '原生'
   ];
   const noisePattern = new RegExp('\\b(' + noiseKeywords.join('|') + ')\\b', 'gi');
-
   // 名称标准化
   function normalizeRegionName(name) {
     const key = String(name || '');
@@ -1090,7 +1005,6 @@ function buildConfig(config) {
     }
     return null;
   }
-
   function matchRegionByLooseRecovery(normalizedName) {
     const normalized = String(normalizedName || '');
     if (!normalized) return null;
@@ -1111,7 +1025,6 @@ function buildConfig(config) {
   function matchRegion(name) {
     const rawName = String(name || '');
     if (regionMatchCache.has(rawName)) return regionMatchCache.get(rawName);
-
     let result = '其它地区';
     for (let i = 0; i < REGION_FLAG_MAP.length; i++) {
       if (REGION_FLAG_MAP[i][1].test(rawName)) {
@@ -1132,7 +1045,6 @@ function buildConfig(config) {
   }
   // 内置直连名称
   const builtInDirectProxyNames = new Set(['🇨🇳 直连 | IPv4优先', '🇨🇳 直连 | IPv6优先', '🇨🇳 直连 | 双栈']);
-
   perfStart('region_classify');
   for (let i = 0; i < cleanProxies.length; i++) {
     const proxy = cleanProxies[i];
@@ -1142,11 +1054,11 @@ function buildConfig(config) {
   }
   // 未命中地区统一回收到「其它地区」
   const otherRegionNodes = unique(regionGroups['其它地区']);
-  const hasNamedPrimaryRegion = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '欧盟', '东南亚', '美洲其它', '非洲']
+  const hasNamedPrimaryRegion = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '加拿大', '欧盟', '东南亚', '拉美地区', '非洲']
     .some(regionName => regionGroups[regionName].length > 0);
   perfEnd('region_classify');
   if (PERF_ENABLED) {
-    const regionDebugOrder = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '欧盟', '东南亚', '美洲其它', '非洲', '其它地区'];
+    const regionDebugOrder = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '加拿大', '欧盟', '东南亚', '拉美地区', '非洲', '其它地区'];
     const regionDebugSummary = regionDebugOrder.map(regionName => `${regionName}:${(regionGroups[regionName] || []).length}`).join(' | ');
     const otherRegionSamples = otherRegionNodes.slice(0, 12).join(' / ');
     debugLog(`[RegionClassify] ${regionDebugSummary}`);
@@ -1171,7 +1083,6 @@ function buildConfig(config) {
   // 保留用户顺序：若旧配置已有同名 select 组，则尽量继承其代理顺序，减少每次刷新后的选项跳动。
   function preserveGroup(group) {
     const oldGroup = existingGroupMap[group.name];
-
     if (group.type !== 'select') return group;
     if (!oldGroup || !Array.isArray(oldGroup.proxies) || !Array.isArray(group.proxies)) return group;
     if (group.name === '全球直连') {
@@ -1194,9 +1105,7 @@ function buildConfig(config) {
     }
     return { ...group, proxies: ordered };
   }
-
   // 代理列表兜底：合并用户列表和默认项，若最终为空则至少返回 DIRECT。
-
   function mergeUniqueChoicesWithFallback(primaryInput, fallbackInput, emptyFallback = null) {
     const merged = [];
     const seen = new Set();
@@ -1216,13 +1125,11 @@ function buildConfig(config) {
     }
     return merged.length ? merged : (emptyFallback || []);
   }
-
   // 列表兜底约定：这里只能返回一维字符串数组；若改成对象/嵌套数组，会直接影响 Clash 配置反序列化。
   function ensureGroupList(list, extraDefaults) {
     const merged = mergeUniqueChoicesWithFallback(list, extraDefaults, ['DIRECT']);
     return merged.length ? merged : ['DIRECT'];
   }
-
   // URL Test 组：用于自动测速选优；没有节点时直接跳过创建，避免伪装成直连组。
   function normalizeHealthOptions(options = {}, defaults = {}) {
     return {
@@ -1280,7 +1187,6 @@ function buildConfig(config) {
     }
     return groups;
   }
-
   // 规则集合并（后定义覆盖前定义）
   function mergeRuleSets(...ruleSets) {
     const merged = [];
@@ -1310,7 +1216,6 @@ function buildConfig(config) {
     }
     return finalized;
   }
-
   // 规则映射表
   function buildRuleSetMap(defs) {
     const map = Object.create(null);
@@ -1321,7 +1226,6 @@ function buildConfig(config) {
     }
     return map;
   }
-
   // 按顺序收集规则
   function collectRuleSets(defs, order) {
     const ruleSetMap = buildRuleSetMap(defs);
@@ -1346,20 +1250,19 @@ function buildConfig(config) {
     }
     return finalized;
   }
-
   // 图标映射
   const regionIconMap = {
     '香港': qIcon('Hong_Kong'), '台湾': qIcon('Taiwan'), '日本': qIcon('Japan'),
     '新加坡': qIcon('Singapore'), '美国': qIcon('United_States'), '韩国': qIcon('Korea'),
     '俄罗斯': qIcon('Russia'), '欧盟': qIcon('European_Union'), '东南亚': qIcon('Asia_Map'),
-    '美洲其它': qIcon('America_Map'), '非洲': qIcon('Africa_Map'), '其它地区': qIcon('World_Map')
+    '加拿大': qIcon('Canada'), '拉美地区': qIcon('America_Map'), '非洲': qIcon('Africa_Map'), '其它地区': qIcon('World_Map')
   };
   const MINI_COLOR_BASE = 'https://raw.githubusercontent.com/Orz-3/mini/master/Color/';
   const homeRegionIconMap = {
     '香港': MINI_COLOR_BASE + 'HK.png', '台湾': MINI_COLOR_BASE + 'TW.png', '日本': MINI_COLOR_BASE + 'JP.png',
     '新加坡': MINI_COLOR_BASE + 'SG.png', '美国': MINI_COLOR_BASE + 'US.png', '韩国': MINI_COLOR_BASE + 'KR.png',
     '俄罗斯': MINI_COLOR_BASE + 'RU.png', '欧盟': MINI_COLOR_BASE + 'EU.png',
-    '东南亚': regionIconMap['东南亚'], '美洲其它': regionIconMap['美洲其它'],
+    '东南亚': regionIconMap['东南亚'], '加拿大': regionIconMap['加拿大'], '拉美地区': regionIconMap['拉美地区'],
     '非洲': regionIconMap['非洲'], '其它地区': regionIconMap['其它地区']
   };
   const iconMap = {
@@ -1368,7 +1271,7 @@ function buildConfig(config) {
     // 漏网之鱼：鱼图标
     final: 'https://api.iconify.design/tabler:fish.svg?color=%2306b6d4',
     global: qIcon('Global'),
-    fallback: qIcon('Available'), fallbackFinal: qIcon('Airport'),
+    fallback: qIcon('Available'), fallbackFinal: 'https://api.iconify.design/tabler:parachute.svg?color=%233b82f6',
     flare: 'https://api.iconify.design/tabler:flame-filled.svg?color=%2300d1b2',
     lowMultiplier: 'https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b',
     multiplier: qIcon('Filter'), home: 'https://api.iconify.design/tabler:home-filled.svg',
@@ -1404,14 +1307,11 @@ function buildConfig(config) {
     };
   }
   // 地区目录与测速顺序
-  const regionAutoOrder = ['香港', '台湾', '美国', '日本', '新加坡', '韩国', '俄罗斯', '欧盟', '东南亚', '美洲其它', '非洲', '其它地区'];
-
+  const regionAutoOrder = ['香港', '台湾', '美国', '日本', '新加坡', '韩国', '俄罗斯', '加拿大', '欧盟', '东南亚', '拉美地区', '非洲', '其它地区'];
   // 地区目录构建
   const regionCatalog = regionAutoOrder.reduce((acc, regionName) => {
     const regionNodes = unique(regionGroups[regionName] || []);
-
     if (!regionNodes.length) return acc;
-
     const names = makeFusionRegionGroupNames(regionName);
     const residentialNodes = regionNodes.filter(name => isResidentialProxyName(name));
     const autoGroup = makeUrlTestGroup(names.auto, regionIconMap[regionName], regionNodes, regionUrlTestInterval, regionUrlTestTolerance, {
@@ -1424,7 +1324,6 @@ function buildConfig(config) {
         maxFailedTimes: regionUrlTestMaxFailedTimes
       })
       : null;
-
     acc[regionName] = {
       name: regionName,
       nodes: regionNodes,
@@ -1453,7 +1352,6 @@ function buildConfig(config) {
       regionHomeAutoNames.push(info.names.homeAuto);
     }
   }
-
   const regionAutoGroups = [];
   const regionHomeAutoGroups = [];
   for (let i = 0; i < regionCatalogValues.length; i++) {
@@ -1461,12 +1359,10 @@ function buildConfig(config) {
     if (info.autoGroup) regionAutoGroups.push(info.autoGroup);
     if (info.homeAutoGroup) regionHomeAutoGroups.push(info.homeAutoGroup);
   }
-
   // 地区查询辅助
   function getRegionAuto(name) {
     return regionAutoMap[name] || null;
   }
-
   function getRegionHomeAuto(name) {
     return regionHomeAutoMap[name] || null;
   }
@@ -1495,7 +1391,6 @@ function buildConfig(config) {
       return ai.value - bi.value || String(a).localeCompare(String(b), 'zh-Hans-CN');
     });
   }
-
   function getRegionNodes(regionName, options = {}) {
     const { includeResidential = true, residentialOnly = false, sortByMultiplier = false } = options;
     const info = regionCatalog[regionName];
@@ -1577,11 +1472,9 @@ function buildConfig(config) {
       return makeOrderedChoices(def.first, pool, def.scope);
     });
   }
-
   function makeChoicePool(first, ...poolParts) {
     return makeOrderedChoices(first, buildChoiceList(...poolParts));
   }
-
   // 候选池构建：不仅要合并 first + parts，还必须透传组级额外白名单。
   // 否则像“国内服务”这种允许额外候选的组，会在二次重组时又被按全局白名单刷掉。
   function buildChoicePoolsFromDefs(defs) {
@@ -1598,10 +1491,8 @@ function buildConfig(config) {
     }
     return map;
   }
-
   function makeGroupNameSet(groups) {
     const set = new Set();
-
     const list = asArray(groups);
     for (let i = 0; i < list.length; i++) {
       const group = list[i];
@@ -1633,34 +1524,25 @@ function buildConfig(config) {
     }
     return filtered;
   }
-
   // 全局家宽池：从全部节点中抽出住宅线路，供风控 / 支付 / 登录等敏感业务优先选择。
   const globalHomeNodes = residentialProxyNames.slice();
-
   // 全球专线：与全球家宽同级，聚合所有识别为专线的节点
   const globalDedicatedNodes = dedicatedProxyNames.slice();
-
   // 可见地区链：把地区自动组与家宽自动组统一并入手动候选菜单。
   const fusionVisibleRegions = unique(regionAutoNames.concat(regionHomeAutoNames));
-
   // 全局兜底地区顺序：用于自动兜底组，优先尝试更常用出口地区。
-  const AUTO_FALLBACK_REGION_ORDER = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '俄罗斯', '东南亚', '美洲其它', '非洲', '其它地区'];
-
+  const AUTO_FALLBACK_REGION_ORDER = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '俄罗斯', '加拿大', '东南亚', '拉美地区', '非洲', '其它地区'];
   const autoFallbackNodes = unique(buildRegionChain(AUTO_FALLBACK_REGION_ORDER));
-
   // 区域故障转移定义
   const REGION_FAILOVER_DEFS = [
     { name: '港台故障转移', regions: ['香港', '台湾'], icon: qIcon('Star') },
     { name: '日韩故障转移', regions: ['日本', '韩国'], icon: qIcon('Heart') },
     { name: '欧美故障转移', regions: ['美国', '欧盟'], icon: qIcon('Magic') }
   ];
-
   const regionFallbackNodeMap = createNamedChoiceMap(REGION_FAILOVER_DEFS, def => buildRegionNodeList(def.regions));
   // YouTube无广策略：Google 广告投放基于出口 IP 的 GeoIP 归属。
   // Google 认为你在广告区 → 有广告；认为你在非广告区（中国大陆/俄罗斯等）→ 无广告。
-
   // 注意：脚本层面无法做真实 GeoIP 探测（那是运行时网络请求），只能靠节点名特征推断。
-
   // 送中信号分为三档：
   //   🅰️ 强信号（节点名明确写了送中/回国/CN落地）
   //   🅱️ 弱信号（节点名含 CN2/GIA/CTG/163/CMI/CT/CU/CM 等中国线路标记）
@@ -1670,10 +1552,8 @@ function buildConfig(config) {
   const cnLandingStrong = [
     /送中|回国|落地中|国内中转|CN落地|回国优化|完美回国|极速回国/,
     /HK.?CN|TW.?CN|SG.?CN|JP.?CN|US.?CN|KR.?CN|AU.?CN|DE.?CN|UK.?CN|FR.?CN/,
-
     /\b回国\b|\bCnRoute\b|\bBackCN\b/i,
   ];
-
   // 弱信号：中国骨干线路标记 → 走 CN 出口概率高，Google GeoIP → CN
   const cnLandingWeak = [
     /\bCN2\b|\bGIA\b|\bCTG\b/i,     // 电信 CN2 GIA / CTG 线路
@@ -1682,15 +1562,12 @@ function buildConfig(config) {
     /\bIPLC\b|\bIEPL\b/i,            // 专线 → 落地可能是 CN
     /\b上海\b|\b北京\b|\b深圳\b|\b广州\b|\b杭州\b|\b成都\b|\b南京\b|\b武汉\b/,  // 国内城市名暗示 CN 出口
   ];
-
   function isCnLanding(name) {
     return cnLandingStrong.some(re => re.test(String(name || '')));
   }
-
   function isCnLandingWeak(name) {
     return cnLandingWeak.some(re => re.test(String(name || '')));
   }
-
   const cnLandingStrongNodes = allProxyNames.filter(name => isCnLanding(name));
   const cnLandingWeakNodes = allProxyNames.filter(name => !isCnLanding(name) && isCnLandingWeak(name));
   // YouTube 无广候选池：按“送中强信号 → 弱信号 → 经验低广告地区”顺序组织。
@@ -1703,27 +1580,24 @@ function buildConfig(config) {
     regionGroups['东南亚'],
     regionGroups['欧盟'],
     regionGroups['其它地区'],
-
     regionGroups['非洲'],
-    regionGroups['美洲其它'],
+    regionGroups['加拿大'],
+    regionGroups['拉美地区'],
     regionGroups['香港'],
     regionGroups['新加坡'],
     regionGroups['日本'],
     regionGroups['美国']
   ));
-
   // AI 候选池：优先放入对海外 AI 服务兼容性通常更稳定的地区自动组。
   const aiFallbackNodes = filterOutDirectEntries(buildChoiceList(
-    buildRegionChain(['台湾', '美国', '日本', '新加坡', '韩国', '东南亚', '美洲其它', '其它地区'])
+    buildRegionChain(['台湾', '美国', '日本', '新加坡', '韩国', '东南亚', '拉美地区', '其它地区'])
   ));
-
   // Cloudflare 候选：优先自动组与欧美出口，并允许显式 Cloudflare / WARP 节点参与。
   const cloudflareGroupChoices = filterOutDirectEntries(buildChoiceList(
     ['自动选择', '欧美故障转移', '全球直连', '全球手动'],
     buildNodeChain([/cloudflare/i, /\bCF\b/i, /WARP/i, /1\.1\.1\.1/]),
     buildRegionChain(['美国', '新加坡', '日本', '香港', '台湾', '欧盟'])
   ));
-
   // 下载分区定义
   const DOWNLOAD_REGION_DEFS = [
     { key: '香港', groupName: '香港下载', icon: regionIconMap['香港'] || qIcon('HK') },
@@ -1746,7 +1620,6 @@ function buildConfig(config) {
       proxies
     };
   }
-
   function collectNamedGroups(groups) {
     const namedGroups = [];
     const names = [];
@@ -1778,21 +1651,17 @@ function buildConfig(config) {
     () => ({ interval: 60, timeout: 800, strategy: 'consistent-hashing' })
   );
   const downloadRegionGroups = downloadRegionGroupArtifacts.groups;
-
   // 下载候选池
   const downloadGroupChoices = filterOutDirectEntries(buildChoiceList(['负载均衡', '自动选择'], downloadRegionGroupArtifacts.names));
-
   // 候选池 / 特殊 fallback
   const excludedFallbackChoices = ['YouTube无广节点优先组', '国外AI故障转移'];
   const SPECIAL_FALLBACK_DEFS = [
     { name: 'YouTube无广节点优先组', icon: iconMap.youtubeFallback, nodes: youtubeFallbackNodes, extraDefaults: ['自动兜底'], options: { interval: 300, tolerance: 180, lazy: true } },
     { name: '国外AI故障转移', icon: iconMap.aiFallback, nodes: aiFallbackNodes, extraDefaults: ['自动兜底'], options: { interval: 300, tolerance: 180, lazy: true } }
   ];
-
   // fallback 组总装
   const fallbackGroupArtifacts = collectNamedGroups([
     makeFallbackGroup('自动兜底', iconMap.fallbackFinal, autoFallbackNodes, [], {
-
       interval: FALLBACK_INTERVAL,
       tolerance: FALLBACK_TOLERANCE,
       lazy: true
@@ -1836,7 +1705,6 @@ function buildConfig(config) {
   ]);
   const loadBalanceGroups = loadBalanceGroupArtifacts.groups;
   const loadBalanceNames = loadBalanceGroupArtifacts.names;
-
   // 特殊聚合组
   const globalHomeGroup = globalHomeNodes.length
     ? makeUrlTestGroup('全球家宽', iconMap.home, globalHomeNodes, regionUrlTestInterval, regionUrlTestTolerance)
@@ -1844,9 +1712,7 @@ function buildConfig(config) {
   const globalDedicatedGroup = globalDedicatedNodes.length
     ? makeUrlTestGroup('全球专线', iconMap.dedicated, globalDedicatedNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
-
   // 倍率聚合：先按识别出的倍率值排序，再派生低倍率节点池。
-
   const multiplierProxyEntries = multiplierProxyNames.map(name => ({ name, info: getMultiplierSortInfo(name) }));
   multiplierProxyEntries.sort((a, b) => {
     const diff = a.info.value - b.info.value;
@@ -1923,10 +1789,8 @@ function buildConfig(config) {
       allowedNameSet: makeNameSet(Array.from(usableChoiceNameSet).concat(scopedChoiceNames))
     };
   }
-
   const GLOBAL_CHOICE_SCOPE = createChoiceScope();
   function filterUsableChoiceNames(list, scope = GLOBAL_CHOICE_SCOPE) {
-
     const filtered = [];
     const seen = new Set();
     const source = asArray(list);
@@ -1944,13 +1808,11 @@ function buildConfig(config) {
     return filterUsableChoiceNames(buildChoiceList(...parts), GLOBAL_CHOICE_SCOPE);
   }
   function usableChoicesForScope(scope, ...parts) {
-
     return filterUsableChoiceNames(buildChoiceList(...parts), scope);
   }
   function usableChoicesForScopeKey(scopeKeyOrChoices, ...parts) {
     return usableChoicesForScope(createChoiceScope(scopeKeyOrChoices), ...parts);
   }
-
   function makeChoiceDef(key, scope, first, ...parts) {
     return {
       key,
@@ -1968,7 +1830,6 @@ function buildConfig(config) {
   }
   function makeSelectGroupDef(name, icon, choices, extraDefaults, scopeKeyOrChoices = null) {
     const scope = createChoiceScope(scopeKeyOrChoices);
-
     return {
       name,
       icon,
@@ -1977,7 +1838,6 @@ function buildConfig(config) {
       extraDefaults: filterUsableChoiceNames(extraDefaults, scope)
     };
   }
-
   function makeSelectGroupDefList(entries) {
     const defs = [];
     const list = asArray(entries);
@@ -1985,11 +1845,9 @@ function buildConfig(config) {
       const entry = list[i];
       if (!entry || !entry.name) continue;
       defs.push(makeSelectGroupDef(entry.name, entry.icon, entry.choices, entry.extraDefaults, entry.scope || entry.extraAllowedChoices));
-
     }
     return defs;
   }
-
   const baseChoices = usableChoices(['节点选择', '自动选择', '负载均衡', '全球手动'], orderedFallbackNames, commonLoadBalanceNames, globalFeatureChoices, fusionVisibleRegions, allProxyNames);
   const commonBaseChoices = baseChoices.filter(name => !excludedFallbackChoiceSet.has(name));
   const youtubeOnlyBaseChoices = baseChoices.filter(name => name !== '国外AI故障转移');
@@ -2014,11 +1872,9 @@ function buildConfig(config) {
     }
     return filterUsableChoiceNames(merged, scope);
   }
-
   // 业务候选项
   const domesticChoices = directChoices.concat(fusionVisibleRegions);
   const taiwanAutoChoice = getRegionAuto('台湾');
-
   // 分流候选池
   const CHOICE_POOL_DEFS = [
     usableChoiceDef('common', ['节点选择'], commonBaseChoices),
@@ -2043,9 +1899,7 @@ function buildConfig(config) {
       '全球直连'
     ])
   ];
-
   const CHOICE_POOLS = buildChoicePoolsFromDefs(CHOICE_POOL_DEFS);
-
   const commonFirst = ['节点选择', '自动选择'];
   const BUSINESS_CHOICE_DEFS = [
     ...['Meta', 'Telegram', 'Twitch', '国外游戏', 'Twitter', 'Discord', '社交信息流', 'GitHub', '翻译服务']
@@ -2083,7 +1937,6 @@ function buildConfig(config) {
     icon: entry[1],
     choices: businessChoiceMap[entry[0]]
   })));
-
   const CHOICE_GROUPS = {
     streaming: usableChoices(CHOICE_POOLS.streaming),
     taiwanMedia: usableChoices(CHOICE_POOLS.taiwanMedia),
@@ -2099,7 +1952,6 @@ function buildConfig(config) {
     ...preferredHomeFailover.filter(name => availableHomeAutoNames.has(name)),
     ...regionHomeAutoNames.filter(name => !preferredHomeFailover.includes(name))
   ].filter(Boolean));
-
   // 主分组候选项
   const MAIN_CHOICE_POOL_DEFS = [
     usableChoiceDef('nodeSelection', ['节点选择', '自动选择', '负载均衡', '全球手动'], fallbackNames, globalFeatureChoices, fusionVisibleRegions),
@@ -2108,7 +1960,6 @@ function buildConfig(config) {
     makeScopedChoiceDef('domesticService', '国内服务', ['全球直连'], builtInDirectChoiceNames, domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x))),
     // 最终兜底候选
     usableChoiceDef('finalFallback', ['节点选择', '自动选择', '全球手动'], fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name)), fusionVisibleRegions)
-
   ];
   const MAIN_CHOICE_POOLS = buildChoicePoolsFromDefs(MAIN_CHOICE_POOL_DEFS);
   // Choice Scope 自检
@@ -2124,7 +1975,6 @@ function buildConfig(config) {
   }
   // 附加显示组
   const regionAutoGroupMap = Object.create(null);
-
   for (let i = 0; i < regionAutoGroups.length; i++) {
     const group = regionAutoGroups[i];
     if (group && group.name) regionAutoGroupMap[group.name] = group;
@@ -2160,20 +2010,18 @@ function buildConfig(config) {
     ...businessServiceGroupDefs.slice(BUSINESS_SERVICE_HEAD.length),
     ...SERVICE_GROUP_BASE_DEFS.slice(2)
   ]);
-
-  // 工具组
-  const UTILITY_GROUP_PRESET_DEFS = makeSelectGroupDefList([
-    { name: '广告拦截', icon: iconMap.adblock, choices: ['REJECT', 'REJECT-DROP', 'PASS'], extraDefaults: ['REJECT-DROP'] },
-    { name: '跟踪分析', icon: qIcon('Reject'), choices: ['REJECT', 'DIRECT', '自动选择'], extraDefaults: ['REJECT'] },
-    { name: '隐私保护', icon: iconMap.privacy, choices: ['REJECT', 'DIRECT', '自动选择'], extraDefaults: ['REJECT'] },
-    { name: '全球直连', icon: iconMap.direct, choices: ['DIRECT'], extraDefaults: [] },
-    { name: '漏网之鱼', icon: iconMap.final, choices: MAIN_CHOICE_POOLS.finalFallback }
-  ]);
+// 工具组
+   const UTILITY_GROUP_PRESET_DEFS = makeSelectGroupDefList([
+     { name: '广告拦截', icon: iconMap.adblock, choices: ['REJECT', 'REJECT-DROP', 'PASS'], extraDefaults: ['REJECT-DROP'] },
+     { name: '跟踪分析', icon: qIcon('Reject'), choices: ['REJECT', 'DIRECT', '自动选择'], extraDefaults: ['REJECT'] },
+     { name: '隐私保护', icon: iconMap.privacy, choices: ['REJECT', 'DIRECT', '自动选择'], extraDefaults: ['REJECT'] },
+     { name: '全球直连', icon: iconMap.direct, choices: ['DIRECT'], extraDefaults: [] },
+     { name: '漏网之鱼', icon: iconMap.final, choices: MAIN_CHOICE_POOLS.finalFallback }
+   ]);
   const utilityGroupDefs = makeSelectGroupDefList([
     { name: '下载专用组', icon: iconMap.download || iconMap.fallback, choices: downloadGroupChoices.filter(name => name !== 'DIRECT') },
     ...UTILITY_GROUP_PRESET_DEFS
   ]);
-
   const defaultAutoGroup = makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50);
   const autoGroup = defaultAutoGroup || {
     name: '自动选择',
@@ -2182,7 +2030,6 @@ function buildConfig(config) {
     proxies: sanitizeChoiceList(usableChoices(allProxyNames), usableChoices(['全球手动', 'DIRECT']))
   };
   const homeFailoverGroup = makeFallbackGroup('家宽故障转移', iconMap.flare, usableChoices(homeFailoverChoices), usableChoices(['自动兜底']));
-
   const CORE_ENTRY_GROUPS = [
     makeSelectGroup('节点选择', iconMap.rocket, MAIN_CHOICE_POOLS.nodeSelection)
   ];
@@ -2193,7 +2040,6 @@ function buildConfig(config) {
   const CORE_FAILOVER_GROUPS = [];
   for (let i = 0; i < fallbackGroups.length; i++) CORE_FAILOVER_GROUPS.push(fallbackGroups[i]);
   if (homeFailoverGroup) CORE_FAILOVER_GROUPS.push(homeFailoverGroup);
-
   const serviceGroups = makeSelectGroupsFromDefs(serviceGroupDefs);
   const utilityGroups = makeSelectGroupsFromDefs(utilityGroupDefs);
   const coreProxyGroupSections = {
@@ -2203,7 +2049,6 @@ function buildConfig(config) {
     service: serviceGroups,
     utility: [
       ...utilityGroups,
-
       ...downloadRegionGroups
     ],
     visibleExtra: [
@@ -2212,14 +2057,12 @@ function buildConfig(config) {
       ...specialFeatureGroups
     ]
   };
-
   // 最终分组装配：拍平、隐藏辅助组并保留旧分组选项顺序。
   // 最终分组装配警示：这里的 flat/filter/map 顺序不要随意调整。
   // - flat: 先展开分区，确保后续处理面对的是线性组列表；
   // - filter(Boolean): 提前剔除空组，避免 hidden/preserve 处理空值；
   // - hidden 标记: 只隐藏辅助组，不改变其被其他组引用的能力；
   // - preserveGroup: 必须放在末尾，保证最终候选顺序基于已清洗后的组数据。
-
   const proxyGroupBuckets = Object.values(coreProxyGroupSections);
   const proxyGroups = [];
   for (let i = 0; i < proxyGroupBuckets.length; i++) {
@@ -2233,7 +2076,6 @@ function buildConfig(config) {
       if (shouldHide) {
         group = Object.assign({}, group, { hidden: true });
       }
-
       proxyGroups.push(preserveGroup(group));
     }
   }
@@ -2250,8 +2092,9 @@ function buildConfig(config) {
     if (groupName === '全球手动') return [];
     // 自动选择组在极端情况下允许退回“全球手动 / DIRECT”，避免测速组彻底空掉。
     if (groupName === '自动选择') return ['全球手动', 'DIRECT'];
-    // 广告拦截组属于行为组，不依赖真实节点，兜底项是内建动作。
-    if (groupName === '广告拦截') return ['REJECT-DROP', 'REJECT', 'PASS'];
+// 广告拦截组属于行为组，不依赖真实节点，兜底项是内建动作。
+     if (groupName === '广告拦截') return ['REJECT-DROP', 'REJECT', 'PASS'];
+// 跟踪分析组
     // 跟踪分析组用于阻断/直连观测，兜底动作不需要真实代理。
     if (groupName === '跟踪分析') return ['REJECT', 'DIRECT'];
     // 漏网之鱼承担 MATCH 收尾职责，允许回退到主入口组。
@@ -2270,7 +2113,6 @@ function buildConfig(config) {
     // 只要候选中还存在一个真实节点，就说明这个组不需要走语义兜底。
     return asArray(list).some(name => realChoiceCandidateSet.has(name));
   }
-
   function finalizeGroupChoices(group, candidates) {
     // candidates 是已经过基础过滤后的候选列表；这里再按组类型决定最终落盘形式。
     const proxies = asArray(candidates);
@@ -2293,27 +2135,22 @@ function buildConfig(config) {
       if (PLAY_STORE_SPECIAL_GROUP_NAMES.includes(group.name)) return proxies.length ? proxies : [];
       return hasRealChoices ? proxies : [];
     }
-
     // 其余 select / 行为组：有真实节点就直接保留；没真实节点才走语义兜底。
     return hasRealChoices ? proxies : sanitizeChoiceList(proxies, fallbackChoices);
   }
   function shouldDropEmptyGroup(group) {
     if (!group || !group.name) return true;
     if (!Array.isArray(group.proxies)) return false;
-
     // 核心组永不删除
     const coreGroups = ['自动选择', '全球手动', '全球直连'];
     if (coreGroups.includes(group.name)) return false;
-
     // 测速/负载组通常必须包含真实节点；谷歌商店专用组允许包含地区自动组。
     if (group.type === 'url-test' || group.type === 'load-balance') {
       if (PLAY_STORE_SPECIAL_GROUP_NAMES.includes(group.name)) return !asArray(group.proxies).length;
       return !hasRealChoiceCandidates(group.proxies);
     }
-
     return false;
   }
-
   // Final Choice Registry
   // cleanup 阶段统一从这里获取“最终承认存在的名字”，避免把组级额外候选再次误删。
   function getAllScopedChoiceNames() {
@@ -2331,7 +2168,6 @@ function buildConfig(config) {
       ['谷歌商店专用']
     ));
   }
-
   function assertChoiceNamesRegistered(list, label) {
     const candidates = asArray(list);
     const registry = buildRealChoiceCandidateSet();
@@ -2346,7 +2182,6 @@ function buildConfig(config) {
   function buildAvailableChoiceNameSetFromGroups(groups) {
     const names = buildRealChoiceCandidateSet();
     const list = asArray(groups);
-
     for (let i = 0; i < list.length; i++) {
       const group = list[i];
       if (group && group.name) names.add(group.name);
@@ -2363,14 +2198,12 @@ function buildConfig(config) {
         return Object.assign({}, group, { proxies: finalizeGroupChoices(group, filteredProxies) });
       })
       .filter(group => !shouldDropEmptyGroup(group));
-
     // 构建组映射表
     const groupMap = Object.create(null);
     for (let i = 0; i < cleanedGroups.length; i++) {
       const group = cleanedGroups[i];
       if (group && group.name) groupMap[group.name] = group;
     }
-
     // 第二步：切除自引用和互环引用
     return cleanedGroups
       .map(group => {
@@ -2379,27 +2212,21 @@ function buildConfig(config) {
         for (let i = 0; i < group.proxies.length; i++) {
           const proxyName = group.proxies[i];
           const targetGroup = groupMap[proxyName];
-
           // 不是组引用，直接保留
           if (!targetGroup || !Array.isArray(targetGroup.proxies)) {
             nextProxies.push(proxyName);
             continue;
           }
-
           // 自引用 A -> A：丢弃
           if (targetGroup.name === group.name) continue;
-
           // 互环引用 A -> B && B -> A：丢弃
           if (targetGroup.proxies.includes(group.name)) continue;
-
           nextProxies.push(proxyName);
         }
-
         return Object.assign({}, group, { proxies: finalizeGroupChoices(group, nextProxies) });
       })
       .filter(group => !shouldDropEmptyGroup(group));
   }
-
   function getProxyGroupSignature(groups) {
     return JSON.stringify(asArray(groups).map(group => {
       if (!group || !group.name) return null;
@@ -2410,7 +2237,6 @@ function buildConfig(config) {
       };
     }));
   }
-
   // 稳定化清洗：反复执行“删失效引用 -> 切环 -> 删空自动组”，直到分组关系不再变化。
   // 这样即使存在 A 引用 B、B 删除后又影响 C 的级联场景，也不会残留 not found。
   let stabilizedProxyGroups = finalizedProxyGroups.slice();
@@ -2421,24 +2247,20 @@ function buildConfig(config) {
     const nextAvailableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(stabilizedProxyGroups);
     stabilizedProxyGroups = runProxyGroupCleanupPass(stabilizedProxyGroups, nextAvailableChoiceNameSet);
     const signature = getProxyGroupSignature(stabilizedProxyGroups);
-
     if (signature === previousSignature) break;
     previousSignature = signature;
   }
   config['proxy-groups'] = stabilizedProxyGroups;
-
   // 最终分组自检：国内服务如果存在，必须仍然保留三直连可见性，避免回归到“前面放行、后面 cleanup 删除”。
   const domesticServiceGroup = stabilizedProxyGroups.find(group => group && group.name === '国内服务');
   if (domesticServiceGroup && Array.isArray(domesticServiceGroup.proxies)) {
     for (let i = 0; i < builtInDirectChoiceNames.length; i++) {
       const name = builtInDirectChoiceNames[i];
-
       if (!domesticServiceGroup.proxies.includes(name)) {
         throw new Error('proxy group health check failed: domesticService missing built-in direct choice after cleanup: ' + name);
       }
     }
   }
-
   // 规则目标校验：规则里引用的策略名必须真的存在。
   // 这是规则区最常见的维护事故之一：改了组名，却忘了同步规则目标。
   const availableRuleTargets = makeNameSet(config['proxy-groups'].map(group => group && group.name));
@@ -2450,11 +2272,9 @@ function buildConfig(config) {
     const parts = rule.split(',').map(p => String(p || '').trim());
     return parts.length ? parts : null;
   }
-
   function extractRulePolicyTarget(ruleOrParts) {
     const parts = Array.isArray(ruleOrParts) ? ruleOrParts : parseRuleParts(ruleOrParts);
     if (!parts || parts.length < 3) return null;
-
     // 从后往前找第一个非标志位的值作为目标
     for (let i = parts.length - 1; i >= 2; i--) {
       const value = parts[i];
@@ -2462,25 +2282,20 @@ function buildConfig(config) {
     }
     return null;
   }
-
   function extractRuleMatchValue(ruleOrParts) {
     const parts = Array.isArray(ruleOrParts) ? ruleOrParts : parseRuleParts(ruleOrParts);
     if (!parts || parts.length < 2) return null;
-
     return {
       type: parts[0].toUpperCase(),
       value: parts[1],
       target: extractRulePolicyTarget(parts)
     };
   }
-
   function getRuleIdentityKey(rule) {
     const parts = parseRuleParts(rule);
     if (!parts) return null;
-
     const meta = extractRuleMatchValue(parts);
     if (!meta || !meta.type || !meta.value) return `RAW@@${rule}`;
-
     const extraParts = parts.length > 3 ? parts.slice(3).join(',') : '';
     return `${meta.type}@@${meta.value}@@${extraParts}`;
   }
@@ -2499,30 +2314,24 @@ function buildConfig(config) {
     };
     const exactRuleOwners = new Map();
     const normalizedMatchOwners = new Map();
-
     // 第一轮：收集规则所有权和匹配信息
     for (const def of ruleSetDefs) {
       const rules = Array.isArray(def && def.rules) ? def.rules : [];
       const validRules = rules.filter(rule => typeof rule === 'string');
-
       diagnostics.totalSourceRules += validRules.length;
       diagnostics.ruleSetSizes.push({ name: def && def.name ? def.name : 'UNKNOWN', count: validRules.length });
-
       for (const rule of validRules) {
         // 记录完整规则的所有权
         if (!exactRuleOwners.has(rule)) exactRuleOwners.set(rule, []);
         exactRuleOwners.get(rule).push(def.name);
-
         // 记录匹配键的所有权（用于检测目标覆盖）
         const meta = extractRuleMatchValue(rule);
         if (!meta || !meta.type || !meta.value || !meta.target) continue;
-
         const ownerKey = `${meta.type}@@${meta.value}`;
         if (!normalizedMatchOwners.has(ownerKey)) normalizedMatchOwners.set(ownerKey, []);
         normalizedMatchOwners.get(ownerKey).push({ target: meta.target, set: def.name, rule });
       }
     }
-
     // 第二轮：检测跨规则集的重复和覆盖
     for (const [rule, owners] of exactRuleOwners.entries()) {
       const uniqOwners = Array.from(new Set(owners));
@@ -2530,7 +2339,6 @@ function buildConfig(config) {
         diagnostics.duplicateRulesAcrossSets.push({ rule, sets: uniqOwners });
       }
     }
-
     for (const [matchKey, entries] of normalizedMatchOwners.entries()) {
       const uniqTargets = Array.from(new Set(entries.map(item => item.target)));
       if (uniqTargets.length > 1) {
@@ -2542,57 +2350,45 @@ function buildConfig(config) {
         });
       }
     }
-
     diagnostics.dedupedRuleCount = Math.max(0, diagnostics.totalSourceRules - diagnostics.totalMergedRules);
     diagnostics.ruleSetSizes.sort((a, b) => b.count - a.count || String(a.name).localeCompare(String(b.name)));
-
     // 第三轮：分析合并后的规则
     const suffixRuleMap = new Map();
     const keywordRules = [];
-
     for (const rule of mergedRules) {
       const meta = extractRuleMatchValue(rule);
       if (!meta || !meta.type || !meta.value || !meta.target) continue;
-
       // 统计规则类型
       diagnostics.mergedRuleTypeCounts[meta.type] = (diagnostics.mergedRuleTypeCounts[meta.type] || 0) + 1;
-
       // 收集后缀和关键词规则用于后续检查
       if (meta.type === 'DOMAIN-SUFFIX') suffixRuleMap.set(`${meta.value}@@${meta.target}`, rule);
       if (meta.type === 'DOMAIN-KEYWORD') keywordRules.push(meta);
     }
-
     // 第四轮：检测冗余规则
     // 检测被后缀规则覆盖的域名规则
     for (const rule of mergedRules) {
       const meta = extractRuleMatchValue(rule);
       if (!meta || meta.type !== 'DOMAIN' || !meta.value || !meta.target) continue;
-
       if (suffixRuleMap.has(`${meta.value}@@${meta.target}`)) {
         diagnostics.redundantDomainCoveredBySuffix.push(rule);
       }
     }
-
     // 检测风险关键词
     for (const meta of keywordRules) {
       if (meta.value && meta.value.length <= 2) {
         diagnostics.riskyShortKeywords.push(`DOMAIN-KEYWORD,${meta.value},${meta.target}`);
       }
     }
-
     // 检测关键词重叠
     for (let i = 0; i < keywordRules.length; i++) {
       for (let j = i + 1; j < keywordRules.length; j++) {
         const a = keywordRules[i];
         const b = keywordRules[j];
-
         // 同目标或空值跳过
         if (a.target === b.target || !a.value || !b.value) continue;
-
         const av = a.value.toLowerCase();
         const bv = b.value.toLowerCase();
         if (av === bv) continue;
-
         // 检测包含关系
         if (av.length >= 4 && bv.includes(av)) {
           diagnostics.broadKeywordOverlapHints.push({ broader: a, narrower: b });
@@ -2601,7 +2397,6 @@ function buildConfig(config) {
         }
       }
     }
-
     return diagnostics;
   }
   function emitRuleDiagnostics(diagnostics) {
@@ -2622,7 +2417,6 @@ function buildConfig(config) {
       });
     }
     if (diagnostics.duplicateRulesAcrossSets.length) {
-
       lines.push(`[rules diagnostics] duplicate exact rules across sets: ${diagnostics.duplicateRulesAcrossSets.length}`);
       diagnostics.duplicateRulesAcrossSets.slice(0, 10).forEach(item => {
         lines.push(`  - ${item.rule} <= ${item.sets.join(' | ')}`);
@@ -2634,7 +2428,6 @@ function buildConfig(config) {
         lines.push(`  - ${item.matchKey} => ${item.targets.join(' | ')} (effective: ${item.effectiveTarget || 'unknown'})`);
       });
     }
-
     if (diagnostics.redundantDomainCoveredBySuffix.length) {
       lines.push(`[rules diagnostics] DOMAIN covered by same DOMAIN-SUFFIX: ${diagnostics.redundantDomainCoveredBySuffix.length}`);
       diagnostics.redundantDomainCoveredBySuffix.slice(0, 10).forEach(rule => lines.push(`  - ${rule}`));
@@ -2749,27 +2542,23 @@ function buildConfig(config) {
       'com.cnn.mobile.android.phone', 'com.guardian', 'flipboard.app', 'com.google.android.apps.magazines'
     ], '新闻资讯')
   ];
-
   // 翻译服务规则
   const RULES_TRANSLATION = [
     ...ruleDomain(['translate.googleapis.com','translation.googleapis.com','translate-pa.googleapis.com','translate.google.com','translate.google.cn','www.deepl.com','api.deepl.com','www2.deepl.com','dict.deepl.com','static.deepl.com'], '翻译服务'),
     ...ruleSuffix(['translate.googleapis.com','translation.googleapis.com','translate-pa.googleapis.com','translate.google.com','translate.google.cn','deepl.com','deeplpro.com','deeplusercontent.com','linguee.com'], '翻译服务')
   ];
-
-  // 广告拦截规则
-  const RULES_ADBLOCK = [
-
-    'DOMAIN,incoming.telemetry.mozilla.org,REJECT-DROP',
-    'DOMAIN-REGEX,^(log|mon)[0-9A-Za-z.-]*\.tiktokv\.com$,REJECT',
-    'PROCESS-NAME,TikTok.Mod.Jaggu,TikTok',
-    'PROCESS-NAME-REGEX,(?i)^TikTok\.Mod\.Jaggu(?::.*)?$,TikTok',
-    'GEOSITE,category-ads-all,广告拦截',
-    // 关键词拦截只保留高置信度广告词
-    ...ruleKeyword(['adserver','adnetwork','adtech','adsdk','adapi','adtrack','adclick','adcount','adstat','adload','adsystem','impression','conversion','atdmt','adform','taboola','popunder','clickhubs','adriver'], '广告拦截'),
-    ...ruleSuffix(adguardDomains(), '广告拦截')
-  ];
-
-  // 风控安全规则
+// 广告拦截规则
+   const RULES_ADBLOCK = [
+     'DOMAIN,incoming.telemetry.mozilla.org,REJECT-DROP',
+     'DOMAIN-REGEX,^(log|mon)[0-9A-Za-z.-]*\.tiktokv\.com$,REJECT',
+     'PROCESS-NAME,TikTok.Mod.Jaggu,TikTok',
+     'PROCESS-NAME-REGEX,(?i)^TikTok\.Mod\.Jaggu(?::.*)?$,TikTok',
+     'GEOSITE,category-ads-all,广告拦截',
+     // 关键词拦截只保留高置信度广告词
+     ...ruleKeyword(['adserver','adnetwork','adtech','adsdk','adapi','adtrack','adclick','adcount','adstat','adload','adsystem','impression','conversion','atdmt','adform','taboola','popunder','clickhubs','adriver'], '广告拦截'),
+     ...ruleSuffix(adguardDomains(), '广告拦截')
+   ];
+// 风控安全规则
   const RULES_RISK_SECURITY = ruleSuffix(['accounts.google.com', 'myaccount.google.com', 'ogs.google.com', 'androidauth.googleapis.com', 'oauthaccountmanager.googleapis.com', 'oauth2.googleapis.com', 'securetoken.googleapis.com', 'identitytoolkit.googleapis.com', 'firebaseauth.googleapis.com', 'accounts.youtube.com', 'families.google.com', 'accounts.google.cn', 'workspace.google.com', 'admin.google.com', 'passwords.google.com', 'notifications.google.com', 'recaptcha.net', 'recaptcha-enterprise.google.com', 'hcaptcha.com', 'newassets.hcaptcha.com', 'account.amazon.com', 'payments.amazon.com', 'paypal.com', 'paypal.com.hk', 'paypal.com.sg', 'paypal.me', 'paypal.hk', 'paypal.jp', 'paypal.us', 'paypalservice.com', 'paypalcredit.com', 'braintreegateway.com', 'braintreepayments.com', 'card.io', 'paypalhere.com', 'venmo.com', 'xoom.com', 'stripe.com', 'stripe.network', 'stripe-terminal-local-reader.net', 'checkout.com', 'checkoutcdn.com', 'checkoutshopper.com', 'payoneer.com', 'airwallex.com', 'worldpay.com', 'skrill.com', 'neteller.com', 'wise.com', 'transferwise.com', 'hsbc.com', 'interactivebrokers.com', 'adyen.com', 'visa.com', 'mastercard.com', 'amex.com', 'revolut.com', 'ibkr.com', 'schwab.com', 'binance.com', 'binance.us', 'bnbstatic.com', 'binanceapi.com', 'coinbase.com', 'okx.com', 'oklink.com', 'okx-dns.com', 'okx-dns1.com', 'okx-dns2.com', 'bybit.com', 'bytick.com', 'byapis.com', 'bycsi.com', 'bybit-global.com', 'bybitglobal.com', 'gate.io', 'gateimg.com', 'gatedata.org', 'kucoin.com', 'kucoin.plus', 'kraken.com', 'bitget.com', 'mexc.com', 'huobi.com', 'htx.com', 'trustwallet.com', 'walletconnect.com', 'walletconnect.org', 'ethereum.org', 'etherscan.io', 'opensea.io', 'uniswap.org', 'safepal.com', 'isafepal.com', 'trezor.io', 'ledger.com', 'hyperliquid.xyz', 'polymarket.com', 'dydx.exchange', 'bitfinex.com', 'bitstamp.net', 'deribit.com', 'bitflyer.com', 'onekey.so', 'onekeycn.com', 'redotpay.com', 'login.live.com', 'login.microsoftonline.com', 'account.live.com', 'account.microsoft.com', 'signup.live.com', 'appleid.apple.com', 'appleaccount.apple.com', 'idmsa.apple.com', 'idms-apple.com', 'iforgot.apple.com', 'signin.aws.amazon.com', 'dash.cloudflare.com', 'challenges.cloudflare.com', 'turnstile.cloudflare.com', 'assets.cloudflare.com', 'authy.com'], '风控安全');
   // 跟踪分析规则：覆盖 Tracker、遥测、统计与分析域名。
   const RULES_TRACKER = [
@@ -2849,7 +2638,6 @@ function buildConfig(config) {
   ];
   // 全球 AI 规则
   const RULES_AI_GLOBAL = [
-
     ...ruleSuffix([
       'oaistatic.com', 'oaiusercontent.com', 'openaiusercontent.com', 'chatgpt.livekit.cloud', 'openaiapi-site.azureedge.net',
       'ai.com', 'claude.ai', 'claudeusercontent.com', 'anthropiccdn.com', 'perplexity.ai', 'perplexity.com', 'pplx.ai',
@@ -2863,7 +2651,6 @@ function buildConfig(config) {
     ...ruleDomain(['api2.branch.io', 'cdn.branch.io'], '去中心化平台'),
     ...ruleSuffix(['metamask.io'], '去中心化平台'),
     ...ruleDomain(['1.1.1.1'], 'Cloudflare'),
-
     ...ruleSuffix(['cloudflare.com', 'cloudflare-dns.com', 'cloudflareclient.com', 'workers.dev', 'pages.dev', 'trycloudflare.com', 'cdnjs.cloudflare.com'], 'Cloudflare')
   ];
   // 下载规则
@@ -2876,7 +2663,6 @@ function buildConfig(config) {
   ], '下载专用组');
   // 国外游戏规则
   const RULES_GLOBAL_GAMING = [
-
     ...ruleSuffix([
       'steamcommunity.com', 'steampowered.com', 'steamstatic.com', 'steamcdn-a.akamaihd.net', 'steamserver.net', 'steamcontent.com', 'steampipe.akamaized.net',
       'epicgames.com', 'unrealengine.com', 'epicgames-download1.akamaized.net', 'download.epicgames.com',
@@ -2891,12 +2677,10 @@ function buildConfig(config) {
   ];
   // GitHub 规则
   const RULES_GITHUB = [
-
     ...ruleSuffix(['github.com','github.io','githubusercontent.com','githubassets.com','githubstatus.com','ghcr.io','npmjs.com','npmjs.org','yarnpkg.com','github.dev','raw.githubusercontent.com'], 'GitHub')
   ];
   // 微软规则
   const RULES_MICROSOFT = [
-
     ...ruleSuffix([
       'microsoft.com', 'microsoftonline.com', 'live.com', 'live.net', 'outlook.com', 'officeapps.live.com',
       'onedrive.com', 'bing.com', 'bingapis.com', 'bingstatic.com', 'copilot.microsoft.com', 'msn.com',
@@ -2906,7 +2690,6 @@ function buildConfig(config) {
   ];
   // 流媒体规则
   const RULES_STREAMING = [
-
     ...ruleSuffix([
       'netflix.com', 'nflxvideo.net', 'nflximg.net', 'nflxext.com', 'nflxso.net', 'netflix.net',
       'disneyplus.com', 'disney-plus.net', 'dssott.com', 'bamgrid.com', 'primevideo.com', 'amazonvideo.com', 'media-amazon.com',
@@ -2919,12 +2702,10 @@ function buildConfig(config) {
   // Twitch 规则
   const RULES_TWITCH = [
     ...ruleProcess(['tv.twitch.android.app','tv.twitch.android.viewer'], 'Twitch'),
-
     ...ruleSuffix(['twitch.tv','twitchcdn.net','ttvnw.net','jtvnw.net','live-video.net'], 'Twitch')
   ];
   // Meta 规则
   const RULES_META = [
-
     ...ruleSuffix([
       'facebook.com', 'facebook.net', 'fb.com', 'fbcdn.net', 'fbsbx.com', 'tfbnw.net',
       'messenger.com', 'm.me', 'instagram.com', 'cdninstagram.com', 'ig.me',
@@ -2933,7 +2714,6 @@ function buildConfig(config) {
   ];
   // Spotify 规则
   const RULES_SPOTIFY = [
-
     ...ruleSuffix(['spotify.com','scdn.co','spoti.fi','pscdn.co','spotifycdn.com'], 'Spotify')
   ];
   // Telegram 规则
@@ -2943,7 +2723,6 @@ function buildConfig(config) {
       'nekox.messenger', 'tw.nekomimi.nekogram', 'xyz.nextalone.nagram', 'org.telegram.plus',
       'ellipi.messenger', 'org.thunderdog.challegram'
     ], 'Telegram'),
-
     ...ruleKeyword(['telegram'], 'Telegram'),
     ...ruleSuffix([
       'telegra.ph', 'telegram.org', 't.me', 'telesco.pe', 'telegram.me', 'telegram.dog',
@@ -2957,7 +2736,6 @@ function buildConfig(config) {
   ];
   // Google 通用规则
   const RULES_GOOGLE = [
-
     ...ruleDomain(['dns.google', 'dns.google.com', 'mail.google.com'], 'Google'),
     ...ruleSuffix([
       'google.com', 'googleapis.com', 'gstatic.com', 'gmail.com', 'googlemail.com', 'ggpht.cn',
@@ -2971,25 +2749,20 @@ function buildConfig(config) {
     ], 'Google'),
     ...ruleSuffix(['gvt1.com', 'gvt2.com', 'gvt3.com', 'xn--ngstr-lra8j.com', 'xn--ngstr-cn-8za9o.com'], '谷歌商店')
   ];
-
   // Twitter / X 规则
   const RULES_TWITTER = [
-
     ...ruleSuffix(['x.com','twitter.com','twimg.com','t.co','pscp.tv','periscope.tv'], 'Twitter')
   ];
   // Discord 规则：主站、邀请、资源与客户端
   const RULES_DISCORD = [
     ...ruleProcess(['com.discord'], 'Discord'),
-
     ...ruleSuffix(['discord.com','discord.gg','discord.gift','discord.new','discordapp.com','discordapp.net','discordcdn.com','discord.media','discordsays.com','dis.gd'], 'Discord')
   ];
   // 社交信息流规则：Reddit
   const RULES_SOCIAL_FEED = [
-
     ...ruleSuffix(['reddit.com','redditinc.com','redditmedia.com','redditstatic.com','redditspace.com','redd.it','flr.app'], '社交信息流'),
     ...ruleDomain(['reddit.map.fastly.net'], '社交信息流')
   ];
-
   // 去中心化补充规则
   const RULES_DECENTRALIZED_SUPPLEMENT = ruleSuffix(['bluesky.app', 'bsky.app', 'bsky.social', 'bsky.network', 'bsky.chat', 'skyfeed.app', 'skyfeed.me', 'clearsky.app', 'staging.bsky.dev', 'atproto.com', 'atproto.blue', 'atproto.plus', 'brid.gy', 'mastodon.social', 'mastodon.online', 'mastodon.cloud', 'mastodon.green', 'mastodon.world', 'mastodon.jp', 'mstdn.jp', 'mstdn.social', 'mastodon.uno', 'mas.to', 'pawoo.net', 'fedibird.com', 'otadon.com', 'friends.nico', 'joinmastodon.org', 'activitypub.rocks', 'activitypub.academy', 'joinfediverse.wiki', 'hachyderm.io', 'techhub.social', 'infosec.exchange', 'journa.host', 'mathstodon.xyz', 'universeodon.com', 'fosstodon.org', 'bsd.network', 'hostux.social', 'dice.camp', 'misskey.io', 'misskey.id', 'misskey.design', 'misskey.art', 'misskey.cloud', 'misskey.dev', 'misskey.gg', 'misskey.niri.la', 'misskey.pm', 'misskey.systems', 'misskey-square.net', 'nijimiss.moe', 'sushi.ski', 'yufan.me', 'firefish.social', 'firefish.city', 'firefish.nz', 'calckey.jp', 'calckey.world', 'lemmy.world', 'lemmy.ml', 'lemmy.zip', 'beehaw.org', 'sh.itjust.works', 'programming.dev', 'kbin.social', 'mbin.social', 'fedia.io', 'pleroma.social', 'pleroma.envs.net', 'akkoma.dev', 'social.seattle.wa.us', 'mk.absturztau.be', 'joinpeertube.org', 'peertube.tv', 'tilvids.com', 'diode.zone', 'pixelfed.social', 'pixelfed.de', 'pixelfed.uno', 'writefreely.org', 'write.as', 'mobilizon.org', 'friendi.ca', 'hubzilla.org', 'primal.net', 'damus.io', 'snort.social', 'nostr.band', 'iris.to', 'nostr.com'], '去中心化平台');
   // TikTok 规则
@@ -2999,7 +2772,6 @@ function buildConfig(config) {
   ];
   // 日韩生态规则
   const RULES_JP_KR_ECOSYSTEM = [
-
     ...ruleSuffix([
       'line.me', 'line-apps.com', 'line-scdn.net', 'naver.com', 'naver.net', 'naver.jp', 'linecorp.com', 'band.us',
       'weverse.io', 'weverseapi.io', 'weverseassets.io', 'ameba.jp', 'note.com', 'tapple.me', 'pixiv.net', 'pximg.net',
@@ -3032,7 +2804,6 @@ function buildConfig(config) {
   ];
   // 新闻资讯规则
   const RULES_NEWS = [
-
     ...ruleSuffix([
       'bbc.com', 'bbc.co.uk', 'bbci.co.uk', 'nytimes.com', 'nyt.com', 'reuters.com', 'bloomberg.com',
       'cnn.com', 'wsj.com', 'ft.com', 'theguardian.com', 'apnews.com', 'npr.org', 'economist.com',
@@ -3075,7 +2846,6 @@ function buildConfig(config) {
   ];
   // 扩展社交 / 知识社区
   const RULES_SOCIAL_EXTRA = [
-
     ...ruleSuffix([
       'linkedin.com', 'licdn.com', 'pinterest.com', 'pinimg.com', 'snapchat.com', 'sc-cdn.net',
       'medium.com', 'v2ex.com', 'quora.com', 'quoracdn.net'
@@ -3084,7 +2854,6 @@ function buildConfig(config) {
   ];
   // 支付服务规则补强
   const RULES_PAYMENT = [
-
     ...ruleSuffix([
       'paypal.com', 'stripe.com', 'wise.com', 'revolut.com', 'payoneer.com', 'worldpay.com',
       'skrill.com', 'neteller.com', 'authy.com', 'adyen.com', 'transferwise.com', 'checkout.com',
@@ -3098,7 +2867,6 @@ function buildConfig(config) {
     'GEOIP,!CN,节点选择',
     'MATCH,漏网之鱼'
   ];
-
   // 规则内容与装配顺序分离
   const RULE_SET_MAP = {
     LAN_PRIVATE: RULES_LAN_PRIVATE,
@@ -3106,8 +2874,8 @@ function buildConfig(config) {
     TRANSLATION: RULES_TRANSLATION,
     RISK_SECURITY: RULES_RISK_SECURITY,
     RISK_CONTROL: RULES_RISK_CONTROL,
-    APP_PROCESS: RULES_APP_PROCESS,
-    ADBLOCK: RULES_ADBLOCK,
+APP_PROCESS: RULES_APP_PROCESS,
+     ADBLOCK: RULES_ADBLOCK,
     TRACKER: RULES_TRACKER,
     PRIVACY: RULES_PRIVACY,
     PAYMENT: RULES_PAYMENT,
@@ -3143,7 +2911,6 @@ function buildConfig(config) {
     SOCIAL_FEED_SUPPLEMENT: RULES_SOCIAL_FEED_SUPPLEMENT,
     DIRECT_AND_FALLBACK: RULES_DIRECT_AND_FALLBACK
   };
-
   const RULE_ASSEMBLY_ORDER = [
     // 局域网 / 私有地址永远最先，避免内网被后续业务或 GEOIP 误伤。
     'LAN_PRIVATE',
@@ -3155,9 +2922,9 @@ function buildConfig(config) {
     'RISK_CONTROL',
     // 进程兜底必须位于精确域名之后，避免 GMS/下载器吞掉专项流量。
     'APP_PROCESS',
-    // 广告 / 跟踪 / 隐私 / 支付 / 个人媒体 / 资讯位于登录支付保护之后，降低核心链路误拦截概率。
-    'ADBLOCK',
-    'TRACKER',
+// 广告 / 跟踪 / 隐私 / 支付 / 个人媒体 / 资讯位于登录支付保护之后，降低核心链路误拦截概率。
+     'ADBLOCK',
+     'TRACKER',
     'PRIVACY',
     'PAYMENT',
     'PERSONAL_MEDIA',
@@ -3193,43 +2960,34 @@ function buildConfig(config) {
     'SOCIAL_FEED_SUPPLEMENT',
     'DIRECT_AND_FALLBACK'
   ];
-
   // 规则装配
-
   const RULE_SET_DEFS = RULE_ASSEMBLY_ORDER.map(name => ({
     name,
     rules: RULE_SET_MAP[name]
   }));
-
   perfStart('rules_assemble');
   const assembledRules = collectRuleSets(RULE_SET_DEFS, RULE_ASSEMBLY_ORDER);
   config.rules = mergeRuleSets(assembledRules);
   perfEnd('rules_assemble');
-
   // 规则健康检查：确保存在最终兜底规则
   if (!config.rules.length || !config.rules.some(rule => typeof rule === 'string' && /^MATCH\s*,/i.test(rule))) {
     throw new Error('rules health check failed: missing fallback MATCH rule');
   }
   // 规则目标校验：确保所有目标都指向有效策略组
-
   const missingRuleTargets = [];
   const seenMissingRuleTargets = new Set();
-
   for (let i = 0; i < config.rules.length; i++) {
     const rule = config.rules[i];
     const target = extractRulePolicyTarget(rule);
-
     // 跳过有效目标和已记录的缺失目标
     if (!target || availableRuleTargets.has(target)) continue;
     if (seenMissingRuleTargets.has(target)) continue;
-
     seenMissingRuleTargets.add(target);
     missingRuleTargets.push(target);
   }
   if (missingRuleTargets.length) {
     throw new Error('rules health check failed: missing policy target(s): ' + missingRuleTargets.join(', '));
   }
-
   // DNS / 分组 / 规则联动校验：只校验声明表中的业务，不猜测未注册策略组。
   const dnsBindingErrors = [];
   const fallbackDomainSet = new Set(asArray(config.dns['fallback-filter'] && config.dns['fallback-filter'].domain));
@@ -3260,42 +3018,31 @@ function buildConfig(config) {
   if (dnsBindingErrors.length) {
     throw new Error('DNS service binding check failed: ' + dnsBindingErrors.join(' | '));
   }
-
   // 规则诊断：可选的深度分析（开发调试用）
-
   if (RULE_DIAGNOSTICS_ENABLED) {
     const ruleDiagnostics = buildRuleDiagnostics(RULE_SET_DEFS, config.rules);
-
     // 警告：风险关键词规则
     if (ruleDiagnostics.riskyShortKeywords.length && typeof console !== 'undefined' && typeof console.warn === 'function') {
       console.warn('rules health check warning: risky short DOMAIN-KEYWORD rule(s): ' + ruleDiagnostics.riskyShortKeywords.join(', '));
     }
-
     // 注：同 match value 多 target 现在按"后定义覆盖前定义"处理，只记录诊断，不再阻断
     emitRuleDiagnostics(ruleDiagnostics);
   }
-
   // 完成：性能统计与配置返回
-
   perfFlush();
   return config;
 }
-
 // 辅助工具
 function clonePlainConfig(value) {
   if (!value || typeof value !== 'object') return {};
-
   const config = Object.assign({}, value);
-
   // 克隆核心配置字段
   config.proxies = Array.isArray(value.proxies)
     ? value.proxies.map(proxy => (proxy && typeof proxy === 'object' ? Object.assign({}, proxy) : proxy))
     : [];
-
   config['proxy-groups'] = Array.isArray(value['proxy-groups'])
     ? value['proxy-groups'].map(group => (group && typeof group === 'object' ? Object.assign({}, group) : group))
     : [];
-
   config.rules = Array.isArray(value.rules) ? value.rules.slice() : [];
   config.dns = value.dns && typeof value.dns === 'object' ? Object.assign({}, value.dns) : {};
   config.profile = value.profile && typeof value.profile === 'object' ? Object.assign({}, value.profile) : {};
@@ -3304,7 +3051,6 @@ function clonePlainConfig(value) {
   config.experimental = value.experimental && typeof value.experimental === 'object' ? Object.assign({}, value.experimental) : {};
   return config;
 }
-
 function normalizeInputConfig(input) {
   const config = input && typeof input === 'object' ? input : {};
   if (!Array.isArray(config.proxies)) config.proxies = [];
@@ -3317,7 +3063,6 @@ function normalizeInputConfig(input) {
   if (!config.experimental || typeof config.experimental !== 'object') config.experimental = {};
   return config;
 }
-
 function validateOutputConfig(config) {
   if (!config || typeof config !== 'object') {
     throw new Error('output config is not an object');
@@ -3337,7 +3082,6 @@ function validateOutputConfig(config) {
   if (!config.rules.some(rule => typeof rule === 'string' && /^MATCH\s*,/i.test(rule))) {
     throw new Error('output rules missing MATCH fallback');
   }
-
   return config;
 }
 function main(config) {
