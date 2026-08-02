@@ -1259,11 +1259,19 @@ function buildConfig(config) {
   };
   const MINI_COLOR_BASE = 'https://raw.githubusercontent.com/Orz-3/mini/master/Color/';
   const homeRegionIconMap = {
-    '香港': MINI_COLOR_BASE + 'HK.png', '台湾': MINI_COLOR_BASE + 'TW.png', '日本': MINI_COLOR_BASE + 'JP.png',
-    '新加坡': MINI_COLOR_BASE + 'SG.png', '美国': MINI_COLOR_BASE + 'US.png', '韩国': MINI_COLOR_BASE + 'KR.png',
-    '俄罗斯': MINI_COLOR_BASE + 'RU.png', '欧盟': MINI_COLOR_BASE + 'EU.png',
-    '东南亚': regionIconMap['东南亚'], '加拿大': regionIconMap['加拿大'], '拉美地区': regionIconMap['拉美地区'],
-    '非洲': regionIconMap['非洲'], '其它地区': regionIconMap['其它地区']
+    '香港': 'https://api.iconify.design/circle-flags:hk.svg',
+    '台湾': 'https://api.iconify.design/circle-flags:tw.svg',
+    '日本': 'https://api.iconify.design/circle-flags:jp.svg',
+    '新加坡': 'https://api.iconify.design/circle-flags:sg.svg',
+    '美国': 'https://api.iconify.design/circle-flags:us.svg',
+    '韩国': 'https://api.iconify.design/circle-flags:kr.svg',
+    '俄罗斯': 'https://api.iconify.design/circle-flags:ru.svg',
+    '欧盟': 'https://api.iconify.design/circle-flags:eu.svg',
+    '东南亚': qIcon('Asia_Map'),
+    '加拿大': 'https://api.iconify.design/circle-flags:ca.svg',
+    '拉美地区': qIcon('America_Map'),
+    '非洲': qIcon('Africa_Map'),
+    '其它地区': qIcon('World_Map')
   };
   const iconMap = {
     rocket: qIcon('Rocket'), auto: qIcon('Auto'), select: qIcon('Static'), balance: qIcon('Round_Robin'),
@@ -1302,8 +1310,8 @@ function buildConfig(config) {
     return {
       auto: label + '自动',
       manual: label + '手动',
-      homeAuto: label + '家宽',
-      homeManual: label + '家宽手动',
+      homeAuto: '🏠' + label + '家宽',
+      homeManual: '🏠' + label + '家宽手动',
     };
   }
   // 地区目录与测速顺序
@@ -1707,7 +1715,7 @@ function buildConfig(config) {
   const loadBalanceNames = loadBalanceGroupArtifacts.names;
   // 特殊聚合组
   const globalHomeGroup = globalHomeNodes.length
-    ? makeUrlTestGroup('全球家宽', iconMap.home, globalHomeNodes, regionUrlTestInterval, regionUrlTestTolerance)
+    ? makeUrlTestGroup('🏡全球家宽', iconMap.home, globalHomeNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
   const globalDedicatedGroup = globalDedicatedNodes.length
     ? makeUrlTestGroup('全球专线', iconMap.dedicated, globalDedicatedNodes, regionUrlTestInterval, regionUrlTestTolerance)
@@ -1735,7 +1743,7 @@ function buildConfig(config) {
     ? makeUrlTestGroup('全球流媒体', iconMap.streamingGlobal, globalStreamingNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
   const globalFeatureChoices = buildChoiceList(
-    globalHomeGroup ? ['全球家宽'] : [],
+    globalHomeGroup ? ['🏡全球家宽'] : [],
     globalDedicatedGroup ? ['全球专线'] : [],
     lowMultiplierGroup ? ['低倍率节点'] : [],
     globalMultiplierGroup ? ['全球倍率'] : [],
@@ -1885,10 +1893,10 @@ function buildConfig(config) {
     usableChoiceDef('taiwanMedia', unique(['港台故障转移', taiwanAutoChoice, '节点选择', '自动选择'].filter(Boolean)), commonBaseChoices),
     usableChoiceDef('riskControl', [
       '家宽故障转移',
-      globalHomeGroup ? '全球家宽' : null,
+      globalHomeGroup ? '🏡全球家宽' : null,
       globalDedicatedGroup ? '全球专线' : null,
       // 地区家宽紧跟全球家宽
-      ...regionHomeAutoNames.filter(name => name && name !== '全球家宽'),
+      ...regionHomeAutoNames.filter(name => name && name !== '🏡全球家宽'),
       '全球手动',
       '节点选择',
       '自动选择'
