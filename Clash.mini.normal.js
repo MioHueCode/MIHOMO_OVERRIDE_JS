@@ -1,7 +1,27 @@
 /**
- * Clash / Mihomo 工程化配置脚本
+ * Clash / Mihomo 工程化配置脚本（Normal 版）
+ *
+ * 版本定位：
+ * - 本文件为 Normal / 标准版；
+ * - 核心自动策略以「自动选择 / 自动兜底 / 故障转移」体系为主；
+ * - 适合偏传统 Mihomo / Clash 分组习惯、希望策略语义直观稳定的场景。
+ *
+ * 与 Smart 版区别：
+ * - Normal 版主要使用 url-test、fallback、select 等经典策略组合；
+ * - 命名风格以「自动选择」「自动兜底」「家宽故障转移」「地区故障转移」为主；
+ * - 更强调兼容传统配置认知、迁移成本低、行为语义清晰。
+ *
+ * 主要特性：
+ * - DNS / 规则 / 分组三位一体联动；
+ * - 面向业务语义的分流设计；
+ * - 支持链式出口、家宽优选、地区故障转移、下载专用组等工程化能力；
+ * - 尽量兼顾稳定性、可维护性、旧配置兼容与 UI 保序。
+ *
+ * 开源仓库：
+ * - https://github.com/MioHueCode/MIHOMO_OVERRIDE_JS
  *
  * 设计目标：
+
  * 1) 在复杂业务分流场景下保持 DNS、分组、规则三位一体；
  * 2) 在防污染、防泄露、启动稳定性、可维护性之间取得平衡；
  * 3) 以“单一业务语义，多处自动联动”为原则，避免同一类业务在不同模块中各写一套。
@@ -273,7 +293,7 @@ function buildConfig(config) {
     ...domesticCdnDomains(),
     ...domesticAiDomains()
   ]);
-  
+
   // ===== 基础配置：运行参数、网络栈与实验特性 =====
   // Profile：持久化配置
   config.profile = {
@@ -1272,6 +1292,7 @@ function buildConfig(config) {
   // Fallback 组
   function makeFallbackGroup(name, icon, list, extraDefaults = ['自动选择'], options = {}) {
     const proxies = ensureGroupList(list, extraDefaults);
+    if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
     const health = normalizeHealthOptions(options, {
       interval: fallbackInterval, tolerance: fallbackTolerance,
       timeout: fallbackTimeout, maxFailedTimes: fallbackMaxFailedTimes
@@ -1685,14 +1706,14 @@ function buildConfig(config) {
   const fusionVisibleRegions = unique(regionHomeManualNames.concat(regionManualNames));
   // 全局兜底地区顺序：用于自动兜底组，优先尝试更常用出口地区。
   const AUTO_FALLBACK_REGION_ORDER = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '加拿大', '俄罗斯', '东南亚', '拉美地区', '非洲', '其它地区'];
-  const autoFallbackNodes = unique(buildRegionNodeList(AUTO_FALLBACK_REGION_ORDER));
+  const autoFallbackNodes = unique(buildRegionChain(AUTO_FALLBACK_REGION_ORDER));
   // 区域故障转移定义
   const REGION_FAILOVER_DEFS = [
     { name: '港台故障转移', regions: ['香港', '台湾'], icon: qIcon('Star') },
     { name: '日韩故障转移', regions: ['日本', '韩国'], icon: qIcon('Heart') },
     { name: '欧美故障转移', regions: ['美国', '欧盟'], icon: qIcon('Magic') }
   ];
-  const regionFallbackNodeMap = createNamedChoiceMap(REGION_FAILOVER_DEFS, def => buildRegionNodeList(def.regions));
+  const regionFallbackNodeMap = createNamedChoiceMap(REGION_FAILOVER_DEFS, def => def.regions.map(region => regionCatalog[region] && regionCatalog[region].names ? regionCatalog[region].names.manual : null).filter(Boolean));
   // YouTube无广策略：Google 广告投放基于出口 IP 的 GeoIP 归属。
   // Google 认为你在广告区 → 有广告；认为你在非广告区（中国大陆/俄罗斯等）→ 无广告。
   // 脚本层面无法做真实 GeoIP 探测（那是运行时网络请求），只能靠节点名特征推断。
@@ -1819,7 +1840,7 @@ function buildConfig(config) {
       tolerance: FALLBACK_TOLERANCE,
       lazy: true
     }),
-    ...REGION_FAILOVER_DEFS.map(def => makeFallbackGroup(def.name, def.icon, regionFallbackNodeMap[def.name], ['自动兜底'], {
+    ...REGION_FAILOVER_DEFS.map(def => makeFallbackGroup(def.name, def.icon, regionFallbackNodeMap[def.name], regionFallbackNodeMap[def.name] && regionFallbackNodeMap[def.name].length ? [] : ['自动兜底'], {
       interval: FALLBACK_INTERVAL,
       tolerance: FALLBACK_TOLERANCE,
       lazy: true
@@ -2086,65 +2107,138 @@ function buildConfig(config) {
   const BALANCED_CHAIN_FIRST_KEYS = new Set(['Meta', 'Telegram', 'Twitter', 'Discord', '社交信息流', 'GitHub']);
   const BUSINESS_CHOICE_DEFS = [
     ...['Meta', 'Telegram', 'Twitch', '国外游戏', 'Twitter', 'Discord', '社交信息流', 'GitHub', '翻译服务']
-      .map(key => ({ key, first: BALANCED_CHAIN_FIRST_KEYS.has(key) ? ['节点选择', '🌐链式出口', '自动选择'] : commonFirst, poolKey: 'common' })),
+      .map(key => ({
+        key,
+        first: BALANCED_CHAIN_FIRST_KEYS.has(key)
+          ? ['节点选择', '🌐链式出口', '自动选择']
+          : commonFirst,
+        poolKey: 'common'
+      })),
     { key: 'YouTube', first: ['YouTube无广节点优先组', '节点选择'], poolKey: 'youtubeOnly' },
     { key: 'Spotify', first: ['港台故障转移'], poolKey: 'common' },
-    { key: 'Google', first: ['港台故障转移', '🌐链式出口', '节点选择', '自动选择'], poolKey: 'common' },
-    { key: 'TikTok', first: ['港台故障转移'], poolKey: 'common' },
-    ...['日韩生态区', 'Niconico'].map(key => ({ key, first: ['日韩故障转移'], poolKey: 'common' })),
+    {
+      key: 'Google',
+      first: ['港台故障转移', '🌐链式出口', '节点选择', '自动选择'],
+      poolKey: 'common'
+    },
+    { key: 'TikTok', first: ['港台故障转移', '🌐链式出口'], poolKey: 'common' },
+    ...['日韩生态区', 'Niconico'].map(key => ({
+      key,
+      first: ['日韩故障转移'],
+      poolKey: 'common'
+    })),
     { key: '去中心化平台', first: ['欧美故障转移'], poolKey: 'common' },
     { key: '微软服务', first: ['节点选择', '自动选择', '全球直连'], poolKey: 'common' },
     { key: '微软Bing', first: ['全球直连', '节点选择', '自动选择'], poolKey: 'common' },
     { key: '谷歌商店', first: playStoreServiceChoices, poolKey: 'playStore' },
-    { key: 'AI', first: ['国外AI故障转移', '🌐链式出口', '节点选择'], poolKey: 'aiOnly' },
-    { key: '支付服务', first: ['🌐链式出口', '港台故障转移', '节点选择', '自动选择'], poolKey: 'common' },
-    { key: '个人媒体', first: [globalStreamingGroup ? '全球流媒体' : null, '港台故障转移', '节点选择', '自动选择'].filter(Boolean), poolKey: 'streaming' },
+    {
+      key: 'AI',
+      first: ['国外AI故障转移', '🌐链式出口', '节点选择'],
+      poolKey: 'aiOnly'
+    },
+    {
+      key: '支付服务',
+      first: ['🌐链式出口', '港台故障转移', '节点选择', '自动选择'],
+      poolKey: 'common'
+    },
+    {
+      key: '个人媒体',
+      first: [
+        globalStreamingGroup ? '全球流媒体' : null,
+        '港台故障转移',
+        '节点选择',
+        '自动选择'
+      ].filter(Boolean),
+      poolKey: 'streaming'
+    },
     { key: '新闻资讯', first: ['欧美故障转移', '节点选择', '自动选择'], poolKey: 'common' }
   ];
   const BUSINESS_SERVICE_HEAD = [
-    ['YouTube', iconMap.youtube], ['TikTok', iconMap.tiktok], ['Meta', iconMap.meta],
-    ['Twitter', iconMap.twitter], ['Niconico', iconMap.niconico], ['日韩生态区', iconMap.jpkr],
-    ['Spotify', iconMap.spotify], ['Telegram', iconMap.telegram], ['Google', iconMap.google],
-    ['谷歌商店', iconMap.playstore], ['微软服务', iconMap.microsoft], ['微软Bing', iconMap.bing]
+    ['YouTube', iconMap.youtube],
+    ['TikTok', iconMap.tiktok],
+    ['Meta', iconMap.meta],
+    ['Twitter', iconMap.twitter],
+    ['Niconico', iconMap.niconico],
+    ['日韩生态区', iconMap.jpkr],
+    ['Spotify', iconMap.spotify],
+    ['Telegram', iconMap.telegram],
+    ['Google', iconMap.google],
+    ['谷歌商店', iconMap.playstore],
+    ['微软服务', iconMap.microsoft],
+    ['微软Bing', iconMap.bing]
   ];
+
   const BUSINESS_SERVICE_TAIL = [
     ['翻译服务', iconMap.translate],
     ['支付服务', iconMap.payment],
-    ['Twitch', iconMap.twitch], ['GitHub', iconMap.github],
-    ['AI', iconMap.ai], ['国外游戏', iconMap.game], ['社交信息流', iconMap.social],
-    ['去中心化平台', iconMap.decentralized], ['Discord', iconMap.discord],
+    ['Twitch', iconMap.twitch],
+    ['GitHub', iconMap.github],
+    ['AI', iconMap.ai],
+    ['国外游戏', iconMap.game],
+    ['社交信息流', iconMap.social],
+    ['去中心化平台', iconMap.decentralized],
+    ['Discord', iconMap.discord],
     ['个人媒体', iconMap.personalMedia],
     ['新闻资讯', iconMap.news]
   ];
   const BUSINESS_SERVICE_ICON_DEFS = BUSINESS_SERVICE_HEAD.concat(BUSINESS_SERVICE_TAIL);
   const businessChoiceMap = makeBusinessChoiceMap(BUSINESS_CHOICE_DEFS, CHOICE_POOLS);
-  const businessServiceGroupDefs = makeSelectGroupDefList(BUSINESS_SERVICE_ICON_DEFS.map(entry => ({
-    name: entry[0],
-    icon: entry[1],
-    choices: businessChoiceMap[entry[0]]
-  })));
+  const businessServiceGroupDefs = makeSelectGroupDefList(
+    BUSINESS_SERVICE_ICON_DEFS.map(entry => ({
+      name: entry[0],
+      icon: entry[1],
+      choices: businessChoiceMap[entry[0]]
+    }))
+  );
+
   const CHOICE_GROUPS = {
     streaming: usableChoices(CHOICE_POOLS.streaming),
     taiwanMedia: usableChoices(CHOICE_POOLS.taiwanMedia),
     riskControl: usableChoices(CHOICE_POOLS.riskControl)
   };
+
   const preferredHomeFailover = [
-    '香港家宽自动', '台湾家宽自动', '日本家宽自动', '韩国家宽自动',
-    '美国家宽自动', '欧盟家宽自动'
+    '🏠香港家宽节点',
+    '🏠台湾家宽节点',
+    '🏠日本家宽节点',
+    '🏠韩国家宽节点',
+    '🏠美国家宽节点',
+    '🏠欧盟家宽节点'
   ];
-  const availableHomeAutoNames = new Set(regionHomeAutoNames);
+  const availableHomeManualNames = new Set(regionHomeManualNames);
   const homeFailoverChoices = unique([
-    ...preferredHomeFailover.filter(name => availableHomeAutoNames.has(name)),
-    ...regionHomeAutoNames.filter(name => !preferredHomeFailover.includes(name))
+    ...preferredHomeFailover.filter(name => availableHomeManualNames.has(name)),
+    ...regionHomeManualNames.filter(name => !preferredHomeFailover.includes(name))
   ].filter(Boolean));
   // 主分组候选项
   const MAIN_CHOICE_POOL_DEFS = [
-    usableChoiceDef('nodeSelection', ['节点选择', '自动选择', '负载均衡', '全球手动'], fallbackNames, globalFeatureChoices, fusionVisibleRegions),
-    usableChoiceDef('systemService', ['节点选择', '自动选择', '全球手动', '全球直连'], fusionVisibleRegions),
+    usableChoiceDef(
+      'nodeSelection',
+      ['节点选择', '自动选择', '负载均衡', '全球手动'],
+      fallbackNames,
+      globalFeatureChoices,
+      fusionVisibleRegions
+    ),
+    usableChoiceDef(
+      'systemService',
+      ['节点选择', '自动选择', '全球手动', '全球直连'],
+      fusionVisibleRegions
+    ),
     // 国内服务放行内置直连
-    makeScopedChoiceDef('domesticService', '国内服务', ['全球直连'], builtInDirectChoiceNames, domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x))),
+    makeScopedChoiceDef(
+      'domesticService',
+      '国内服务',
+      ['全球直连'],
+      builtInDirectChoiceNames,
+      domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x))
+    ),
     // 最终兜底候选
-    usableChoiceDef('finalFallback', ['节点选择', '自动选择', '全球手动'], fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name) && !regionFallbackNames.includes(name) && name !== '家宽故障转移'), fusionVisibleRegions)
+    usableChoiceDef(
+      'finalFallback',
+      ['节点选择', '自动选择', '全球手动'],
+      fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name) && !regionFallbackNames.includes(name) && name !== '家宽故障转移'),
+      fusionVisibleRegions
+    )
   ];
   const MAIN_CHOICE_POOLS = buildChoicePoolsFromDefs(MAIN_CHOICE_POOL_DEFS);
   // Choice Scope 自检
@@ -2177,17 +2271,49 @@ function buildConfig(config) {
   if (globalMultiplierGroup) specialFeatureGroups.push(globalMultiplierGroup);
   if (globalStreamingGroup) specialFeatureGroups.push(globalStreamingGroup);
   // 服务分流组
-  const RISK_CONTROL_SERVICE_GROUP = makeSelectGroupDef('风控安全', iconMap.riskControl, ['🌐链式出口'].concat(CHOICE_GROUPS.riskControl), []);
-  const DOMESTIC_SERVICE_GROUP = makeSelectGroupDef('国内服务', iconMap.china, MAIN_CHOICE_POOLS.domesticService, [], '国内服务');
+  const RISK_CONTROL_SERVICE_GROUP = makeSelectGroupDef(
+    '风控安全',
+    iconMap.riskControl,
+    ['🌐链式出口'].concat(CHOICE_GROUPS.riskControl),
+    []
+  );
+  const DOMESTIC_SERVICE_GROUP = makeSelectGroupDef(
+    '国内服务',
+    iconMap.china,
+    MAIN_CHOICE_POOLS.domesticService,
+    [],
+    '国内服务'
+  );
   const SERVICE_GROUP_BASE_DEFS = makeSelectGroupDefList([
     RISK_CONTROL_SERVICE_GROUP,
     DOMESTIC_SERVICE_GROUP,
-    { name: '流媒体', icon: iconMap.streaming, choices: CHOICE_GROUPS.streaming },
-    { name: '台湾媒体', icon: iconMap.taiwanMedia, choices: CHOICE_GROUPS.taiwanMedia },
-    { name: 'FCM', icon: iconMap.fcm, choices: MAIN_CHOICE_POOLS.systemService },
-    { name: 'Apple', icon: iconMap.apple, choices: MAIN_CHOICE_POOLS.systemService },
-    { name: 'Cloudflare', icon: iconMap.cloudflare || iconMap.global, choices: cloudflareGroupChoices }
+    {
+      name: '流媒体',
+      icon: iconMap.streaming,
+      choices: CHOICE_GROUPS.streaming
+    },
+    {
+      name: '台湾媒体',
+      icon: iconMap.taiwanMedia,
+      choices: CHOICE_GROUPS.taiwanMedia
+    },
+    {
+      name: 'FCM',
+      icon: iconMap.fcm,
+      choices: MAIN_CHOICE_POOLS.systemService
+    },
+    {
+      name: 'Apple',
+      icon: iconMap.apple,
+      choices: MAIN_CHOICE_POOLS.systemService
+    },
+    {
+      name: 'Cloudflare',
+      icon: iconMap.cloudflare || iconMap.global,
+      choices: cloudflareGroupChoices
+    }
   ]);
+
   const serviceGroupDefs = makeSelectGroupDefList([
     RISK_CONTROL_SERVICE_GROUP,
     ...businessServiceGroupDefs.slice(0, BUSINESS_SERVICE_HEAD.length),
@@ -2195,18 +2321,49 @@ function buildConfig(config) {
     ...businessServiceGroupDefs.slice(BUSINESS_SERVICE_HEAD.length),
     ...SERVICE_GROUP_BASE_DEFS.slice(2)
   ]);
-// 工具组
+
+  // 工具组
   const UTILITY_GROUP_PRESET_DEFS = makeSelectGroupDefList([
-      { name: '全球直连', icon: iconMap.direct, choices: ['DIRECT'], extraDefaults: [] },
-      { name: '广告拦截', icon: iconMap.adblock, choices: ['REJECT', 'REJECT-DROP', 'PASS'], extraDefaults: ['REJECT-DROP'] },
-      { name: '跟踪分析', icon: qIcon('Reject'), choices: ['REJECT', 'DIRECT', '自动选择'], extraDefaults: ['REJECT'] },
-      { name: '隐私保护', icon: iconMap.privacy, choices: ['REJECT', 'DIRECT', '自动选择'], extraDefaults: ['REJECT'] },
-      { name: '漏网之鱼', icon: iconMap.final, choices: MAIN_CHOICE_POOLS.finalFallback }
-    ]);
+    {
+      name: '全球直连',
+      icon: iconMap.direct,
+      choices: ['DIRECT'],
+      extraDefaults: []
+    },
+    {
+      name: '广告拦截',
+      icon: iconMap.adblock,
+      choices: ['REJECT', 'REJECT-DROP', 'PASS'],
+      extraDefaults: ['REJECT-DROP']
+    },
+    {
+      name: '跟踪分析',
+      icon: qIcon('Reject'),
+      choices: ['REJECT', 'DIRECT', '自动选择'],
+      extraDefaults: ['REJECT']
+    },
+    {
+      name: '隐私保护',
+      icon: iconMap.privacy,
+      choices: ['REJECT', 'DIRECT', '自动选择'],
+      extraDefaults: ['REJECT']
+    },
+    {
+      name: '漏网之鱼',
+      icon: iconMap.final,
+      choices: MAIN_CHOICE_POOLS.finalFallback
+    }
+  ]);
+
   const utilityGroupDefs = makeSelectGroupDefList([
-    { name: '下载专用组', icon: iconMap.download || iconMap.fallback, choices: downloadGroupChoices.filter(name => name !== 'DIRECT') },
+    {
+      name: '下载专用组',
+      icon: iconMap.download || iconMap.fallback,
+      choices: downloadGroupChoices.filter(name => name !== 'DIRECT')
+    },
     ...UTILITY_GROUP_PRESET_DEFS
   ]);
+
   const defaultAutoGroup = makeUrlTestGroup('自动选择', iconMap.auto, allProxyNames, 300, 50);
   const autoGroup = defaultAutoGroup || {
     name: '自动选择',
@@ -2214,7 +2371,21 @@ function buildConfig(config) {
     icon: iconMap.auto,
     proxies: sanitizeChoiceList(usableChoices(allProxyNames), usableChoices(['全球手动', 'DIRECT']))
   };
-  const homeFailoverGroup = makeFallbackGroup('家宽故障转移', iconMap.flare, usableChoices(homeFailoverChoices), usableChoices(['自动兜底']), { interval: HOME_TEST_INTERVAL, tolerance: HOME_TEST_TOLERANCE, timeout: HOME_TEST_TIMEOUT, maxFailedTimes: HOME_TEST_MAX_FAILED_TIMES, lazy: true });
+
+  const homeFailoverGroup = makeFallbackGroup(
+    '家宽故障转移',
+    iconMap.flare,
+    usableChoices(homeFailoverChoices),
+    homeFailoverChoices.length ? [] : ['自动兜底'],
+    {
+      interval: HOME_TEST_INTERVAL,
+      tolerance: HOME_TEST_TOLERANCE,
+      timeout: HOME_TEST_TIMEOUT,
+      maxFailedTimes: HOME_TEST_MAX_FAILED_TIMES,
+      lazy: true
+    }
+  );
+
   // 链式双组：中转(隐藏 fallback，自动选跳板) + 出口(可见 select，手动选落地)
   // 中转候选顺序：自动选择 → 自动兜底 → 地区自动组/地区节点组
   const chainTransitChoices = filterOutDirectEntries(buildChoiceList(
@@ -2222,12 +2393,13 @@ function buildConfig(config) {
     regionAutoNames,
     regionManualNames.filter(name => !String(name).includes('家宽'))
   ));
-  // 出口候选顺序：全球家宽 → 地区家宽节点 → 自动兜底 → 地区节点组 → 特征组 → 真实节点
+
+  // 出口候选顺序：全球家宽 → 地区家宽节点 → 家宽故障转移 → 自动兜底 → 地区节点组 → 特征组 → 真实节点
   const chainExitChoices = filterOutDirectEntries(buildChoiceList(
     globalHomeGroup ? ['🏡全球家宽'] : [],
     regionHomeManualNames,
-    ['自动兜底'],
-    regionManualNames,
+    ['家宽故障转移', '自动兜底'],
+    regionManualNames.filter(name => !regionHomeManualNames.includes(name)),
     [
       globalStreamingGroup ? '全球流媒体' : null,
       globalDedicatedGroup ? '全球专线' : null,
@@ -2237,26 +2409,44 @@ function buildConfig(config) {
     allProxyNames
   ));
   const chainTransitGroup = chainTransitChoices.length
-    ? { name: '🪜链式中转', type: 'fallback', icon: 'https://api.iconify.design/tabler:git-branch.svg?color=%23f59e0b',
+    ? {
+        name: '🪜链式中转',
+        type: 'fallback',
+        icon: 'https://api.iconify.design/tabler:git-branch.svg?color=%23f59e0b',
         proxies: chainTransitChoices,
-        url: TEST_URL, interval: 300, tolerance: 100, lazy: true,
-        hidden: false }
+        url: TEST_URL,
+        interval: 300,
+        tolerance: 100,
+        lazy: true,
+        hidden: false
+      }
     : null;
   const chainExitGroup = chainExitChoices.length
-    ? { name: '🌐链式出口', type: 'select', icon: 'https://api.iconify.design/tabler:logout-2.svg?color=%230ea5e9',
+    ? {
+        name: '🌐链式出口',
+        type: 'select',
+        icon: 'https://api.iconify.design/tabler:logout-2.svg?color=%230ea5e9',
         override: { 'dialer-proxy': '🪜链式中转' },
-        proxies: chainExitChoices }
+        proxies: chainExitChoices
+      }
     : null;
   const chainGroups = [chainTransitGroup, chainExitGroup].filter(Boolean);
+
   const CORE_ENTRY_GROUPS = [
     makeSelectGroup('节点选择', iconMap.rocket, MAIN_CHOICE_POOLS.nodeSelection)
   ];
+
   const CORE_AUTO_GROUPS = [];
   CORE_AUTO_GROUPS.push(autoGroup);
-  for (let i = 0; i < loadBalanceGroups.length; i++) CORE_AUTO_GROUPS.push(loadBalanceGroups[i]);
+  for (let i = 0; i < loadBalanceGroups.length; i++) {
+    CORE_AUTO_GROUPS.push(loadBalanceGroups[i]);
+  }
   CORE_AUTO_GROUPS.push(makeSelectGroup('全球手动', iconMap.select, allProxyNames, []));
+
   const CORE_FAILOVER_GROUPS = [];
-  for (let i = 0; i < fallbackGroups.length; i++) CORE_FAILOVER_GROUPS.push(fallbackGroups[i]);
+  for (let i = 0; i < fallbackGroups.length; i++) {
+    CORE_FAILOVER_GROUPS.push(fallbackGroups[i]);
+  }
   if (homeFailoverGroup) CORE_FAILOVER_GROUPS.push(homeFailoverGroup);
   const serviceGroups = makeSelectGroupsFromDefs(serviceGroupDefs);
   const utilityGroups = makeSelectGroupsFromDefs(utilityGroupDefs);
