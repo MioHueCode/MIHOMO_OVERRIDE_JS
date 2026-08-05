@@ -388,11 +388,15 @@ function buildConfig(config) {
     local: ['223.5.5.5', '223.6.6.6', '119.29.29.29', '180.76.76.76'],
     cn: ['223.5.5.5', '223.6.6.6', '119.29.29.29', '180.76.76.76', 'https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'],
     trust: ['https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
+    trustBootstrap: ['1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4'],
+    proxyBootstrap: ['1.1.1.1', '1.0.0.1', '8.8.8.8'],
     adguard: ['https://dns.adguard-dns.com/dns-query']
   };
   const localDns = DNS_ENDPOINTS.local;
   const cnDns = DNS_ENDPOINTS.cn;
   const trustDns = DNS_ENDPOINTS.trust;
+  const trustBootstrapDns = DNS_ENDPOINTS.trustBootstrap;
+  const proxyBootstrapDns = DNS_ENDPOINTS.proxyBootstrap;
   const adguardDns = DNS_ENDPOINTS.adguard;
   // 健康检查参数
   const TEST_URL = 'https://cp.cloudflare.com/generate_204';
@@ -581,22 +585,21 @@ function buildConfig(config) {
       ...asArray(config.dns && config.dns.nameserver),
       ...trustDns
     ]),
-    // 仅允许 IP 形态的 bootstrap DNS，禁止再写 DoH 域名造成解析环。
+    // 仅允许 IP 形态的 bootstrap DNS；默认只保留中立公共 IP 解析器，减少大陆 DNS 暴露面。
     'default-nameserver': uniqList([
-      ...asArray(config.dns && config.dns['default-nameserver']),
-      ...localDns
+      ...trustBootstrapDns,
+      ...asArray(config.dns && config.dns['default-nameserver']).filter(item => !localDns.includes(item) && !cnDns.includes(item))
     ]),
-    // 直连域名优先使用本地/国内 DNS，减少启动阶段额外握手与解析环。
+    // 直连域名优先使用国内 DNS / 本地 DNS，同时保留上游已有项增强兼容性。
     'direct-nameserver': uniqList([
       ...asArray(config.dns && config.dns['direct-nameserver']),
       ...cnDns,
       ...localDns
     ]),
-    // 节点服务器域名必须直连解析，不能再走代理，否则会形成启动环依赖。
+    // 节点服务器域名必须直连解析；不再追加本地 DNS 回退，优先使用可直连的中立公共解析器完成自举。
     'proxy-server-nameserver': uniqList([
-      ...asArray(config.dns && config.dns['proxy-server-nameserver']),
-      ...cnDns,
-      ...localDns
+      ...proxyBootstrapDns,
+      ...asArray(config.dns && config.dns['proxy-server-nameserver']).filter(item => !cnDns.includes(item) && !localDns.includes(item))
     ])
   });
   // Google Play 下载链路应保留 fake-ip 以便 TUN/规则持续接管；主动清理上游遗留的真实解析例外。
@@ -618,16 +621,21 @@ function buildConfig(config) {
     'geosite:geolocation-!cn': trustDns,
     // 广告与追踪域名：交给 AdGuard DNS，尽量在解析层先做拦截。
     'geosite:category-ads-all': adguardDns,
-    // DoH / 上游解析器自举：强制回落本地 DNS，避免解析自循环。
+    // DNS / 上游解析器自举：仅保留必要的国内 DoH 自举；海外 DoH 统一走中立公共 IP 自举，进一步降低大陆 DNS 参与度。
     'dns.alidns.com': localDns,
     'doh.pub': localDns,
     'doh.360.cn': localDns,
-    'dns.google': localDns,
-    'dns.google.com': localDns,
-    'cloudflare-dns.com': localDns,
-    'mozilla.cloudflare-dns.com': localDns,
-    'one.one.one.one': localDns,
-    'dns.adguard-dns.com': localDns,
+    'dns.google': trustBootstrapDns,
+    'dns.google.com': trustBootstrapDns,
+    'dns64.dns.google': trustBootstrapDns,
+    'cloudflare-dns.com': trustBootstrapDns,
+    'mozilla.cloudflare-dns.com': trustBootstrapDns,
+    'one.one.one.one': trustBootstrapDns,
+    'family.cloudflare-dns.com': trustBootstrapDns,
+    'security.cloudflare-dns.com': trustBootstrapDns,
+    'dns.adguard-dns.com': trustBootstrapDns,
+    'dns.quad9.net': trustBootstrapDns,
+    'dns11.quad9.net': trustBootstrapDns,
   });
   function appendDnsPolicyDomains(target, domains, dnsList) {
     const list = asArray(domains);
@@ -650,7 +658,7 @@ function buildConfig(config) {
     { key: 'AdGuard服务', policyDomains: DNS_POLICY_DOMAIN_SETS.adguardService, dns: trustDns, auxiliary: true },
     { key: '风控安全', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.browserRisk, DNS_POLICY_DOMAIN_SETS.finance, DNS_POLICY_DOMAIN_SETS.crypto)), fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: trustDns },
     { key: 'AI', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.openaiRealtime, DNS_POLICY_DOMAIN_SETS.aiFinanceRisk)), fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.ai, dns: trustDns },
-    { key: 'Google', policyDomains: DNS_POLICY_DOMAIN_SETS.google, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.baseOverseas, dns: trustDns },
+    { key: 'Google', policyDomains: DNS_POLICY_DOMAIN_SETS.google, dns: trustDns },
     { key: '谷歌商店', policyDomains: DNS_POLICY_DOMAIN_SETS.playStore, fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.playStore, DNS_FALLBACK_FILTER_DOMAIN_SETS.googlePlayIntegrity)), dns: trustDns },
     { key: 'YouTube', policyDomains: DNS_POLICY_DOMAIN_SETS.youtubeMedia, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.youtubeMedia, dns: trustDns },
     { key: '翻译服务', policyDomains: DNS_POLICY_DOMAIN_SETS.translation, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.translation, dns: trustDns },
@@ -698,7 +706,6 @@ function buildConfig(config) {
     // 域名白名单：由服务联动表聚合；额外保留仅用于基础设施校验的 fallback 域名。
     domain: uniqList([
       ...dnsBindingFallbackDomains,
-      ...DNS_FALLBACK_FILTER_DOMAIN_SETS.productivity,
       ...DNS_FALLBACK_FILTER_DOMAIN_SETS.infra
     ])
   };
@@ -708,14 +715,14 @@ function buildConfig(config) {
   config.dns['direct-nameserver'] = uniqList([...cnDns, ...localDns]);
   config.dns['direct-nameserver-follow-policy'] = true;
   // default-nameserver 只能是 IP，避免 DoH 域名在 bootstrap 阶段形成解析环。
-  config.dns['default-nameserver'] = asArray(config.dns['default-nameserver']).filter(server => {
+  config.dns['default-nameserver'] = uniqList(asArray(config.dns['default-nameserver']).filter(server => {
     const text = String(server || '').trim();
     if (!text) return false;
     if (/^https?:\/\//i.test(text) || /^tls:\/\//i.test(text) || /^quic:\/\//i.test(text)) return false;
     return /^(?:\d{1,3}\.){3}\d{1,3}$/.test(text) || text.includes(':');
-  });
+  }));
   if (!config.dns['default-nameserver'].length) {
-    config.dns['default-nameserver'] = localDns.slice();
+    config.dns['default-nameserver'] = trustBootstrapDns.slice();
   }
   // 防泄露收口：禁用系统 hosts 参与代理决策，强制 fake-ip + respect-rules。
   config.dns.enable = true;
