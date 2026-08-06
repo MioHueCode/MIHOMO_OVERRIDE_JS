@@ -21,7 +21,6 @@
  * - https://github.com/MioHueCode/MIHOMO_OVERRIDE_JS
  *
  * 设计目标：
-
  * 1) 在复杂业务分流场景下保持 DNS、分组、规则三位一体；
  * 2) 在防污染、防泄露、启动稳定性、可维护性之间取得平衡；
  * 3) 以“单一业务语义，多处自动联动”为原则，避免同一类业务在不同模块中各写一套。
@@ -108,6 +107,10 @@ function buildConfig(config) {
       console.log(...args);
     }
   };
+  function isHostname(value) {
+    const s = String(value || '').trim().toLowerCase();
+    return !!s && !/^\d+\.\d+\.\d+\.\d+$/.test(s) && !s.includes(':') && /^[a-z0-9.-]+$/.test(s) && s.includes('.');
+  }
   function perfStart(label) {
     if (!PERF_ENABLED) return;
     perfMarks[label] = perfNow();
@@ -120,7 +123,6 @@ function buildConfig(config) {
     if (!PERF_ENABLED) return;
     console.log('[Clash.js][perf]', JSON.stringify(perfMarks));
   }
-
   // ===== 通用工具与规则工厂 =====
   // 图标资源：统一走 Qure 图标仓库
   const QURE_BASE = 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/';
@@ -293,7 +295,6 @@ function buildConfig(config) {
     ...domesticCdnDomains(),
     ...domesticAiDomains()
   ]);
-
   // ===== 基础配置：运行参数、网络栈与实验特性 =====
   // Profile：持久化配置
   config.profile = {
@@ -369,7 +370,16 @@ function buildConfig(config) {
   config.hosts['doh.pub'] = ['120.53.53.53', '1.12.12.12'];
   config.hosts['doh.360.cn'] = ['101.198.198.198'];
   config.hosts['dns.google'] = ['8.8.8.8', '8.8.4.4'];
+  config.hosts['dns.google.com'] = ['8.8.8.8', '8.8.4.4'];
+  config.hosts['dns64.dns.google'] = ['8.8.8.8', '8.8.4.4'];
   config.hosts['cloudflare-dns.com'] = ['1.1.1.1', '1.0.0.1'];
+  config.hosts['mozilla.cloudflare-dns.com'] = ['1.1.1.1', '1.0.0.1'];
+  config.hosts['one.one.one.one'] = ['1.1.1.1', '1.0.0.1'];
+  config.hosts['family.cloudflare-dns.com'] = ['1.1.1.1', '1.0.0.1'];
+  config.hosts['security.cloudflare-dns.com'] = ['1.1.1.1', '1.0.0.1'];
+  config.hosts['dns.quad9.net'] = ['9.9.9.9', '149.112.112.112'];
+  config.hosts['dns11.quad9.net'] = ['9.9.9.9', '149.112.112.112'];
+  config.hosts['dns.adguard-dns.com'] = ['94.140.14.14', '94.140.15.15'];
   config.hosts['services.googleapis.cn'] = 'services.googleapis.com';
   config.hosts['google.cn'] = 'google.com';
   config.hosts['cn.bing.com'] = 'global.bing.com';
@@ -397,6 +407,7 @@ function buildConfig(config) {
   const trustDns = DNS_ENDPOINTS.trust;
   const trustBootstrapDns = DNS_ENDPOINTS.trustBootstrap;
   const proxyBootstrapDns = DNS_ENDPOINTS.proxyBootstrap;
+  const fallbackDns = uniqList([...trustDns, 'https://dns.quad9.net/dns-query']);
   const adguardDns = DNS_ENDPOINTS.adguard;
   // 健康检查参数
   const TEST_URL = 'https://cp.cloudflare.com/generate_204';
@@ -467,7 +478,6 @@ function buildConfig(config) {
     googlePlayIntegrity: googlePlayIntegrityDomains(),
     translation: translationDomains()
   };
-
   function sanitizeCompatDomainPattern(pattern) {
     if (typeof pattern !== 'string') return '';
     let s = pattern.trim();
@@ -475,7 +485,7 @@ function buildConfig(config) {
     if (s.startsWith('rule-set:') || s.startsWith('geosite:')) return s;
     s = s.replace(/^\+\./, '*.');
     if (/[*?]/.test(s)) {
-      // MilkCloud/部分 Mihomo 前端对复杂通配非常敏感；只保留前导 *.
+      // 为兼容部分前端与导入环境，这里仅保留前导 *. 形式的简单通配。
       if (!/^\*\.[A-Za-z0-9.-]+$/.test(s)) return '';
     }
     if (/^[A-Za-z0-9.-]+$/.test(s) || /^\*\.[A-Za-z0-9.-]+$/.test(s)) return s.toLowerCase();
@@ -696,21 +706,43 @@ function buildConfig(config) {
     if (key && arr.length) sanitizedNameserverPolicy[key] = arr;
   }
   config.dns['nameserver-policy'] = sanitizedNameserverPolicy;
+  // 节点域名解析策略：仅作用于代理节点域名，避免和通用业务 DNS 分流混用。
+  const proxyServerNameserverPolicy = Object.assign(
+    {},
+    config.dns['proxy-server-nameserver-policy'] || {},
+    {
+      'dns.google': trustBootstrapDns,
+      'dns.google.com': trustBootstrapDns,
+      'dns64.dns.google': trustBootstrapDns,
+      'cloudflare-dns.com': trustBootstrapDns,
+      'mozilla.cloudflare-dns.com': trustBootstrapDns,
+      'one.one.one.one': trustBootstrapDns,
+      'family.cloudflare-dns.com': trustBootstrapDns,
+      'security.cloudflare-dns.com': trustBootstrapDns,
+      'dns.adguard-dns.com': trustBootstrapDns,
+      'dns.quad9.net': trustBootstrapDns,
+      'dns11.quad9.net': trustBootstrapDns,
+      'dns.alidns.com': localDns,
+      'doh.pub': localDns,
+      'doh.360.cn': localDns
+    }
+  );
+  config.dns['proxy-server-nameserver-policy'] = proxyServerNameserverPolicy;
   // fallback 过滤器：决定哪些域名 / IP 结果需要优先参考 fallback DNS。
   config.dns['fallback-filter'] = {
     // GEOIP 过滤：国内 IP 结果优先视为可信，减少无意义 fallback。
     geoip: true,
     'geoip-code': 'CN',
     // 特殊保留地址段：这类结果通常不应作为正常公网解析结果使用。
-    ipcidr: ['240.0.0.0/4'],
+    ipcidr: ['240.0.0.0/4', '0.0.0.0/32', '127.0.0.1/32', '100.64.0.0/10'],
     // 域名白名单：由服务联动表聚合；额外保留仅用于基础设施校验的 fallback 域名。
     domain: uniqList([
       ...dnsBindingFallbackDomains,
       ...DNS_FALLBACK_FILTER_DOMAIN_SETS.infra
     ])
   };
-  // DNS fallback：仅在 nameserver 失败或结果命中 fallback-filter 时使用境外可信 DoH。
-  config.dns.fallback = trustDns;
+  // DNS fallback：主查询保持 Cloudflare + Google，后备层额外纳入 Quad9 扩大污染兜底面。
+  config.dns.fallback = fallbackDns;
   // 直连域名（国内 / 局域网 / 直连策略）使用国内 DoH + 本地 DNS，避免境外绕路。
   config.dns['direct-nameserver'] = uniqList([...cnDns, ...localDns]);
   config.dns['direct-nameserver-follow-policy'] = true;
@@ -882,6 +914,7 @@ function buildConfig(config) {
   const dedicatedProxyNames = [];
   const multiplierProxyNames = [];
   const streamingProxyNames = [];
+  const proxyHostnames = new Set();
   const seenProxyNames = new Set();
   for (let i = 0; i < config.proxies.length; i++) {
     const proxy = config.proxies[i];
@@ -890,6 +923,8 @@ function buildConfig(config) {
     seenProxyNames.add(proxyName);
     cleanProxies.push(proxy);
     allProxyNames.push(proxyName);
+    if (isHostname(proxy.server)) proxyHostnames.add(String(proxy.server).trim().toLowerCase());
+    if (isHostname(proxy.servername)) proxyHostnames.add(String(proxy.servername).trim().toLowerCase());
     if (isResidentialProxyName(proxyName)) residentialProxyNames.push(proxyName);
     if (isDedicatedProxyName(proxyName)) dedicatedProxyNames.push(proxyName);
     if (isMultiplierProxyName(proxyName)) multiplierProxyNames.push(proxyName);
@@ -906,6 +941,11 @@ function buildConfig(config) {
     seenProxyNames.add(proxy.name);
     cleanProxies.push(proxy);
   }
+  // 将订阅节点中的真实域名纳入节点解析策略，优先复用国内可直连 bootstrap，降低节点自举漂移。
+  for (const hostname of proxyHostnames) {
+    if (!proxyServerNameserverPolicy[hostname]) proxyServerNameserverPolicy[hostname] = proxyBootstrapDns;
+  }
+  config.dns['proxy-server-nameserver-policy'] = proxyServerNameserverPolicy;
   const builtInDirectChoiceNames = builtInDirectProxies.map(proxy => proxy && proxy.name).filter(Boolean);
   // 组级额外候选注册表
   const GROUP_SCOPED_CHOICE_REGISTRY = Object.freeze({
@@ -1310,7 +1350,6 @@ function buildConfig(config) {
     }
     return '/' + terms.join('|') + '/i';
   }
-
   function makeDynamicSmartGroup(name, icon, filterRegex, interval, tolerance, options = {}) {
     if (!ENABLE_SMART_GROUPS) return makeDynamicUrlTestGroup(name, icon, filterRegex, interval, tolerance, options);
     return {
@@ -1326,7 +1365,6 @@ function buildConfig(config) {
       'type-priority': typeof options.typePriority === 'string' ? options.typePriority : ''
     };
   }
-
   function makeSmartGroup(name, icon, nodes, interval, tolerance, options = {}) {
     const proxies = ensureGroupList(nodes, []);
     if (!ENABLE_SMART_GROUPS) return makeUrlTestGroup(name, icon, nodes, interval, tolerance, options);
@@ -1343,7 +1381,6 @@ function buildConfig(config) {
       proxies
     };
   }
-
   function normalizeHealthOptions(options = {}, defaults = {}) {
     return {
       url: options.url || defaults.url || testUrl,
@@ -2254,7 +2291,6 @@ function buildConfig(config) {
     ['微软服务', iconMap.microsoft],
     ['微软Bing', iconMap.bing]
   ];
-
   const BUSINESS_SERVICE_TAIL = [
     ['翻译服务', iconMap.translate],
     ['支付服务', iconMap.payment],
@@ -2277,13 +2313,11 @@ function buildConfig(config) {
       choices: businessChoiceMap[entry[0]]
     }))
   );
-
   const CHOICE_GROUPS = {
     streaming: usableChoices(CHOICE_POOLS.streaming),
     taiwanMedia: usableChoices(CHOICE_POOLS.taiwanMedia),
     riskControl: usableChoices(CHOICE_POOLS.riskControl)
   };
-
   const preferredHomeSmartChoices = [
     '🏠香港家宽节点',
     '🏠台湾家宽节点',
@@ -2400,7 +2434,6 @@ function buildConfig(config) {
       choices: cloudflareGroupChoices
     }
   ]);
-
   const serviceGroupDefs = makeSelectGroupDefList([
     RISK_CONTROL_SERVICE_GROUP,
     ...businessServiceGroupDefs.slice(0, BUSINESS_SERVICE_HEAD.length),
@@ -2408,7 +2441,6 @@ function buildConfig(config) {
     ...businessServiceGroupDefs.slice(BUSINESS_SERVICE_HEAD.length),
     ...SERVICE_GROUP_BASE_DEFS.slice(2)
   ]);
-
   // 工具组
   const UTILITY_GROUP_PRESET_DEFS = makeSelectGroupDefList([
     {
@@ -2441,7 +2473,6 @@ function buildConfig(config) {
       choices: MAIN_CHOICE_POOLS.finalFallback
     }
   ]);
-
   const utilityGroupDefs = makeSelectGroupDefList([
     {
       name: '下载专用组',
@@ -2450,7 +2481,6 @@ function buildConfig(config) {
     },
     ...UTILITY_GROUP_PRESET_DEFS
   ]);
-
   const defaultAutoGroup = makeSmartGroup('智能选择', iconMap.auto, allProxyNames, 300, 50);
   const autoGroup = defaultAutoGroup || {
     name: '智能选择',
@@ -2458,7 +2488,6 @@ function buildConfig(config) {
     icon: iconMap.auto,
     proxies: sanitizeChoiceList(usableChoices(allProxyNames), usableChoices(['全球手动', 'DIRECT']))
   };
-
   const homeSmartGroup = makeSmartGroup(
     '家宽智能选择',
     iconMap.flare,
@@ -2471,7 +2500,6 @@ function buildConfig(config) {
       lazy: true
     }
   );
-
   // 链式双组：中转(隐藏 fallback，自动选跳板) + 出口(可见 select，手动选落地)
   // 中转候选顺序：智能选择 → 智能兜底 → 地区智能组/地区节点组
   const chainTransitChoices = filterOutDirectEntries(buildChoiceList(
@@ -2479,7 +2507,6 @@ function buildConfig(config) {
     regionAutoNames,
     regionManualNames.filter(name => !String(name).includes('家宽'))
   ));
-
   // 出口候选顺序：全球家宽 → 地区家宽节点 → 家宽智能选择 → 智能兜底 → 地区节点组 → 特征组 → 真实节点
   const chainExitChoices = filterOutDirectEntries(buildChoiceList(
     globalHomeGroup ? ['🏡全球家宽'] : [],
@@ -2517,18 +2544,15 @@ function buildConfig(config) {
       }
     : null;
   const chainGroups = [chainTransitGroup, chainExitGroup].filter(Boolean);
-
   const CORE_ENTRY_GROUPS = [
     makeSelectGroup('节点选择', iconMap.rocket, MAIN_CHOICE_POOLS.nodeSelection)
   ];
-
   const CORE_AUTO_GROUPS = [];
   CORE_AUTO_GROUPS.push(autoGroup);
   for (let i = 0; i < loadBalanceGroups.length; i++) {
     CORE_AUTO_GROUPS.push(loadBalanceGroups[i]);
   }
   CORE_AUTO_GROUPS.push(makeSelectGroup('全球手动', iconMap.select, allProxyNames, []));
-
   const CORE_FAILOVER_GROUPS = [];
   for (let i = 0; i < fallbackGroups.length; i++) {
     CORE_FAILOVER_GROUPS.push(fallbackGroups[i]);
