@@ -404,10 +404,21 @@ function buildConfig(config) {
   const trustDns = DNS_ENDPOINTS.trust;
   const trustBootstrapDns = DNS_ENDPOINTS.trustBootstrap;
   const proxyBootstrapDns = DNS_ENDPOINTS.proxyBootstrap;
+  const fastDomesticDns = uniqList([
+    ...localDns,
+    ...cnDns.filter(item => !/^https:\/\//i.test(String(item || '')))
+  ]);
   const fallbackDns = uniqList([...trustDns, 'https://dns.quad9.net/dns-query']);
   const adguardDns = DNS_ENDPOINTS.adguard;
   // 健康检查参数
-  const TEST_URL = 'https://cp.cloudflare.com/generate_204';
+  const TEST_URL = 'https://connectivitycheck.gstatic.com/generate_204';
+  const directProxyNames = ['IPv4优先', 'IPv6优先', '双栈'];
+  // 三个直连出口用于国内服务的解析偏好承载，通过 ip-version 字段实现真实的 IPv4/IPv6 优先策略。
+  const directProxyIpVersionMap = {
+    'IPv4优先': 'ipv4-prefer',
+    'IPv6优先': 'ipv6-prefer',
+    '双栈': 'dual'
+  };
   const TEST_INTERVAL = 600, TEST_TOLERANCE = 120, TEST_TIMEOUT = 2500, TEST_MAX_FAILED_TIMES = 4;
   const FALLBACK_INTERVAL = 420, FALLBACK_TOLERANCE = 120, FALLBACK_TIMEOUT = 3000, FALLBACK_MAX_FAILED_TIMES = 3;
   const REGION_TEST_INTERVAL = 900, REGION_TEST_TOLERANCE = 200, REGION_TEST_TIMEOUT = 3500, REGION_TEST_MAX_FAILED_TIMES = 5;
@@ -416,7 +427,8 @@ function buildConfig(config) {
   const PLAY_STORE_SPECIAL_GROUP_NAMES = ['谷歌商店专用'];
   const HEALTH_CHECK_LAZY = true;
   // 内置直连选项
-  const directChoices = ['🇨🇳 直连 | IPv4优先', '🇨🇳 直连 | IPv6优先', '🇨🇳 直连 | 双栈', '全球直连'];
+  const directChoices = ['IPv4优先', 'IPv6优先', '双栈', 'DIRECT'];
+  const domesticServiceChoices = ['IPv4优先', 'IPv6优先', '双栈', 'DIRECT'];
   const DNS_POLICY_DOMAIN_SETS = {
     adguard: adguardDomains(),
     domesticMain: domesticMainDomains(),
@@ -491,14 +503,29 @@ function buildConfig(config) {
     }
     return out;
   }
+  function sanitizeDnsServerList(list) {
+    const out = [];
+    const seen = new Set();
+    for (const item of asArray(list)) {
+      const text = String(item || '').trim();
+      if (text && !seen.has(text)) { seen.add(text); out.push(text); }
+    }
+    return out;
+  }
+  function removeFakeIpFilterDomains(filter, domains) {
+    const blocked = new Set(asArray(domains).map(domain => String(domain || '').trim().replace(/^\+\./, '').replace(/^\*\./, '').toLowerCase()).filter(Boolean));
+    return asArray(filter).filter(item => {
+      const normalized = String(item || '').trim().replace(/^\+\./, '').replace(/^\*\./, '').toLowerCase();
+      return normalized && !blocked.has(normalized);
+    });
+  }
   const DNS_FAKE_IP_FILTER_SETS = {
     lan: [
       '*.lan', '*.local', '*.localdomain', '*.home.arpa', '*.internal'
     ],
     connectivityCheck: [
-      'localhost.ptlogin2.qq.com', 'msftconnecttest.com', 'msftncsi.com',
-      'connectivitycheck.android.com', 'connectivitycheck.gstatic.com', 'connect.rom.miui.com',
-      'captive.apple.com', 'www.msftconnecttest.com', 'www.msftncsi.com'
+      'localhost.ptlogin2.qq.com',
+      'captive.apple.com'
     ],
     timeSync: [
       'time.windows.com', 'time.apple.com', 'time.android.com', 'pool.ntp.org', 'ntp.*.com', 'ntp.*.cn'
@@ -530,7 +557,7 @@ function buildConfig(config) {
     ],
     paymentAndRiskLocal: [
       'localhost', '*.localhost', '*.invalid', '*.test', '*.example',
-      '*.home', '*.home.arpa', '*.local', '*.lan'
+      '*.home', '*.lan'
     ],
     pushAndCast: [
       'mtalk.google.com', 'alt*.mtalk.google.com', '*.push.apple.com',
@@ -577,26 +604,23 @@ function buildConfig(config) {
       // Cloudflare 挑战 / 验证资源：验证码与挑战链路对真实地址更敏感。
       ...DNS_FAKE_IP_FILTER_SETS.cloudflareChallenge,
       // 支付 / 风控 / 本地域名：尽量保留真实解析，减少 App 内校验、回环服务与局域网发现异常。
-      ...DNS_FAKE_IP_FILTER_SETS.paymentAndRiskLocal,
-      // 推送 / 投屏 / Matter 等设备发现链路：fake-ip 容易破坏长连接或 mDNS/局域网发现。
       ...DNS_FAKE_IP_FILTER_SETS.pushAndCast
     ])),
-    // 经代理发出的 DNS 查询使用境外可信 DoH，避免解析结果被本地 ISP 窥探/污染。
+    // 主 nameserver 只保留可信 DoH；国内域名由 nameserver-policy / direct-nameserver 接管，避免上游本地 DNS 混入海外解析路径。
     nameserver: uniqList([
-      ...asArray(config.dns && config.dns.nameserver),
-      ...trustDns
+      ...trustDns,
+      ...asArray(config.dns && config.dns.nameserver).filter(item => {
+        const text = String(item || '');
+        return /^https:\/\//i.test(text) && !localDns.includes(item) && !cnDns.includes(item);
+      })
     ]),
-    // 仅允许 IP 形态的 bootstrap DNS；默认只保留中立公共 IP 解析器，减少大陆 DNS 暴露面。
+    // bootstrap 只允许 IP。中立公共 DNS 优先，国内 IP DNS 作为低延迟自举兜底，避免 DoH 域名解析环。
     'default-nameserver': uniqList([
       ...trustBootstrapDns,
-      ...asArray(config.dns && config.dns['default-nameserver']).filter(item => !localDns.includes(item) && !cnDns.includes(item))
-    ]),
-    // 直连域名优先使用国内 DNS / 本地 DNS，同时保留上游已有项增强兼容性。
-    'direct-nameserver': uniqList([
-      ...asArray(config.dns && config.dns['direct-nameserver']),
-      ...cnDns,
       ...localDns
     ]),
+    // 直连域名优先使用国内 DNS / 本地 DNS，同时保留上游已有项增强兼容性。
+    'direct-nameserver': fastDomesticDns,
     // 节点服务器域名必须直连解析；不再追加本地 DNS 回退，优先使用可直连的中立公共解析器完成自举。
     'proxy-server-nameserver': uniqList([
       ...proxyBootstrapDns,
@@ -604,20 +628,25 @@ function buildConfig(config) {
     ])
   });
   // Google Play 下载链路应保留 fake-ip 以便 TUN/规则持续接管；主动清理上游遗留的真实解析例外。
-  const playStoreFakeIpDomainSet = new Set(playStoreDomains().map(domain =>
-    String(domain || '').replace(/^\+\./, '').replace(/^\*\./, '')
-  ));
-  config.dns['fake-ip-filter'] = asArray(config.dns['fake-ip-filter']).filter(item => {
-    const normalized = String(item || '').trim().replace(/^\+\./, '').replace(/^\*\./, '');
-    return !playStoreFakeIpDomainSet.has(normalized);
-  });
+  config.dns['fake-ip-filter'] = removeFakeIpFilterDomains(config.dns['fake-ip-filter'], uniqList([
+    ...playStoreDomains(),
+    ...googleDomains(),
+    ...youtubeMediaDomains(),
+    ...aiDomains(),
+    ...telegramDomains(),
+    ...tiktokDomains(),
+    ...streamingDomains(),
+    ...developerDomains(),
+    ...metaDomains(),
+    ...discordDomains()
+  ]));
   // DNS 分流策略：按私有网络 / 国内 / 境外 / 广告 / 特殊业务域名分别指定解析器。
   // nameserver-policy 维护提示：键必须保持 Mihomo 可识别的 geosite / 域名模式，值必须是一维 DNS 列表。
   // 若把值误改成对象或二维数组，常见后果是导入失败或策略静默失效。
   const nameserverPolicy = Object.assign({}, config.dns['nameserver-policy'] || {}, {
     // 私有网络与国内站点：优先走本地 DNS / 国内 DoH，减少绕路与污染概率。
-    'geosite:private': localDns,
-    'geosite:cn': cnDns,
+    'geosite:private': fastDomesticDns,
+    'geosite:cn': fastDomesticDns,
     // 境外通用站点：统一交给可信境外 DoH，保证海外服务解析一致性。
     'geosite:geolocation-!cn': trustDns,
     // 广告与追踪域名：交给 AdGuard DNS，尽量在解析层先做拦截。
@@ -654,7 +683,7 @@ function buildConfig(config) {
       DNS_POLICY_DOMAIN_SETS.domesticCdn,
       DNS_POLICY_DOMAIN_SETS.domesticAi,
       DNS_POLICY_DOMAIN_SETS.domestic
-    )), dns: cnDns },
+    )), dns: fastDomesticDns },
     { key: 'TikTok', policyDomains: DNS_POLICY_DOMAIN_SETS.tiktok, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok, dns: trustDns },
     { key: 'AdGuard服务', policyDomains: DNS_POLICY_DOMAIN_SETS.adguardService, dns: trustDns, auxiliary: true },
     { key: '风控安全', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.browserRisk, DNS_POLICY_DOMAIN_SETS.finance, DNS_POLICY_DOMAIN_SETS.crypto)), fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: trustDns },
@@ -693,7 +722,7 @@ function buildConfig(config) {
   const sanitizedNameserverPolicy = {};
   for (const [k, v] of Object.entries(nameserverPolicy || {})) {
     const key = sanitizeCompatDomainPattern(k);
-    const arr = Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.trim()) : [];
+    const arr = sanitizeDnsServerList(v);
     if (key && arr.length) sanitizedNameserverPolicy[key] = arr;
   }
   config.dns['nameserver-policy'] = sanitizedNameserverPolicy;
@@ -724,8 +753,29 @@ function buildConfig(config) {
     // GEOIP 过滤：国内 IP 结果优先视为可信，减少无意义 fallback。
     geoip: true,
     'geoip-code': 'CN',
-    // 特殊保留地址段：这类结果通常不应作为正常公网解析结果使用。
-    ipcidr: ['240.0.0.0/4', '0.0.0.0/32', '127.0.0.1/32', '100.64.0.0/10'],
+    // 特殊保留 / 常见污染地址段：这类结果通常不应作为正常公网解析结果使用。
+    ipcidr: [
+      '0.0.0.0/32',
+      '10.0.0.0/8',
+      '100.64.0.0/10',
+      '127.0.0.0/8',
+      '169.254.0.0/16',
+      '172.16.0.0/12',
+      '192.168.0.0/16',
+      '198.18.0.0/15',
+      '224.0.0.0/4',
+      '240.0.0.0/4',
+      '::/128',
+      '::1/128',
+      '64:ff9b::/96',
+      '100::/64',
+      '2001::/32',
+      '2001:db8::/32',
+      '2002::/16',
+      'fc00::/7',
+      'fe80::/10',
+      'ff00::/8'
+    ],
     // 域名白名单：由服务联动表聚合；额外保留仅用于基础设施校验的 fallback 域名。
     domain: uniqList([
       ...dnsBindingFallbackDomains,
@@ -736,7 +786,6 @@ function buildConfig(config) {
   config.dns.fallback = fallbackDns;
   // 直连域名（国内 / 局域网 / 直连策略）使用国内 DoH + 本地 DNS，避免境外绕路。
   config.dns['direct-nameserver'] = uniqList([...cnDns, ...localDns]);
-  config.dns['direct-nameserver-follow-policy'] = true;
   // default-nameserver 只能是 IP，避免 DoH 域名在 bootstrap 阶段形成解析环。
   config.dns['default-nameserver'] = uniqList(asArray(config.dns['default-nameserver']).filter(server => {
     const text = String(server || '').trim();
@@ -748,7 +797,9 @@ function buildConfig(config) {
     config.dns['default-nameserver'] = trustBootstrapDns.slice();
   }
   // 防泄露收口：禁用系统 hosts 参与代理决策，强制 fake-ip + respect-rules。
+  config.ipv6 = true;
   config.dns.enable = true;
+  config.dns.ipv6 = true;
   config.dns['enhanced-mode'] = 'fake-ip';
   config.dns['respect-rules'] = true;
   config.dns['use-system-hosts'] = false;
@@ -921,27 +972,16 @@ function buildConfig(config) {
     if (isMultiplierProxyName(proxyName)) multiplierProxyNames.push(proxyName);
     if (isStreamingProxyName(proxyName)) streamingProxyNames.push(proxyName);
   }
-  const builtInDirectProxies = [
-    { name: '🇨🇳 直连 | IPv4优先', type: 'direct', 'ip-version': 'ipv4-prefer' },
-    { name: '🇨🇳 直连 | IPv6优先', type: 'direct', 'ip-version': 'ipv6-prefer' },
-    { name: '🇨🇳 直连 | 双栈', type: 'direct' }
-  ];
-  for (let i = 0; i < builtInDirectProxies.length; i++) {
-    const proxy = builtInDirectProxies[i];
-    if (seenProxyNames.has(proxy.name)) continue;
-    seenProxyNames.add(proxy.name);
-    cleanProxies.push(proxy);
-  }
   // 将订阅节点中的真实域名纳入节点解析策略，优先复用国内可直连 bootstrap，降低节点自举漂移。
   for (const hostname of proxyHostnames) {
     if (!proxyServerNameserverPolicy[hostname]) proxyServerNameserverPolicy[hostname] = proxyBootstrapDns;
   }
   config.dns['proxy-server-nameserver-policy'] = proxyServerNameserverPolicy;
-  const builtInDirectChoiceNames = builtInDirectProxies.map(proxy => proxy && proxy.name).filter(Boolean);
-  // 组级额外候选注册表
-  const GROUP_SCOPED_CHOICE_REGISTRY = Object.freeze({
-    '国内服务': builtInDirectChoiceNames.slice()
-  });
+  for (const directName of directProxyNames) {
+    if (!seenProxyNames.has(directName)) {
+      cleanProxies.push({ name: directName, type: 'direct', 'ip-version': directProxyIpVersionMap[directName] });
+    }
+  }
   config.proxies = cleanProxies;
   perfEnd('proxy_classify');
   const wholeWordPatternCache = new Map();
@@ -1224,12 +1264,12 @@ function buildConfig(config) {
     regionMatchCache.set(rawName, result);
     return result;
   }
-  // 内置直连名称
-  const builtInDirectProxyNames = new Set(['🇨🇳 直连 | IPv4优先', '🇨🇳 直连 | IPv6优先', '🇨🇳 直连 | 双栈']);
   perfStart('region_classify');
+  const directProxyNameSet = new Set(directProxyNames);
   for (let i = 0; i < cleanProxies.length; i++) {
     const proxy = cleanProxies[i];
-    if (builtInDirectProxyNames.has(proxy.name)) continue;
+    // 三个直连伪节点专属于国内服务组，不参与地区分类，避免被回收进「其它地区」
+    if (proxy.type === 'direct' && directProxyNameSet.has(proxy.name)) continue;
     const matchedRegion = matchRegion(proxy.name);
     (regionGroups[matchedRegion] || regionGroups['其它地区']).push(proxy.name);
   }
@@ -1247,6 +1287,7 @@ function buildConfig(config) {
   }
   // 运行期参数镜像：后续建组函数统一读取这些局部常量；如需调参，优先修改上方常量定义。
   const testUrl = TEST_URL;
+  // 直连统一走Direct组内的 DIRECT。
   const testInterval = TEST_INTERVAL;
   const testTolerance = TEST_TOLERANCE;
   const testTimeout = TEST_TIMEOUT;
@@ -1270,9 +1311,6 @@ function buildConfig(config) {
     const oldGroup = existingGroupMap[group.name];
     if (group.type !== 'select') return group;
     if (!oldGroup || !Array.isArray(oldGroup.proxies) || !Array.isArray(group.proxies)) return group;
-    if (group.name === '全球直连') {
-      return { ...group, proxies: ['DIRECT'] };
-    }
     const groupProxySet = new Set(group.proxies);
     const oldProxySeen = new Set();
     const ordered = [];
@@ -1315,32 +1353,6 @@ function buildConfig(config) {
     const merged = mergeUniqueChoicesWithFallback(list, extraDefaults, ['DIRECT']);
     return merged.length ? merged : ['DIRECT'];
   }
-  // 动态节点组：include-all + filter 模式
-  function makeDynamicUrlTestGroup(name, icon, filterRegex, interval, tolerance, options = {}) {
-    const health = normalizeHealthOptions(options, { interval, tolerance });
-    return {
-      name, type: 'url-test', icon,
-      'include-all': true,
-      filter: filterRegex,
-      url: health.url, interval: health.interval, tolerance: health.tolerance,
-      timeout: health.timeout, 'max-failed-times': health.maxFailedTimes, lazy: health.lazy,
-    };
-  }
-  // 构建地区 filter 正则：从旗帜/关键词/ISO 编译
-  function buildRegionFilter(regionName) {
-    const flag = REGION_FLAG_SOURCE[regionName];
-    const entry = REGION_MATCH_DB.find(r => r.id === regionName);
-    const terms = [];
-    if (flag) terms.push(flag.source);
-    if (entry) {
-      (entry.keywords || []).forEach(kw => {
-        if (/[\u4e00-\u9fa5]/.test(kw)) terms.push(kw);
-        else terms.push('\\b' + kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
-      });
-      (entry.iso || []).forEach(iso => terms.push('\\b' + iso + '\\b'));
-    }
-    return '/' + terms.join('|') + '/i';
-  }
   function normalizeHealthOptions(options = {}, defaults = {}) {
     return {
       url: options.url || defaults.url || testUrl,
@@ -1369,7 +1381,7 @@ function buildConfig(config) {
       name,
       type: 'select',
       icon,
-      proxies: filterUsableChoiceNames(buildChoiceList(list, extraDefaults), scope)
+      proxies: buildChoiceList(list, extraDefaults)
     };
   }
   // Fallback 组
@@ -1535,13 +1547,13 @@ function buildConfig(config) {
     if (!regionNodes.length) return acc;
     const names = makeFusionRegionGroupNames(regionName);
     const residentialNodes = unique(regionNodes.filter(name => isResidentialProxyName(name)));
-    const regionFilter = buildRegionFilter(regionName);
-    // 地区自动组：include-all + filter 动态 url-test，hidden
-    const autoGroup = makeDynamicUrlTestGroup(names.auto, regionIconMap[regionName], regionFilter, regionUrlTestInterval, regionUrlTestTolerance, {
+    // 地区自动组：改为静态节点列表 url-test（而非 include-all + filter 动态匹配），
+    // 保证自动组测速的候选节点与地区节点组（脚本精确分类结果）完全一致，避免正则误匹配导致两者节点集合不同、延迟展示对不上。
+    const autoGroup = makeUrlTestGroup(names.auto, regionIconMap[regionName], regionNodes, regionUrlTestInterval, regionUrlTestTolerance, {
       timeout: regionUrlTestTimeout,
       maxFailedTimes: regionUrlTestMaxFailedTimes
     });
-    autoGroup.hidden = true;
+    if (autoGroup) autoGroup.hidden = true;
     // 地区家宽自动组：至少达到最小家宽节点数才生成，避免单节点测速组污染 UI。
     const homeAutoGroup = residentialNodes.length >= MIN_REGION_HOME_AUTO_NODES
       ? makeUrlTestGroup(names.homeAuto, homeRegionIconMap[regionName], residentialNodes, homeTestInterval, homeTestTolerance, {
@@ -1707,6 +1719,9 @@ function buildConfig(config) {
     }
     return merged;
   }
+  function sanitizeUiChoiceList(...parts) {
+    return filterOutDirectEntries(buildChoiceList(...parts));
+  }
   function createNamedChoiceMap(defs, builder) {
     const map = Object.create(null);
     for (let i = 0; i < defs.length; i++) {
@@ -1730,7 +1745,7 @@ function buildConfig(config) {
     });
   }
   function makeChoicePool(first, ...poolParts) {
-    return makeOrderedChoices(first, buildChoiceList(...poolParts));
+    return makeOrderedChoices(first, sanitizeUiChoiceList(...poolParts));
   }
   // 候选池构建：不仅要合并 first + parts，还必须透传组级额外白名单。
   // 否则像“国内服务”这种允许额外候选的组，会在二次重组时又被按全局白名单刷掉。
@@ -1742,7 +1757,7 @@ function buildConfig(config) {
       if (!def || !def.key) continue;
       map[def.key] = makeOrderedChoices(
         def.first,
-        buildChoiceList(...asArray(def.parts)),
+        sanitizeUiChoiceList(...asArray(def.parts)),
         def.scope
       );
     }
@@ -1828,7 +1843,7 @@ function buildConfig(config) {
   const cnLandingStrongNodes = allProxyNames.filter(name => isCnLanding(name));
   const cnLandingWeakNodes = allProxyNames.filter(name => !isCnLanding(name) && isCnLandingWeak(name));
   // YouTube 无广候选池：按“送中强信号 → 弱信号 → 经验低广告地区”顺序组织。
-  const youtubeFallbackNodes = filterOutDirectEntries(buildChoiceList(
+  const youtubeFallbackNodes = sanitizeUiChoiceList(
     cnLandingStrongNodes,                                            // 🅰️ 明确送中 → 极大概率无广
     cnLandingWeakNodes,                                              // 🅱️ 中国线路标记 → 较大概率无广
     buildNodeChain([/俄罗斯/i, /俄(罗斯)?/i, /\bRU\b/i, /🇷🇺/]),     // 🅲 俄罗斯 → Google 无广告运营
@@ -1844,17 +1859,17 @@ function buildConfig(config) {
     regionGroups['新加坡'],
     regionGroups['日本'],
     regionGroups['美国']
-  ));
+  );
   // AI 候选池：优先放入对海外 AI 服务兼容性通常更稳定的地区节点组。
-  const aiFallbackNodes = filterOutDirectEntries(buildChoiceList(
+  const aiFallbackNodes = sanitizeUiChoiceList(
     regionManualNames.filter(name => !String(name).includes('家宽'))
-  ));
+  );
   // Cloudflare 候选：优先自动组与欧美出口，并允许显式 Cloudflare / WARP 节点参与。
-  const cloudflareGroupChoices = filterOutDirectEntries(buildChoiceList(
-    ['自动选择', '欧美故障转移', '全球直连', '全球手动'],
+  const cloudflareGroupChoices = sanitizeUiChoiceList(
+    ['自动选择', '欧美故障转移', '全球手动'],
     buildNodeChain([/cloudflare/i, /\bCF\b/i, /WARP/i, /1\.1\.1\.1/]),
     regionManualNames.filter(name => !String(name).includes('家宽'))
-  ));
+  );
   // 下载分区定义
   const DOWNLOAD_REGION_DEFS = [
     { key: '香港', groupName: '香港下载', icon: regionIconMap['香港'] || qIcon('HK') },
@@ -1909,7 +1924,7 @@ function buildConfig(config) {
   );
   const downloadRegionGroups = downloadRegionGroupArtifacts.groups;
   // 下载候选池
-  const downloadGroupChoices = filterOutDirectEntries(buildChoiceList(['负载均衡', '自动选择'], downloadRegionGroupArtifacts.names));
+  const downloadGroupChoices = sanitizeUiChoiceList(['下载散列组', '下载轮询组', '负载均衡', '自动选择'], downloadRegionGroupArtifacts.names);
   // 候选池 / 特殊 fallback
   const excludedFallbackChoices = ['YouTube无广节点优先组', '国外AI故障转移'];
   const SPECIAL_FALLBACK_DEFS = [
@@ -1958,6 +1973,11 @@ function buildConfig(config) {
   // 负载均衡组改为真实节点均衡
   const loadBalanceGroupArtifacts = collectNamedGroups([
     makeLoadBalanceGroup('负载均衡', iconMap.balance, ensureGroupList(allProxyNames, []), { interval: 60, timeout: 800, strategy: 'consistent-hashing' }),
+    // 下载散列组：consistent-hashing，同一目标固定映射到同一地区自动组，节点池同下载轮询组。此组不在主列表展示，仅供下载专用组内部引用。
+    makeLoadBalanceGroup('下载散列组', iconMap.balance, ensureGroupList(regionAutoNames, []), { interval: 60, timeout: 800, strategy: 'consistent-hashing' }),
+    // 下载轮询组：round-robin 按连接轮流分配节点池；节点池用各地区自动组（而非真实节点），
+    // 既能利用地区组自身的测速兜底，又能在多连接下载时把流量分摊到不同地区自动组，聚合下载速度。此组不在主列表展示，仅供下载专用组内部引用。
+    makeLoadBalanceGroup('下载轮询组', iconMap.balance, ensureGroupList(regionAutoNames, []), { interval: 60, timeout: 800, strategy: 'round-robin' }),
     makeLoadBalanceGroup('谷歌商店专用', iconMap.playstore, ensureGroupList(playStoreBalanceChoices, []), playStoreLoadBalanceOptions)
   ]);
   const loadBalanceGroups = loadBalanceGroupArtifacts.groups;
@@ -1983,7 +2003,7 @@ function buildConfig(config) {
       lazy: true
     })
     : null;
-  if (globalHomeAuto) globalHomeAuto.hidden = true;
+  if (globalHomeAuto) if (globalHomeAuto) globalHomeAuto.hidden = true;
   const globalHomeGroup = globalHomeAuto && globalHomeNodes.length
     ? { name: '🏡全球家宽', type: 'select', icon: iconMap.home, proxies: buildChoiceList(['🏡全球家宽自动'], globalHomeNodes) }
     : null;
@@ -1991,6 +2011,7 @@ function buildConfig(config) {
     ? makeUrlTestGroup('全球专线自动', iconMap.dedicated, globalDedicatedNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
   if (globalDedicatedAuto) globalDedicatedAuto.hidden = true;
+  if (globalHomeAuto) if (globalHomeAuto) globalHomeAuto.hidden = true;
   const globalDedicatedGroup = globalDedicatedAuto && globalDedicatedNodes.length
     ? { name: '全球专线', type: 'select', icon: iconMap.dedicated, proxies: buildChoiceList(['全球专线自动'], globalDedicatedNodes) }
     : null;
@@ -2040,7 +2061,6 @@ function buildConfig(config) {
     '节点选择',
     '自动选择',
     '全球手动',
-    '全球直连',
     '负载均衡',
     '谷歌商店专用',
     '家宽故障转移',
@@ -2063,7 +2083,7 @@ function buildConfig(config) {
   function resolveScopedChoiceNames(scopeKeyOrList) {
     if (Array.isArray(scopeKeyOrList)) return scopeKeyOrList.filter(Boolean);
     if (!scopeKeyOrList) return [];
-    return asArray(GROUP_SCOPED_CHOICE_REGISTRY[scopeKeyOrList]).filter(Boolean);
+    return [];
   }
   function createChoiceScope(scopeKeyOrChoices = null) {
     if (scopeKeyOrChoices && typeof scopeKeyOrChoices === 'object' && scopeKeyOrChoices.allowedNameSet) {
@@ -2111,9 +2131,6 @@ function buildConfig(config) {
     return makeChoiceDef(key, GLOBAL_CHOICE_SCOPE, first, ...parts);
   }
   // 带作用域候选定义
-  function makeScopedChoiceDef(key, scopeKeyOrChoices, first, ...parts) {
-    return makeChoiceDef(key, createChoiceScope(scopeKeyOrChoices), first, ...parts);
-  }
   function makeSelectGroupDef(name, icon, choices, extraDefaults, scopeKeyOrChoices = null) {
     const scope = createChoiceScope(scopeKeyOrChoices);
     return {
@@ -2182,7 +2199,6 @@ function buildConfig(config) {
       '港台故障转移', '日韩故障转移', '欧美故障转移',
       ...regionManualNames.filter(name => name && !String(name).includes('家宽')),
       '自动兜底',
-      '全球直连'
     ].filter(Boolean))
   ];
   const CHOICE_POOLS = buildChoicePoolsFromDefs(CHOICE_POOL_DEFS);
@@ -2211,8 +2227,8 @@ function buildConfig(config) {
       poolKey: 'common'
     })),
     { key: '去中心化平台', first: ['欧美故障转移'], poolKey: 'common' },
-    { key: '微软服务', first: ['节点选择', '自动选择', '全球直连'], poolKey: 'common' },
-    { key: '微软Bing', first: ['全球直连', '节点选择', '自动选择'], poolKey: 'common' },
+    { key: '微软服务', first: ['节点选择', '自动选择'], poolKey: 'common' },
+    { key: '微软Bing', first: ['DIRECT', '节点选择', '自动选择'], poolKey: 'common' },
     { key: '谷歌商店', first: playStoreServiceChoices, poolKey: 'playStore' },
     {
       key: 'AI',
@@ -2301,16 +2317,15 @@ function buildConfig(config) {
     ),
     usableChoiceDef(
       'systemService',
-      ['节点选择', '自动选择', '全球手动', '全球直连'],
+      ['节点选择', '自动选择', '全球手动', 'DIRECT'],
       fusionVisibleRegions
     ),
     // 国内服务放行内置直连
-    makeScopedChoiceDef(
+    usableChoiceDef(
       'domesticService',
-      '国内服务',
-      ['全球直连'],
-      builtInDirectChoiceNames,
-      domesticChoices.filter(x => x !== '全球直连' && !directChoices.includes(x))
+      domesticServiceChoices,
+      domesticChoices.filter(x => x !== 'DIRECT' && !directChoices.includes(x)),
+      regionManualNames
     ),
     // 最终兜底候选
     usableChoiceDef(
@@ -2321,17 +2336,6 @@ function buildConfig(config) {
     )
   ];
   const MAIN_CHOICE_POOLS = buildChoicePoolsFromDefs(MAIN_CHOICE_POOL_DEFS);
-  // Choice Scope 自检
-  const domesticServiceScopeDef = MAIN_CHOICE_POOL_DEFS.find(def => def && def.key === 'domesticService');
-  if (!domesticServiceScopeDef || !domesticServiceScopeDef.scope || !domesticServiceScopeDef.scope.allowedNameSet) {
-    throw new Error('choice scope health check failed: domesticService def missing scope metadata');
-  }
-  for (let i = 0; i < builtInDirectChoiceNames.length; i++) {
-    const name = builtInDirectChoiceNames[i];
-    if (!domesticServiceScopeDef.scope.allowedNameSet.has(name)) {
-      throw new Error('choice scope health check failed: domesticService scope missing extra allowed choice: ' + name);
-    }
-  }
   // 附加显示组
   const regionAutoGroupMap = Object.create(null);
   for (let i = 0; i < regionAutoGroups.length; i++) {
@@ -2357,12 +2361,13 @@ function buildConfig(config) {
     ['🌐链式出口'].concat(CHOICE_GROUPS.riskControl),
     []
   );
+  const domesticServiceDisplayChoices = buildChoiceList(['DIRECT'], domesticServiceChoices, regionManualNames);
   const DOMESTIC_SERVICE_GROUP = makeSelectGroupDef(
     '国内服务',
     iconMap.china,
-    MAIN_CHOICE_POOLS.domesticService,
+    domesticServiceDisplayChoices,
     [],
-    '国内服务'
+    domesticServiceDisplayChoices
   );
   const SERVICE_GROUP_BASE_DEFS = makeSelectGroupDefList([
     RISK_CONTROL_SERVICE_GROUP,
@@ -2403,12 +2408,6 @@ function buildConfig(config) {
   // 工具组
   const UTILITY_GROUP_PRESET_DEFS = makeSelectGroupDefList([
     {
-      name: '全球直连',
-      icon: iconMap.direct,
-      choices: ['DIRECT'],
-      extraDefaults: []
-    },
-    {
       name: '广告拦截',
       icon: iconMap.adblock,
       choices: ['REJECT', 'REJECT-DROP', 'PASS'],
@@ -2417,13 +2416,13 @@ function buildConfig(config) {
     {
       name: '跟踪分析',
       icon: qIcon('Reject'),
-      choices: ['REJECT', 'DIRECT', '自动选择'],
+      choices: ['REJECT', '自动选择'],
       extraDefaults: ['REJECT']
     },
     {
       name: '隐私保护',
       icon: iconMap.privacy,
-      choices: ['REJECT', 'DIRECT', '自动选择'],
+      choices: ['REJECT', '自动选择'],
       extraDefaults: ['REJECT']
     },
     {
@@ -2436,7 +2435,7 @@ function buildConfig(config) {
     {
       name: '下载专用组',
       icon: iconMap.download || iconMap.fallback,
-      choices: downloadGroupChoices.filter(name => name !== 'DIRECT')
+      choices: downloadGroupChoices
     },
     ...UTILITY_GROUP_PRESET_DEFS
   ]);
@@ -2445,7 +2444,7 @@ function buildConfig(config) {
     name: '自动选择',
     type: 'select',
     icon: iconMap.auto,
-    proxies: sanitizeChoiceList(usableChoices(allProxyNames), usableChoices(['全球手动', 'DIRECT']))
+    proxies: sanitizeChoiceList(usableChoices(allProxyNames), usableChoices(['全球手动']))
   };
   const homeFailoverGroup = makeFallbackGroup(
     '家宽故障转移',
@@ -2462,13 +2461,13 @@ function buildConfig(config) {
   );
   // 链式双组：中转(隐藏 fallback，自动选跳板) + 出口(可见 select，手动选落地)
   // 中转候选顺序：自动选择 → 自动兜底 → 地区自动组/地区节点组
-  const chainTransitChoices = filterOutDirectEntries(buildChoiceList(
+  const chainTransitChoices = sanitizeUiChoiceList(
     ['自动选择', '自动兜底'],
     regionAutoNames,
     regionManualNames.filter(name => !String(name).includes('家宽'))
-  ));
+  );
   // 出口候选顺序：全球家宽 → 地区家宽节点 → 家宽故障转移 → 自动兜底 → 地区节点组 → 特征组 → 真实节点
-  const chainExitChoices = filterOutDirectEntries(buildChoiceList(
+  const chainExitChoices = sanitizeUiChoiceList(
     globalHomeGroup ? ['🏡全球家宽'] : [],
     regionHomeManualNames,
     ['家宽故障转移', '自动兜底'],
@@ -2480,7 +2479,7 @@ function buildConfig(config) {
       globalMultiplierGroup ? '全球倍率' : null
     ].filter(Boolean),
     allProxyNames
-  ));
+  );
   const chainTransitGroup = chainTransitChoices.length
     ? {
         name: '🪜链式中转',
@@ -2552,9 +2551,11 @@ function buildConfig(config) {
     for (let j = 0; j < bucket.length; j++) {
       let group = bucket[j];
       if (!group) continue;
-      // 隐藏辅助组：下载组、谷歌商店专用组不在主列表展示。
+      // 隐藏辅助组：下载组、谷歌商店专用组、下载轮询组、下载散列组不在主列表展示。
       const shouldHide = /^(香港|台湾|日本|韩国|新加坡|美国|欧盟)下载$/.test(group.name)
-        || group.name === '谷歌商店专用';
+        || group.name === '谷歌商店专用'
+        || group.name === '下载轮询组'
+        || group.name === '下载散列组';
       if (shouldHide) {
         group = Object.assign({}, group, { hidden: true });
       }
@@ -2564,7 +2565,7 @@ function buildConfig(config) {
   // 分组候选清洗：删除无效/重复/自引用，补最小兜底，切断显式环引用。
   function getGroupFallbackChoices(groupName) {
     // 全局直连组语义固定，最终必须只保留 DIRECT。
-    if (groupName === '全球直连') return ['DIRECT'];
+    if (groupName === 'DIRECT') return ['DIRECT'];
     // 全球手动组尽量保留真实节点，不给默认兜底项。
     if (groupName === '全球手动') return [];
     // 自动选择组允许极端情况下回退到“全球手动 / DIRECT”。
@@ -2574,7 +2575,7 @@ function buildConfig(config) {
     // 跟踪分析组用于阻断/直连观测，不需要真实代理。
     if (groupName === '跟踪分析') return ['REJECT', 'DIRECT'];
     // 漏网之鱼承担 MATCH 收尾职责，允许回退到主入口组。
-    if (groupName === '漏网之鱼') return ['自动选择', '全球手动', '全球直连'];
+    if (groupName === '漏网之鱼') return ['自动选择', '全球手动', 'DIRECT'];
     // 其余分组不在这里乱补默认项，避免把“自动选择”偷偷塞进别的组。
     return [];
   }
@@ -2584,7 +2585,6 @@ function buildConfig(config) {
   const availableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(finalizedProxyGroups);
   // realChoiceCandidateSet：只包含真实节点名与脚本显式注册为“真实候选”的额外名字，用来判断当前组是否仍有可保留候选。
   const realChoiceCandidateSet = buildRealChoiceCandidateSet();
-  assertChoiceNamesRegistered(builtInDirectChoiceNames, 'scoped choice');
   function hasRealChoiceCandidates(list) {
     // 只要候选中还存在一个真实节点，就说明这个组不需要走语义兜底。
     return asArray(list).some(name => realChoiceCandidateSet.has(name));
@@ -2594,8 +2594,8 @@ function buildConfig(config) {
     const proxies = asArray(candidates);
     const fallbackChoices = getGroupFallbackChoices(group.name);
     const hasRealChoices = hasRealChoiceCandidates(proxies);
-    // 全球直连组固定只保留 DIRECT，避免被旧配置或别处逻辑污染。
-    if (group.name === '全球直连') return ['DIRECT'];
+    // Direct组固定只保留 DIRECT，避免被旧配置或别处逻辑污染。
+    if (group.name === 'DIRECT') return ['DIRECT'];
     // 全球手动组若被清空，则回填全部真实节点；极端情况下至少保留 DIRECT，避免 select 组缺失 proxies。
     if (group.name === '全球手动') return ensureGroupList(proxies.length ? proxies : allProxyNames, ['DIRECT']);
     // fallback 组只保留构建阶段明确给它的候选；这里不额外补“自动选择”。
@@ -2609,7 +2609,7 @@ function buildConfig(config) {
     // 谷歌商店专用组按设计承载地区节点组，只要仍有有效成员就保留。负载均衡组同理。
     if (group.type === 'url-test' || group.type === 'load-balance') {
       if (PLAY_STORE_SPECIAL_GROUP_NAMES.includes(group.name)) return proxies.length ? proxies : [];
-      if (group.name === '负载均衡') return proxies.length ? proxies : [];
+      if (group.name === '负载均衡' || group.name === '下载轮询组' || group.name === '下载散列组') return proxies.length ? proxies : [];
       return hasRealChoices ? proxies : [];
     }
     // 其余 select / 行为组：有真实节点就直接保留；没真实节点才走语义兜底。
@@ -2619,24 +2619,29 @@ function buildConfig(config) {
     if (!group || !group.name) return true;
     if (!Array.isArray(group.proxies)) return false;
     // 核心组永不删除
-    const coreGroups = ['自动选择', '全球手动', '全球直连'];
+    const coreGroups = ['自动选择', '全球手动'];
     if (coreGroups.includes(group.name)) return false;
     // 测速/负载组通常必须包含真实节点；谷歌商店专用组和负载均衡组允许包含其他组引用。
     if (group.type === 'url-test' || group.type === 'load-balance') {
       if (PLAY_STORE_SPECIAL_GROUP_NAMES.includes(group.name)) return !asArray(group.proxies).length;
-      if (group.name === '负载均衡') return !asArray(group.proxies).length;
+      if (group.name === '负载均衡' || group.name === '下载轮询组' || group.name === '下载散列组') return !asArray(group.proxies).length;
       return !hasRealChoiceCandidates(group.proxies);
     }
     return false;
   }
   // Final Choice Registry
-  // cleanup 阶段统一从这里获取“最终承认存在的名字”，避免把组级额外候选再次误删。
+  // cleanup 阶段直接从现有分组里收集名字，避免依赖额外的作用域注册表。
   function getAllScopedChoiceNames() {
     const merged = [];
-    const keys = Object.keys(GROUP_SCOPED_CHOICE_REGISTRY);
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
-      merged.push(...asArray(GROUP_SCOPED_CHOICE_REGISTRY[key]));
+    for (let i = 0; i < finalizedProxyGroups.length; i++) {
+      const group = finalizedProxyGroups[i];
+      if (group && group.name) merged.push(group.name);
+      for (const item of asArray(group && group.proxies)) {
+        if (item) merged.push(item);
+      }
+      for (const item of asArray(group && group.extra)) {
+        if (item) merged.push(item);
+      }
     }
     return unique(merged.filter(Boolean));
   }
@@ -2736,8 +2741,10 @@ function buildConfig(config) {
     '节点选择': '🚀节点选择',
     '自动选择': '⚡自动选择',
     '全球手动': '🔧全球手动',
-    '全球直连': '🌍全球直连',
+    'DIRECT': 'DIRECT',
     '负载均衡': '⚖️负载均衡',
+    '下载散列组': '🔀下载散列组',
+    '下载轮询组': '🔁下载轮询组',
     '谷歌商店专用': '🛒谷歌商店专用',
     '自动兜底': '🪂自动兜底',
     '家宽故障转移': '🔥家宽故障转移',
@@ -2832,18 +2839,6 @@ function buildConfig(config) {
     const renamed = Object.assign({}, group, { name: newName, proxies: newProxies });
     return renamed;
   });
-  // 替换 preserveGroup 中硬编码的组名引用
-  // 规则中的策略目标替换在规则装配后进行（见下方 applyEmojiRenameToRules）。
-  // 最终分组自检：国内服务如果存在，必须仍然保留三直连可见性，避免回归到“前面放行、后面 cleanup 删除”。
-  const domesticServiceGroup = config['proxy-groups'].find(group => group && group.name === applyEmojiRename('国内服务'));
-  if (domesticServiceGroup && Array.isArray(domesticServiceGroup.proxies)) {
-    for (let i = 0; i < builtInDirectChoiceNames.length; i++) {
-      const name = builtInDirectChoiceNames[i];
-      if (!domesticServiceGroup.proxies.includes(name)) {
-        throw new Error('proxy group health check failed: domesticService missing built-in direct choice after cleanup: ' + name);
-      }
-    }
-  }
   // 规则目标校验：规则里引用的策略名必须真的存在。
   // 这是规则区最常见的维护事故之一：改了组名，却忘了同步规则目标。
   const availableRuleTargets = makeNameSet(config['proxy-groups'].map(group => group && group.name));
@@ -3405,15 +3400,15 @@ function buildConfig(config) {
   ];
   // 局域网 / 私有网络：最高优先直连，避免内网服务被代理。
   const RULES_LAN_PRIVATE = [
-    'GEOSITE,private,全球直连',
-    'GEOIP,private,全球直连,no-resolve',
+    'GEOSITE,private,DIRECT',
+    'GEOIP,private,DIRECT,no-resolve',
     ...ruleIpCidr([
       // 不要写入 198.18.0.0/15，那是 fake-ip 保留段，强行直连会破坏 DNS 接管。
       '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16',
       '172.16.0.0/12', '192.0.0.0/24', '192.0.2.0/24', '192.168.0.0/16',
       '198.51.100.0/24', '203.0.113.0/24', '224.0.0.0/4', '240.0.0.0/4',
       '::1/128', 'fc00::/7', 'fe80::/10', 'ff00::/8'
-    ], '全球直连')
+    ], 'DIRECT')
   ];
   // 协作办公 / 云生产力
   const RULES_COLLABORATION = [
@@ -3454,7 +3449,7 @@ function buildConfig(config) {
   ];
   // 兜底规则：国内直连 / 境外走节点选择 / 漏网之鱼
   const RULES_DIRECT_AND_FALLBACK = [
-    'GEOIP,CN,全球直连',
+    'GEOIP,CN,DIRECT',
     'GEOSITE,geolocation-!cn,节点选择',
     'GEOIP,!CN,节点选择',
     'MATCH,漏网之鱼'
@@ -3641,6 +3636,45 @@ APP_PROCESS: RULES_APP_PROCESS,
     // 注：同 match value 多 target 现在按"后定义覆盖前定义"处理，只记录诊断，不再阻断
     emitRuleDiagnostics(ruleDiagnostics);
   }
+  if (!config['rule-providers'] || typeof config['rule-providers'] !== 'object') {
+    config['rule-providers'] = {};
+  }
+  if (!config['rule-providers']['prevent_dns_leak'] || typeof config['rule-providers']['prevent_dns_leak'] !== 'object') {
+    config['rule-providers']['prevent_dns_leak'] = {
+      type: 'http',
+      interval: 86400,
+      behavior: 'domain',
+      format: 'text',
+      url: 'https://raw.githubusercontent.com/xishang0128/rules/main/clash%20or%20stash/prevent_dns_leak/prevent_dns_leak_domain.list'
+    };
+  }
+  if (!Array.isArray(config.rules)) {
+    config.rules = [];
+  }
+  const preventDnsLeakMatchIndex = config.rules.findIndex(rule => typeof rule === 'string' && /^MATCH\s*,/i.test(rule));
+  const preventDnsLeakMatchRule = preventDnsLeakMatchIndex >= 0 ? config.rules[preventDnsLeakMatchIndex] : '';
+  const preventDnsLeakMatchOutbound = preventDnsLeakMatchRule
+    ? preventDnsLeakMatchRule.split(',').slice(1).join(',').trim()
+    : '';
+  const preventDnsLeakRulePrefix = 'RULE-SET,prevent_dns_leak,';
+  const hasPreventDnsLeakRule = config.rules.some(rule => typeof rule === 'string' && /^RULE-SET\s*,prevent_dns_leak\s*,/i.test(rule));
+  if (preventDnsLeakMatchOutbound && !hasPreventDnsLeakRule) {
+    const insertIndex = preventDnsLeakMatchIndex >= 0 ? preventDnsLeakMatchIndex : config.rules.length;
+    config.rules.splice(insertIndex, 0, preventDnsLeakRulePrefix + preventDnsLeakMatchOutbound);
+  }
+  if (!config.dns || typeof config.dns !== 'object') {
+    config.dns = {};
+  }
+  config.dns.enable = true;
+  config.dns['enhanced-mode'] = 'fake-ip';
+  config.dns['respect-rules'] = true;
+  config.dns['use-system-hosts'] = false;
+  config.dns['use-hosts'] = true;
+  if (config.tun && typeof config.tun === 'object' && config.tun.enable) {
+    config.tun['dns-hijack'] = buildChoiceList(config.tun['dns-hijack'], ['any:53', 'tcp://any:53']);
+  }
+  if (Array.isArray(config['proxy-groups'])) {
+  }
   // 完成：性能统计与配置返回
   perfFlush();
   return config;
@@ -3694,6 +3728,30 @@ function validateOutputConfig(config) {
   }
   if (!config.rules.some(rule => typeof rule === 'string' && /^MATCH\s*,/i.test(rule))) {
     throw new Error('output rules missing MATCH fallback');
+  }
+  if (config.ipv6 !== true) {
+    throw new Error('output ipv6 must be true');
+  }
+  if (config.dns.ipv6 !== true) {
+    throw new Error('output dns ipv6 must be true');
+  }
+  if (config.dns['enhanced-mode'] !== 'fake-ip') {
+    throw new Error('output dns enhanced-mode must be fake-ip');
+  }
+  if (config.dns['respect-rules'] !== true) {
+    throw new Error('output dns respect-rules must be true');
+  }
+  if (config.dns['use-system-hosts'] !== false) {
+    throw new Error('output dns use-system-hosts must be false');
+  }
+  if (!Array.isArray(config.dns.nameserver) || !config.dns.nameserver.length) {
+    throw new Error('output dns nameserver is empty');
+  }
+  if (!config['rule-providers'] || !config['rule-providers']['prevent_dns_leak']) {
+    throw new Error('output missing prevent_dns_leak rule-provider');
+  }
+  if (!config.rules.some(rule => typeof rule === 'string' && /^RULE-SET\s*,prevent_dns_leak\s*,/i.test(rule))) {
+    throw new Error('output rules missing prevent_dns_leak guard');
   }
   return config;
 }
