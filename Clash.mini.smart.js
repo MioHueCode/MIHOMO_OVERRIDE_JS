@@ -111,6 +111,27 @@ function buildConfig(config) {
     const s = String(value || '').trim().toLowerCase();
     return !!s && !/^\d+\.\d+\.\d+\.\d+$/.test(s) && !s.includes(':') && /^[a-z0-9.-]+$/.test(s) && s.includes('.');
   }
+  // 节点字段合法性校验：部分订阅源会混入带非法字符（如 "+"）的 server/sni，
+  // 这类值无法通过内核的域名合法性检查，若不提前过滤会导致整个配置导入失败（DNS ResolverRule invalid domain）。
+  const DOMAIN_OR_IP_PATTERN = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
+  function isValidProxyServerField(value) {
+    const s = String(value || '').trim();
+    if (!s) return false;
+    if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(s)) return true;
+    if (s.includes(':') && /^[0-9a-fA-F:]+$/.test(s)) return true;
+    return DOMAIN_OR_IP_PATTERN.test(s);
+  }
+  // sni/servername 允许缺省（不是所有协议都必须携带），但一旦出现就必须是合法域名/IP。
+  function isValidOptionalProxyDomainField(value) {
+    const s = String(value || '').trim();
+    if (!s) return true;
+    return isValidProxyServerField(s);
+  }
+  // 端口合法性校验：畸形订阅可能给出空值/非数字/超范围端口，同样会导致节点无法被内核加载。
+  function isValidProxyPort(value) {
+    const n = Number(value);
+    return Number.isInteger(n) && n >= 1 && n <= 65535;
+  }
   function perfStart(label) {
     if (!PERF_ENABLED) return;
     perfMarks[label] = perfNow();
@@ -494,7 +515,9 @@ function buildConfig(config) {
     if (typeof pattern !== 'string') return '';
     let s = pattern.trim();
     if (!s) return '';
-    if (s.startsWith('rule-set:') || s.startsWith('geosite:')) return s;
+    // DNS ResolverRule / nameserver-policy 在部分内核或前端环境中不接受 geosite / rule-set 语法，
+    // 这里统一只保留纯域名与简单前导通配，避免出现 “DNS ResolverRule invalid domain”。
+    if (s.startsWith('rule-set:') || s.startsWith('geosite:')) return '';
     s = s.replace(/^\+\./, '*.');
     if (/[*?]/.test(s)) {
       // 为兼容部分前端与导入环境，这里仅保留前导 *. 形式的简单通配。
@@ -971,6 +994,12 @@ function buildConfig(config) {
     const proxy = config.proxies[i];
     const proxyName = proxy && proxy.name;
     if (!proxyName || !isRealProxyName(proxyName) || seenProxyNames.has(proxyName)) continue;
+    // 剔除 server/sni/servername 带非法字符（如订阅源脏数据中出现的 "+"）的节点，
+    // 避免这类字段被内核校验拒绝导致整份配置导入失败。
+    if (!isValidProxyServerField(proxy && proxy.server)) continue;
+    if (!isValidOptionalProxyDomainField(proxy && proxy.sni)) continue;
+    if (!isValidOptionalProxyDomainField(proxy && proxy.servername)) continue;
+    if (!isValidProxyPort(proxy && proxy.port)) continue;
     seenProxyNames.add(proxyName);
     cleanProxies.push(proxy);
     allProxyNames.push(proxyName);
