@@ -1,92 +1,12 @@
 /**
  * Clash / Mihomo 工程化配置脚本（Normal 版）
  *
- * 版本定位：
- * - 本文件为 Normal / 标准版；
- * - 核心自动策略以「自动选择 / 自动兜底 / 故障转移」体系为主；
- * - 适合偏传统 Mihomo / Clash 分组习惯、希望策略语义直观稳定的场景。
+ * 核心：DNS/规则/分组三位一体联动，基于业务语义的分流与自动选路。
+ * Smart 版：使用 LightGBM 智能选路，适合少手动干预场景。
+ * Normal 版：使用 url-test/fallback 传统组合，适合偏好手动切换场景。
  *
- * 与 Smart 版区别：
- * - Normal 版主要使用 url-test、fallback、select 等经典策略组合；
- * - 命名风格以「自动选择」「自动兜底」「家宽故障转移」「地区故障转移」为主；
- * - 更强调兼容传统配置认知、迁移成本低、行为语义清晰。
- *
- * 主要特性：
- * - DNS / 规则 / 分组三位一体联动；
- * - 面向业务语义的分流设计；
- * - 支持链式出口、家宽优选、地区故障转移、下载专用组等工程化能力；
- * - 尽量兼顾稳定性、可维护性、旧配置兼容与 UI 保序。
- *
- * 开源仓库：
- * - https://github.com/MioHueCode/MIHOMO_OVERRIDE_JS
- *
- * 设计目标：
- * 1) 在复杂业务分流场景下保持 DNS、分组、规则三位一体；
- * 2) 在防污染、防泄露、启动稳定性、可维护性之间取得平衡；
- * 3) 以“单一业务语义，多处自动联动”为原则，避免同一类业务在不同模块中各写一套。
- *
- * 整体架构：
- * 基础设施 → 网络配置 → 节点处理 → 策略构建 → 规则装配 → 联动校验
- *
- * 三位一体原则（本脚本必须长期保持，不建议破坏）：
- * 1) DNS：决定“由谁解析、如何解析、是否 fake-ip、是否需要 fallback”；
- * 2) 规则：决定“某个域名 / 进程 / IP / 关键字属于哪一类业务”；
- * 3) 分组：决定“该业务最终走哪条出口路径、如何选节点、是否负载均衡或直连”。
- *
- * 换句话说：
- * - 规则负责识别业务；
- * - DNS 负责正确解析业务；
- * - 分组负责正确承载业务。
- * 三者若不同步，就会出现“规则命中了，但解析错了”或“解析对了，但出口错了”的隐蔽问题。
- *
- * 单一数据源与联动中心：
- * - DNS_SERVICE_BINDINGS：DNS / 分组 / 规则联动注册表的核心语义来源；
- *   用于聚合业务类别、policyDomains、fallbackDomains、解析器选择等。
- * - RULES_*：规则层的主要装配入口。
- * - BUSINESS_CHOICE_DEFS：业务策略选择定义入口。
- * - CHOICE_POOL_DEFS：策略组选项池定义入口。
- *
- * 维护约定（一定要说明）：
- * 1) 新增业务时，优先从“业务语义”出发，而不是只改某一层：
- *    应先检查该业务是否需要同步补充 DNS 域名集合、规则归类、策略组承载。
- * 2) 若某业务已存在，请优先扩展对应的域名集合 / 绑定表，避免散落在多个位置做临时补丁。
- * 3) nameserver-policy、fallback-filter、业务规则、策略组命名应尽量围绕同一业务对象保持一致。
- * 4) default-nameserver 必须只保留可直接使用的 IP 解析器，不能混入 DoH 域名，避免 bootstrap 解析环。
- * 5) proxy-server-nameserver 必须可直连使用，不能依赖代理本身解析代理节点域名，否则可能形成启动环。
- * 6) fake-ip-filter 只放必须保留真实地址的业务；不要为了“某个 App 一时异常”随意扩大例外范围。
- * 7) fallback-filter 的 domain 白名单应尽量来自聚合后的业务集合，不要手写过多离散条目，避免与规则层脱节。
- * 8) 若修改分组名称，必须同步检查规则目标、业务选择器、默认选项池和保序逻辑是否一起更新。
- *
- * 当前 DNS 策略取向：
- * - 应用侧采用 fake-ip，减少系统直连 DNS 泄露；
- * - respect-rules=true，让解析请求尽可能跟随分流规则；
- * - default-nameserver 仅承担 bootstrap，自举只使用本地 IP DNS；
- * - direct-nameserver / proxy-server-nameserver 使用国内 DNS，降低启动环与握手成本；
- * - nameserver / fallback 面向海外业务时使用可信 DoH，兼顾一致性与抗污染；
- * - prefer-h3 关闭，优先稳定性与兼容性，而非激进首连性能。
- *
- * 关键特性：
- * - 谷歌商店专用负载均衡（consistent-hashing，地区节点组节点池）；
- * - DNS policy / fallback / fake-ip-filter 业务化组织；
- * - 分组保序与旧配置兼容，尽量减少刷新后 UI 抖动；
- * - 规则集合支持工程化合并、覆盖与诊断扩展。
- *
- * 常见易错点：
- * 1) 把 nameserver-policy 的值写成对象、二维数组或非法结构，可能导致导入失败或策略静默失效；
- * 2) 在 default-nameserver 中加入 DoH 域名，会破坏 bootstrap；
- * 3) 给 Google Play / 实时通信 / 局域网发现错误加入 fake-ip-filter，可能让规则接管失效或业务异常；
- * 4) 只改规则不改 DNS，或只改 DNS 不改分组，都会破坏三位一体；
- * 5) 过度追求“全都走某类 DNS”会在隐私、稳定、自举速度之间失衡。
- *
- * 修改原则：
- * - 优先做增量修正，不轻易推翻联动结构；
- * - 优先收敛重复定义，而不是继续增加并列补丁；
- * - 能通过数据源聚合解决的问题，不要分散硬编码；
- * - 不为个别极端场景牺牲整体一致性。
- *
- * @version 3.13.0
- * @date 2026-07-28
- * @license MIT
+ * 开源仓库：https://github.com/MioHueCode/MIHOMO_OVERRIDE_JS
+ * @version 3.13.0 @date 2026-07-28 @license MIT
  */
 function buildConfig(config) {
   if (!config || !Array.isArray(config.proxies)) return config;
@@ -97,7 +17,7 @@ function buildConfig(config) {
     const group = existingGroups[i];
     if (group && group.name) existingGroupMap[group.name] = group;
   }
-  // ===== 运行时工具：性能分析、调试与安全执行 =====
+// === 运行时工具：性能分析、调试与安全执行 ===
   const PERF_ENABLED = false;
   const RULE_DIAGNOSTICS_ENABLED = false;
   const perfMarks = Object.create(null);
@@ -144,7 +64,7 @@ function buildConfig(config) {
     if (!PERF_ENABLED) return;
     console.log('[Clash.js][perf]', JSON.stringify(perfMarks));
   }
-  // ===== 通用工具与规则工厂 =====
+// === 通用工具与规则工厂 ===
   // 图标资源：统一走 Qure 图标仓库
   const QURE_BASE = 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/';
   const qIcon = name => QURE_BASE + name + '.png';
@@ -326,7 +246,7 @@ function buildConfig(config) {
     ...domesticCdnDomains(),
     ...domesticAiDomains()
   ]);
-  // ===== 基础配置：运行参数、网络栈与实验特性 =====
+// === 基础配置：运行参数、网络栈与实验特性 ===
   // Profile：持久化配置
   config.profile = {
     ...(config.profile || {}),
@@ -394,24 +314,26 @@ function buildConfig(config) {
   ]));
   // Hosts 映射：关键服务域名兜底
   if (!config.hosts || typeof config.hosts !== 'object') config.hosts = {};
-  config.hosts['dns.alidns.com'] = ['223.5.5.5', '223.6.6.6'];
-  config.hosts['doh.pub'] = ['120.53.53.53', '1.12.12.12'];
-  config.hosts['doh.360.cn'] = ['101.198.198.198'];
-  config.hosts['dns.google'] = ['8.8.8.8', '8.8.4.4'];
-  config.hosts['dns.google.com'] = ['8.8.8.8', '8.8.4.4'];
-  config.hosts['dns64.dns.google'] = ['8.8.8.8', '8.8.4.4'];
-  config.hosts['cloudflare-dns.com'] = ['1.1.1.1', '1.0.0.1'];
-  config.hosts['mozilla.cloudflare-dns.com'] = ['1.1.1.1', '1.0.0.1'];
-  config.hosts['one.one.one.one'] = ['1.1.1.1', '1.0.0.1'];
-  config.hosts['family.cloudflare-dns.com'] = ['1.1.1.1', '1.0.0.1'];
-  config.hosts['security.cloudflare-dns.com'] = ['1.1.1.1', '1.0.0.1'];
-  config.hosts['dns.quad9.net'] = ['9.9.9.9', '149.112.112.112'];
-  config.hosts['dns11.quad9.net'] = ['9.9.9.9', '149.112.112.112'];
-  config.hosts['dns.adguard-dns.com'] = ['94.140.14.14', '94.140.15.15'];
+  const dnsHostMap = {
+    'dns.alidns.com': ['223.5.5.5', '223.6.6.6'],
+    'doh.pub': ['120.53.53.53', '1.12.12.12'],
+    'doh.360.cn': ['101.198.198.198'],
+    'dns.google': ['8.8.8.8', '8.8.4.4'],
+    'dns.google.com': ['8.8.8.8', '8.8.4.4'],
+    'dns64.dns.google': ['8.8.8.8', '8.8.4.4'],
+    'cloudflare-dns.com': ['1.1.1.1', '1.0.0.1'],
+    'mozilla.cloudflare-dns.com': ['1.1.1.1', '1.0.0.1'],
+    'one.one.one.one': ['1.1.1.1', '1.0.0.1'],
+    'family.cloudflare-dns.com': ['1.1.1.1', '1.0.0.1'],
+    'security.cloudflare-dns.com': ['1.1.1.1', '1.0.0.1'],
+    'dns.quad9.net': ['9.9.9.9', '149.112.112.112'],
+    'dns11.quad9.net': ['9.9.9.9', '149.112.112.112'],
+    'dns.adguard-dns.com': ['94.140.14.14', '94.140.15.15']
+  };
+  for (const [k, v] of Object.entries(dnsHostMap)) config.hosts[k] = v;
   config.hosts['services.googleapis.cn'] = 'services.googleapis.com';
   config.hosts['google.cn'] = 'google.com';
   config.hosts['cn.bing.com'] = 'global.bing.com';
-  // Telegram t.me 兼容映射：优先采用域名别名方式，避免直接写死 IP。
   config.hosts['t.me'] = 'telegram.me';
   const sanitizedHosts = {};
   for (const [k, v] of Object.entries(config.hosts || {})) {
@@ -506,36 +428,38 @@ function buildConfig(config) {
     niconico: niconicoDomains(),
     taiwanMedia: taiwanMediaDomains()
   };
+  // fallback 域名集：复用已计算的 policy 域名集，避免重复调用相同函数
   const DNS_FALLBACK_FILTER_DOMAIN_SETS = {
     baseOverseas: baseOverseasDomains(),
-    meta: metaDomains(),
     ai: aiDomains(),
     devCommunity: devCommunityDomains(),
-    discord: discordDomains(),
-    telegram: telegramDomains(),
-    tiktok: tiktokDomains(),
     productivity: productivityDomains(),
-    collaboration: collaborationDomains(),
-    developer: developerDomains(),
-    socialExtra: socialExtraDomains(),
-    crypto: cryptoDomains(),
-    finance: financeDomains(),
-    streaming: streamingDomains(),
-    gaming: gamingDomains(),
     bigTech: bigTechDomains(),
     infra: infraDomains(),
-    playStore: playStoreDomains(),
-    youtubeMedia: youtubeMediaDomains(),
     privacyAndCaptivePortal: privacyDomains(),
     googlePlayIntegrity: googlePlayIntegrityDomains(),
-    translation: translationDomains(),
-    twitter: twitterDomains(),
-    appleService: appleServiceDomains(),
-    twitch: twitchDomains(),
-    socialFeed: socialFeedDomains(),
-    jpKrEcosystem: jpKrEcosystemDomains(),
-    niconico: niconicoDomains(),
-    taiwanMedia: taiwanMediaDomains()
+    // 以下从 DNS_POLICY_DOMAIN_SETS 复用
+    meta: DNS_POLICY_DOMAIN_SETS.meta,
+    discord: DNS_POLICY_DOMAIN_SETS.discord,
+    telegram: DNS_POLICY_DOMAIN_SETS.telegram,
+    tiktok: DNS_POLICY_DOMAIN_SETS.tiktok,
+    collaboration: DNS_POLICY_DOMAIN_SETS.collaboration,
+    developer: DNS_POLICY_DOMAIN_SETS.developer,
+    socialExtra: DNS_POLICY_DOMAIN_SETS.socialExtra,
+    crypto: DNS_POLICY_DOMAIN_SETS.crypto,
+    finance: DNS_POLICY_DOMAIN_SETS.finance,
+    streaming: DNS_POLICY_DOMAIN_SETS.streaming,
+    gaming: DNS_POLICY_DOMAIN_SETS.gaming,
+    playStore: DNS_POLICY_DOMAIN_SETS.playStore,
+    youtubeMedia: DNS_POLICY_DOMAIN_SETS.youtubeMedia,
+    translation: DNS_POLICY_DOMAIN_SETS.translation,
+    twitter: DNS_POLICY_DOMAIN_SETS.twitter,
+    appleService: DNS_POLICY_DOMAIN_SETS.appleService,
+    twitch: DNS_POLICY_DOMAIN_SETS.twitch,
+    socialFeed: DNS_POLICY_DOMAIN_SETS.socialFeed,
+    jpKrEcosystem: DNS_POLICY_DOMAIN_SETS.jpKrEcosystem,
+    niconico: DNS_POLICY_DOMAIN_SETS.niconico,
+    taiwanMedia: DNS_POLICY_DOMAIN_SETS.taiwanMedia
   };
   function sanitizeCompatDomainPattern(pattern) {
     if (typeof pattern !== 'string') return '';
@@ -622,7 +546,7 @@ function buildConfig(config) {
       '*.push-apple.com.akadns.net', '*.ipp.local', '*.mesh.local', '*.matter.local'
     ]
   };
-  // ===== DNS 主配置：防泄露、分流与自举稳定性 =====
+// === DNS 主配置：防泄露、分流与自举稳定性 ===
   // 负责 fake-ip、nameserver、hosts 与策略分流的统一落盘。
   // 防泄露原则：
   // 1) fake-ip 接管应用 DNS，避免系统直连 ISP DNS；
@@ -700,31 +624,22 @@ function buildConfig(config) {
   ]));
   // DNS 分流策略：按私有网络 / 国内 / 境外 / 广告 / 特殊业务域名分别指定解析器。
   // nameserver-policy 维护提示：键必须保持 Mihomo 可识别的 geosite / 域名模式，值必须是一维 DNS 列表。
-  // 若把值误改成对象或二维数组，常见后果是导入失败或策略静默失效。
   const nameserverPolicy = Object.assign({}, config.dns['nameserver-policy'] || {}, {
-    // 私有网络与国内站点：优先走本地 DNS / 国内 DoH，减少绕路与污染概率。
     'geosite:private': fastDomesticDns,
     'geosite:cn': fastDomesticDns,
-    // 境外通用站点：统一交给可信境外 DoH，保证海外服务解析一致性。
     'geosite:geolocation-!cn': trustDns,
-    // 广告与追踪域名：交给 AdGuard DNS，尽量在解析层先做拦截。
     'geosite:category-ads-all': adguardDns,
-    // DNS / 上游解析器自举：仅保留必要的国内 DoH 自举；海外 DoH 统一走中立公共 IP 自举，进一步降低大陆 DNS 参与度。
-    'dns.alidns.com': localDns,
-    'doh.pub': localDns,
-    'doh.360.cn': localDns,
-    'dns.google': trustBootstrapDns,
-    'dns.google.com': trustBootstrapDns,
-    'dns64.dns.google': trustBootstrapDns,
-    'cloudflare-dns.com': trustBootstrapDns,
-    'mozilla.cloudflare-dns.com': trustBootstrapDns,
-    'one.one.one.one': trustBootstrapDns,
-    'family.cloudflare-dns.com': trustBootstrapDns,
-    'security.cloudflare-dns.com': trustBootstrapDns,
-    'dns.adguard-dns.com': trustBootstrapDns,
-    'dns.quad9.net': trustBootstrapDns,
-    'dns11.quad9.net': trustBootstrapDns,
   });
+  // DNS 自举映射注入
+  const dnsBootstrapPolicy = {
+    'dns.alidns.com': localDns, 'doh.pub': localDns, 'doh.360.cn': localDns,
+    'dns.google': trustBootstrapDns, 'dns.google.com': trustBootstrapDns, 'dns64.dns.google': trustBootstrapDns,
+    'cloudflare-dns.com': trustBootstrapDns, 'mozilla.cloudflare-dns.com': trustBootstrapDns,
+    'one.one.one.one': trustBootstrapDns, 'family.cloudflare-dns.com': trustBootstrapDns,
+    'security.cloudflare-dns.com': trustBootstrapDns, 'dns.adguard-dns.com': trustBootstrapDns,
+    'dns.quad9.net': trustBootstrapDns, 'dns11.quad9.net': trustBootstrapDns,
+  };
+  for (const [k, v] of Object.entries(dnsBootstrapPolicy)) nameserverPolicy[k] = v;
   function appendDnsPolicyDomains(target, domains, dnsList) {
     const list = asArray(domains);
     for (let i = 0; i < list.length; i++) {
@@ -792,26 +707,8 @@ function buildConfig(config) {
   }
   config.dns['nameserver-policy'] = sanitizedNameserverPolicy;
   // 节点域名解析策略：仅作用于代理节点域名，避免和通用业务 DNS 分流混用。
-  const proxyServerNameserverPolicy = Object.assign(
-    {},
-    config.dns['proxy-server-nameserver-policy'] || {},
-    {
-      'dns.google': trustBootstrapDns,
-      'dns.google.com': trustBootstrapDns,
-      'dns64.dns.google': trustBootstrapDns,
-      'cloudflare-dns.com': trustBootstrapDns,
-      'mozilla.cloudflare-dns.com': trustBootstrapDns,
-      'one.one.one.one': trustBootstrapDns,
-      'family.cloudflare-dns.com': trustBootstrapDns,
-      'security.cloudflare-dns.com': trustBootstrapDns,
-      'dns.adguard-dns.com': trustBootstrapDns,
-      'dns.quad9.net': trustBootstrapDns,
-      'dns11.quad9.net': trustBootstrapDns,
-      'dns.alidns.com': localDns,
-      'doh.pub': localDns,
-      'doh.360.cn': localDns
-    }
-  );
+  const proxyServerNameserverPolicy = Object.assign({}, config.dns['proxy-server-nameserver-policy'] || {});
+  for (const [k, v] of Object.entries(dnsBootstrapPolicy)) proxyServerNameserverPolicy[k] = v;
   config.dns['proxy-server-nameserver-policy'] = proxyServerNameserverPolicy;
   // fallback 过滤器：决定哪些域名 / IP 结果需要优先参考 fallback DNS。
   config.dns['fallback-filter'] = {
@@ -868,7 +765,7 @@ function buildConfig(config) {
   config.dns['enhanced-mode'] = 'fake-ip';
   config.dns['respect-rules'] = true;
   config.dns['use-system-hosts'] = false;
-  // ===== 节点处理：清洗、识别、分类与排序 =====
+// === 节点处理：清洗、识别、分类与排序 ===
   // 过滤非真实代理的正则表达式
   // 这里必须保守过滤：很多真实节点名会带有 airport / vpn / proxy / 流量倍率等字样，
   const PROXY_INFO_RE = /(?:https?:\/\/|www\.|导航网址|网址导航|距离下次重置|流量已用|流量余额|已用流量|总流量|流量(?:剩余|到期|重置)|套餐(?:到期|余额|剩余)?|订阅(?:链接|地址|信息)?|官方(?:网站|网址|公告|通知|频道|群组)?|公告|通知|使用说明|更新订阅|复制链接|浏览器打开|更新时间|请使用|客户端|售后|工单|教程|返利|邀请|购买|续费|维护|客服|永久官网|备用地址|节点状态|账户|邮箱|验证码|防失联|网址|域名|无法使用|禁止|过期|失效|广告|推广|赞助|加群|进群|群聊|交流群|频道订阅|关注频道)/i;
@@ -1414,7 +1311,7 @@ function buildConfig(config) {
   const homeTestTimeout = HOME_TEST_TIMEOUT;
   const homeTestMaxFailedTimes = HOME_TEST_MAX_FAILED_TIMES;
   const healthCheckLazy = HEALTH_CHECK_LAZY;
-  // ===== 分组构造：保序、补默认项与统一生成 =====
+// === 分组构造：保序、补默认项与统一生成 ===
   // 保留用户顺序：若旧配置已有同名 select 组，则尽量继承其代理顺序，减少每次刷新后的选项跳动。
   function preserveGroup(group) {
     const oldGroup = existingGroupMap[group.name];
@@ -1519,7 +1416,7 @@ function buildConfig(config) {
     }
     return groups;
   }
-  // ===== 规则装配：集合合并、去重与目标归类 =====
+// === 规则装配：集合合并、去重与目标归类 ===
   // 规则集合并（后定义覆盖前定义）
   function mergeRuleSets(...ruleSets) {
     const merged = [];
@@ -2852,7 +2749,7 @@ function buildConfig(config) {
     previousSignature = signature;
   }
   config['proxy-groups'] = stabilizedProxyGroups;
-  // ===== 最终落盘与一致性校验 =====
+// === 最终落盘与一致性校验 ===
   // 组名 Emoji 前缀：在最终落盘前统一添加，避免散落在各处的字符串引用需要逐一修改。
   // 同时把规则目标中的旧组名同步替换为新组名。
   const GROUP_EMOJI_MAP = {
@@ -3238,9 +3135,9 @@ function buildConfig(config) {
       'com.cnn.mobile.android.phone', 'com.guardian', 'flipboard.app', 'com.google.android.apps.magazines'
     ], '新闻资讯')
   ];
-  // 翻译服务规则
+  // 翻译服务规则（DOMAIN-SUFFIX 已覆盖域本身，无需重复 DOMAIN）
   const RULES_TRANSLATION = [
-    ...ruleDomain(['translate.googleapis.com','translation.googleapis.com','translate-pa.googleapis.com','translate.google.com','translate.google.cn','www.deepl.com','api.deepl.com','www2.deepl.com','dict.deepl.com','static.deepl.com'], '翻译服务'),
+    ...ruleDomain(['www.deepl.com','api.deepl.com','www2.deepl.com','dict.deepl.com','static.deepl.com'], '翻译服务'),
     ...ruleSuffix(['translate.googleapis.com','translation.googleapis.com','translate-pa.googleapis.com','translate.google.com','translate.google.cn','deepl.com','deeplpro.com','deeplusercontent.com','linguee.com'], '翻译服务')
   ];
 // 广告拦截规则
@@ -3283,8 +3180,6 @@ function buildConfig(config) {
     ...RULES_RISK_CONTROL_GOOGLE_AI,
     ...RULES_RISK_CONTROL_DOWNLOAD,
   ];
-  // RULES_AI_EXTRA
-  // AI / TikTok / 风控 / 流媒体补充规则
   const RULES_AI_EXTRA = [
     ...ruleProcess(['ai.x.grok', 'ai.cici.android', 'com.ciciai.app', 'com.coze.android', 'ai.coze.app', 'com.openai.chatgpt', 'com.openai.chat'], 'AI'),
     ...ruleSuffix(['api.openai.com', 'auth0.openai.com', 'cdn.openai.com', 'chat.openai.com', 'chatgpt.com', 'files.oaiusercontent.com', 'livekit.cloud', 'openai.com', 'anthropic.com', 'statsigapi.net'], 'AI'),
@@ -3315,22 +3210,17 @@ function buildConfig(config) {
     ...RULES_FINANCE_EXTRA,
     ...RULES_STREAMING_EXTRA,
   ];
-  // ===== 业务规则清单：按业务语义归类，保持与 DNS / 分组联动 =====
+// === 业务规则清单：按业务语义归类，保持与 DNS / 分组联动 ===
   const RULES_DOMESTIC = [
-    // 国内主站
     ...ruleSuffix(domesticMainDomains(), '国内服务'),
-    // 国内 CDN / 静态资源
     ...ruleSuffix(domesticCdnDomains(), '国内服务'),
-    // 国内 AI
     ...ruleSuffix(domesticAiDomains(), '国内服务'),
-    // 总兜底：CN 域名与 CN IP
     'GEOSITE,CN,国内服务',
     'GEOIP,CN,国内服务,no-resolve'
   ];
   const RULES_APPLE_MEDIA = ruleSuffix(['tv.apple.com', 'video.apple.com'], '流媒体');
-  // Apple 生态规则
+  // Apple 生态规则（DOMAIN-SUFFIX 已覆盖子域名）
   const RULES_APPLE = [
-    ...ruleDomain(['time.apple.com'], 'Apple'),
     ...ruleSuffix(['apple.com', 'icloud.com', 'icloud-content.com', 'itunes.apple.com', 'apps.apple.com', 'mzstatic.com', 'apple-dns.net', 'apple-mapkit.com', 'cdn-apple.com', 'apple.news', 'applemusic.com', 'appstore.com'], 'Apple')
   ];
   // 全球 AI 规则
@@ -3348,7 +3238,7 @@ function buildConfig(config) {
     ...ruleDomain(['api2.branch.io', 'cdn.branch.io'], '去中心化平台'),
     ...ruleSuffix(['metamask.io'], '去中心化平台'),
     ...ruleDomain(['1.1.1.1'], 'Cloudflare'),
-    ...ruleSuffix(['cloudflare.com', 'cloudflare-dns.com', 'cloudflareclient.com', 'workers.dev', 'pages.dev', 'trycloudflare.com', 'cdnjs.cloudflare.com'], 'Cloudflare')
+    ...ruleSuffix(['cloudflare.com', 'cloudflareclient.com', 'workers.dev', 'pages.dev', 'trycloudflare.com', 'cdnjs.cloudflare.com'], 'Cloudflare')
   ];
   // 下载规则
   const RULES_DOWNLOAD = ruleSuffix([
@@ -3467,14 +3357,12 @@ function buildConfig(config) {
     ...ruleProcess(['com.discord'], 'Discord'),
     ...ruleSuffix(['discord.com','discord.gg','discord.gift','discord.new','discordapp.com','discordapp.net','discordcdn.com','discord.media','discordsays.com','dis.gd'], 'Discord')
   ];
-  // 社交信息流规则：Reddit
+  // 社交信息流规则
   const RULES_SOCIAL_FEED = [
     ...ruleSuffix(['reddit.com','redditinc.com','redditmedia.com','redditstatic.com','redditspace.com','redd.it','flr.app'], '社交信息流'),
     ...ruleDomain(['reddit.map.fastly.net'], '社交信息流')
   ];
-  // 去中心化补充规则
   const RULES_DECENTRALIZED_SUPPLEMENT = ruleSuffix(['bluesky.app', 'bsky.app', 'bsky.social', 'bsky.network', 'bsky.chat', 'skyfeed.app', 'skyfeed.me', 'clearsky.app', 'staging.bsky.dev', 'atproto.com', 'atproto.blue', 'atproto.plus', 'brid.gy', 'mastodon.social', 'mastodon.online', 'mastodon.cloud', 'mastodon.green', 'mastodon.world', 'mastodon.jp', 'mstdn.jp', 'mstdn.social', 'mastodon.uno', 'mas.to', 'pawoo.net', 'fedibird.com', 'otadon.com', 'friends.nico', 'joinmastodon.org', 'activitypub.rocks', 'activitypub.academy', 'joinfediverse.wiki', 'hachyderm.io', 'techhub.social', 'infosec.exchange', 'journa.host', 'mathstodon.xyz', 'universeodon.com', 'fosstodon.org', 'bsd.network', 'hostux.social', 'dice.camp', 'misskey.io', 'misskey.id', 'misskey.design', 'misskey.art', 'misskey.cloud', 'misskey.dev', 'misskey.gg', 'misskey.niri.la', 'misskey.pm', 'misskey.systems', 'misskey-square.net', 'nijimiss.moe', 'sushi.ski', 'yufan.me', 'firefish.social', 'firefish.city', 'firefish.nz', 'calckey.jp', 'calckey.world', 'lemmy.world', 'lemmy.ml', 'lemmy.zip', 'beehaw.org', 'sh.itjust.works', 'programming.dev', 'kbin.social', 'mbin.social', 'fedia.io', 'pleroma.social', 'pleroma.envs.net', 'akkoma.dev', 'social.seattle.wa.us', 'mk.absturztau.be', 'joinpeertube.org', 'peertube.tv', 'tilvids.com', 'diode.zone', 'pixelfed.social', 'pixelfed.de', 'pixelfed.uno', 'writefreely.org', 'write.as', 'mobilizon.org', 'friendi.ca', 'hubzilla.org', 'primal.net', 'damus.io', 'snort.social', 'nostr.band', 'iris.to', 'nostr.com'], '去中心化平台');
-  // TikTok 规则
   const RULES_TIKTOK = [
     ...ruleKeyword(['tiktok', 'musical'], 'TikTok'),
     ...ruleSuffix(['tiktok.com', 'tiktokcdn.com', 'tiktokv.com', 'tiktokcdn-us.com', 'tiktokcdn-eu.com', 'tiktokrow-cdn.com', 'tiktokv.us', 'ibyteimg.com', 'ibytedtos.com', 'byteoversea.com', 'muscdn.com', 'musical.ly', 'tiktokd.org'], 'TikTok')
@@ -3489,7 +3377,6 @@ function buildConfig(config) {
       'dcinside.com', 'afreecatv.com', 'sooplive.co.kr', 'coupang.com', 'coupangcdn.com', 'nexon.com', 'nexon.co.jp'
     ], '日韩生态区')
   ];
-  // Niconico 规则
   const RULES_NICONICO = [
     ...ruleProcess(['jp.nicovideo.android', 'jp.nicovideo.nicobox', 'jp.co.dwango.nicocas'], 'Niconico'),
     ...ruleSuffix(['nicovideo.jp','nimg.jp','nicofarre.com','smilevideo.jp','dmc.nico'], 'Niconico')
