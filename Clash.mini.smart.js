@@ -269,6 +269,16 @@ function buildConfig(config) {
   ]);
   const youtubeMediaDomains = () => ['jnn-pa.googleapis.com','youtubeembeddedplayer.googleapis.com','video.google.com','+.googlevideo.com','+.ytimg.com','+.ggpht.com','+.youtube.com','+.youtu.be'];
   const baseOverseasDomains = () => d('google.com','youtube.com','twitter.com','x.com','telegram.org','t.me','instagram.com','whatsapp.com');
+  // 以下域名集为三位一体补全新增：这些业务此前有独立分组与规则，但缺少 DNS binding，
+  // 导致 nameserver-policy / fallback-filter 未显式覆盖，只能落到主 nameserver 默认路径。
+  // 补齐后可保证「规则命中的业务」与「DNS 解析路径」「fallback 抗污染白名单」三层一致。
+  const twitterDomains = () => d('x.com','twitter.com','twimg.com','t.co','pscp.tv','periscope.tv','twttr.com');
+  const appleServiceDomains = () => d('apple.com','icloud.com','icloud-content.com','itunes.apple.com','apps.apple.com','mzstatic.com','apple-dns.net','apple-mapkit.com','cdn-apple.com','apple.news','applemusic.com','appstore.com');
+  const twitchDomains = () => d('twitch.tv','twitchcdn.net','ttvnw.net','jtvnw.net','live-video.net');
+  const socialFeedDomains = () => d('reddit.com','redditinc.com','redditmedia.com','redditstatic.com','redditspace.com','redd.it','linkedin.com','licdn.com','pinterest.com','pinimg.com','snapchat.com','sc-cdn.net','medium.com','quora.com','quoracdn.net');
+  const jpKrEcosystemDomains = () => d('line.me','line-apps.com','line-scdn.net','naver.com','naver.net','naver.jp','linecorp.com','band.us','weverse.io','ameba.jp','note.com','pixiv.net','pximg.net','kakao.com','kakaocdn.net','daum.net');
+  const niconicoDomains = () => d('nicovideo.jp','nimg.jp','nicofarre.com','smilevideo.jp','dmc.nico');
+  const taiwanMediaDomains = () => d('hami.video','litv.tv','4gtv.tv','myvideo.net.tw','ofiii.com','catchplay.com','catchplay.com.tw','friday.tw','kktv.com.tw','linetv.tw','bahamut.com.tw','gamer.com.tw','ptsplus.tv','pts.org.tw','kkbox.com');
   const infraDomains = () => d('dns.google','dns.google.com','cloudflare-dns.com','api2.branch.io','cdn.branch.io');
   const productivityDomains = () => uniqList([
     ...d('cloudflare.com','workers.dev','pages.dev','trycloudflare.com'),
@@ -420,7 +430,10 @@ function buildConfig(config) {
     cn: ['223.5.5.5', '223.6.6.6', '119.29.29.29', '180.76.76.76', 'https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'],
     trust: ['https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
     trustBootstrap: ['1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4'],
-    proxyBootstrap: ['1.1.1.1', '1.0.0.1', '8.8.8.8'],
+    // 节点域名自举：国内解析器优先。很多机场节点域名挂在国内 DNS 托管的 CDN 上（例如 CNAME 到
+    // 阿里 DNS 托管的加速域名，再落到 Cloudflare anycast），用境外递归会拿到"按解析器位置"优化的
+    // 边缘 IP 而非按本机位置优化的边缘，导致 RTT 偏高、握手易超时。境外解析器保留在后面兜底。
+    proxyBootstrap: ['223.5.5.5', '119.29.29.29', '1.1.1.1', '8.8.8.8'],
     adguard: ['https://dns.adguard-dns.com/dns-query']
   };
   const localDns = DNS_ENDPOINTS.local;
@@ -443,19 +456,33 @@ function buildConfig(config) {
     'IPv6优先': 'ipv6-prefer',
     '双栈': 'dual'
   };
-  const TEST_INTERVAL = 600, TEST_TOLERANCE = 120, TEST_TIMEOUT = 2500, TEST_MAX_FAILED_TIMES = 4;
-  const FALLBACK_INTERVAL = 420, FALLBACK_TOLERANCE = 120, FALLBACK_TIMEOUT = 3000, FALLBACK_MAX_FAILED_TIMES = 3;
-  const REGION_TEST_INTERVAL = 900, REGION_TEST_TOLERANCE = 200, REGION_TEST_TIMEOUT = 3500, REGION_TEST_MAX_FAILED_TIMES = 5;
-  const HOME_TEST_INTERVAL = 1500, HOME_TEST_TOLERANCE = 700, HOME_TEST_TIMEOUT = 6500, HOME_TEST_MAX_FAILED_TIMES = 8;
+  const TEST_INTERVAL = 900, TEST_TOLERANCE = 150, TEST_TIMEOUT = 3000, TEST_MAX_FAILED_TIMES = 5;
+  const FALLBACK_INTERVAL = 600, FALLBACK_TOLERANCE = 150, FALLBACK_TIMEOUT = 3500, FALLBACK_MAX_FAILED_TIMES = 4;
+  const REGION_TEST_INTERVAL = 1200, REGION_TEST_TOLERANCE = 250, REGION_TEST_TIMEOUT = 4000, REGION_TEST_MAX_FAILED_TIMES = 6;
+  const HOME_TEST_INTERVAL = 1800, HOME_TEST_TOLERANCE = 800, HOME_TEST_TIMEOUT = 7000, HOME_TEST_MAX_FAILED_TIMES = 10;
   const PLAY_STORE_TEST_URL = TEST_URL;
   const PLAY_STORE_SPECIAL_GROUP_NAMES = ['谷歌商店专用'];
   const HEALTH_CHECK_LAZY = true;
   const ENABLE_SMART_GROUPS = true;
   const SMART_STRATEGY = 'sticky-sessions';
   const SMART_USE_LIGHTGBM = true;
-  const SMART_COLLECT_DATA = false;
-  const SMART_SAMPLE_RATE = '1';
-  const SMART_PREFER_ASN = false;
+  // Smart 版核心：开启运行数据采集，让 LightGBM 模型基于真实链路表现持续训练、自我进化，
+  // 配合 lgbm-auto-update 形成「越用越准」的智能选路闭环（Normal 版保持关闭）。
+  const SMART_COLLECT_DATA = true;
+  const SMART_SAMPLE_RATE = '0.3';
+  const SMART_PREFER_ASN = true;
+  // expected-rtt：Smart 组的期望 RTT 基准。原值 150 对当前订阅偏激进——
+  // 实测 Cloudflare anycast 节点普遍在 100~460ms，低于基准的节点几乎只有个别几个，
+  // 会让模型过度集中到少数节点、其余节点长期被压低权重。放宽到 250 更贴合真实分布。
+  const SMART_EXPECTED_RTT = 250;
+  // Cloudflare / Anycast 类节点识别：这类节点走 CDN 边缘入口，
+  // IPv6 边缘在移动网络下经常绕路或被限速，且 AAAA 探测失败会拖长首连时间。
+  const CF_ANYCAST_NAME_RE = /cloudflare|anycast|(?:^|[^a-z])cf(?:[^a-z]|$)/i;
+  // IPv6-only 节点识别：部分机场的 "IPV6" 节点入口域名只有 AAAA 记录、没有 A 记录
+  // （例如 v6-zz.9dai.xyz / v6-zjp.9dai.xyz），必须本机具备可用的 IPv6 出网才能连通。
+  // 家宽 WiFi 若没有 v6 地址或 v6 路径被黑洞，就表现为"这些节点一直超时"，
+  // 而切到移动数据（运营商 v6 完备）立刻恢复 —— 这不是节点故障，是本地网络栈差异。
+  const IPV6_ONLY_NAME_RE = /ipv6|(?:^|[^a-z0-9])v6(?:[^a-z0-9]|$)/i;
   // 内置直连选项
   const directChoices = ['IPv4优先', 'IPv6优先', '双栈', 'DIRECT'];
   const domesticServiceChoices = ['IPv4优先', 'IPv6优先', '双栈', 'DIRECT'];
@@ -485,7 +512,14 @@ function buildConfig(config) {
     socialExtra: socialExtraDomains(),
     crypto: cryptoDomains(),
     finance: financeDomains(),
-    microsoftBing: microsoftBingDomains()
+    microsoftBing: microsoftBingDomains(),
+    twitter: twitterDomains(),
+    appleService: appleServiceDomains(),
+    twitch: twitchDomains(),
+    socialFeed: socialFeedDomains(),
+    jpKrEcosystem: jpKrEcosystemDomains(),
+    niconico: niconicoDomains(),
+    taiwanMedia: taiwanMediaDomains()
   };
   const DNS_FALLBACK_FILTER_DOMAIN_SETS = {
     baseOverseas: baseOverseasDomains(),
@@ -509,7 +543,14 @@ function buildConfig(config) {
     youtubeMedia: youtubeMediaDomains(),
     privacyAndCaptivePortal: privacyDomains(),
     googlePlayIntegrity: googlePlayIntegrityDomains(),
-    translation: translationDomains()
+    translation: translationDomains(),
+    twitter: twitterDomains(),
+    appleService: appleServiceDomains(),
+    twitch: twitchDomains(),
+    socialFeed: socialFeedDomains(),
+    jpKrEcosystem: jpKrEcosystemDomains(),
+    niconico: niconicoDomains(),
+    taiwanMedia: taiwanMediaDomains()
   };
   function sanitizeCompatDomainPattern(pattern) {
     if (typeof pattern !== 'string') return '';
@@ -606,7 +647,7 @@ function buildConfig(config) {
     enable: true,
     listen: '0.0.0.0:1053',
     ipv6: true,
-    'ipv6-timeout': 300,
+    'ipv6-timeout': 150,
     'cache-algorithm': 'arc',
     'prefer-h3': false,
     'use-system-hosts': false,
@@ -731,6 +772,13 @@ function buildConfig(config) {
     { key: '国外游戏', policyDomains: DNS_POLICY_DOMAIN_SETS.gaming, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.gaming, dns: trustDns },
     { key: '微软Bing', policyDomains: DNS_POLICY_DOMAIN_SETS.microsoftBing, dns: trustDns },
     { key: 'GitHub', policyDomains: DNS_POLICY_DOMAIN_SETS.developer, fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.developer, DNS_FALLBACK_FILTER_DOMAIN_SETS.devCommunity)), dns: trustDns },
+    { key: 'Twitter', policyDomains: DNS_POLICY_DOMAIN_SETS.twitter, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.twitter, dns: trustDns },
+    { key: 'Apple', policyDomains: DNS_POLICY_DOMAIN_SETS.appleService, dns: trustDns },
+    { key: 'Twitch', policyDomains: DNS_POLICY_DOMAIN_SETS.twitch, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.twitch, dns: trustDns },
+    { key: '社交信息流', policyDomains: DNS_POLICY_DOMAIN_SETS.socialFeed, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.socialFeed, dns: trustDns },
+    { key: '日韩生态区', policyDomains: DNS_POLICY_DOMAIN_SETS.jpKrEcosystem, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.jpKrEcosystem, dns: trustDns },
+    { key: 'Niconico', policyDomains: DNS_POLICY_DOMAIN_SETS.niconico, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.niconico, dns: trustDns },
+    { key: '台湾媒体', policyDomains: DNS_POLICY_DOMAIN_SETS.taiwanMedia, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.taiwanMedia, dns: trustDns },
     { key: '海外通用', policyDomains: DNS_POLICY_DOMAIN_SETS.mainstreamOverseas, fallbackDomains: uniqList([].concat(
       DNS_FALLBACK_FILTER_DOMAIN_SETS.meta,
       DNS_FALLBACK_FILTER_DOMAIN_SETS.devCommunity,
@@ -1001,6 +1049,35 @@ function buildConfig(config) {
     if (!isValidOptionalProxyDomainField(proxy && proxy.servername)) continue;
     if (!isValidProxyPort(proxy && proxy.port)) continue;
     seenProxyNames.add(proxyName);
+    // CF/Anycast 节点：走 IPv4 边缘并关闭 TFO（CF 的 v6 边缘常绕路限速、TFO 支持不稳）。
+    if (CF_ANYCAST_NAME_RE.test(proxyName)) {
+      if (proxy['ip-version'] === undefined) proxy['ip-version'] = 'ipv4-prefer';
+      if (proxy.tfo === undefined) proxy.tfo = false;
+    }
+    // IPv6-only 节点：入口只有 AAAA 记录，直接声明走 v6，省掉 dual 模式下白等一轮 A 查询。
+    if (IPV6_ONLY_NAME_RE.test(proxyName) && proxy['ip-version'] === undefined) {
+      proxy['ip-version'] = 'ipv6';
+    }
+    // AnyTLS 会话复用：保留 2 条常驻空闲会话并延长存活，让后续请求复用已建会话、跳过重复 TLS 握手。
+    if (proxy.type === 'anytls') {
+      if (proxy['idle-session-check-interval'] === undefined) proxy['idle-session-check-interval'] = 30;
+      if (proxy['idle-session-timeout'] === undefined) proxy['idle-session-timeout'] = 60;
+      if (proxy['min-idle-session'] === undefined) proxy['min-idle-session'] = 2;
+    }
+    // Hysteria2：基于 QUIC，禁用 GSO/ECN 兼容性问题已在全局 experimental 处理。
+    // 这里补两项：1) 允许 0-RTT/连接迁移前的快速重连；2) 若订阅带端口跳跃(ports)则保留 hop-interval
+    // 兜底为 30s。不动 up/down —— 那是机场按套餐标定的 Brutal 速率，改高会触发过度发包导致丢包变慢。
+    if (proxy.type === 'hysteria2') {
+      if (proxy['fast-open'] === undefined) proxy['fast-open'] = true;
+      if (proxy.ports && proxy['hop-interval'] === undefined) proxy['hop-interval'] = 30;
+    }
+    // VLESS：这批是 Cloudflare xhttp 中转（network=xhttp）。补 tfo=false 避免 CF 边缘 TFO 抖动，
+    // 并统一 client-fingerprint=chrome 让 TLS 指纹稳定通过 CF 前置校验。不改 network/servername/
+    // xhttp-opts 等回源关键字段，避免破坏 CDN 匹配。
+    if (proxy.type === 'vless') {
+      if (proxy.tfo === undefined) proxy.tfo = false;
+      if (proxy['client-fingerprint'] === undefined) proxy['client-fingerprint'] = 'chrome';
+    }
     cleanProxies.push(proxy);
     allProxyNames.push(proxyName);
     if (isHostname(proxy.server)) proxyHostnames.add(String(proxy.server).trim().toLowerCase());
@@ -1235,7 +1312,7 @@ function buildConfig(config) {
       .replace(/(?:\uD83C[\uDDE6-\uDDFF]){2}/g, ' ')
       .replace(/[\u2600-\u27BF]/g, ' ')
       .replace(/[\d]+(?:\.\d+)?\s*(?:x|倍|gb|mb|tb|g|m|t)\b/gi, ' ')
-      .replace(/[|｜¦•·・,，;；:：/\_+-–—()\[\]{}<>【】「」『』]/g, ' ')
+      .replace(/[|｜¦•·・,，;；:：/\_+\-–—()\[\]{}<>【】「」『』]/g, ' ')
       .replace(noisePattern, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -1245,21 +1322,30 @@ function buildConfig(config) {
   function matchCompiledRegionByKeywords(rawText, normalizedName) {
     const normalized = String(normalizedName || '');
     const compact = normalized.includes(' ') ? normalized.replace(/\s+/g, '') : normalized;
+    // 第一阶段：高置信匹配（中文关键词 + 长英文全称），跨全部地区优先命中，
+    // 避免短 ISO 机场码（如葡萄牙 PT）抢先误吞“印度尼西亚-A-PT家宽”这类含机房代号的名称。
     for (let regionIndex = 0; regionIndex < REGION_PRIORITY.length; regionIndex++) {
       const regionName = REGION_PRIORITY[regionIndex];
       const matchers = compiledRegionMatcherMap[regionName] || [];
       for (let i = 0; i < matchers.length; i++) {
         const matcher = matchers[i];
+        if (matcher.isShortAlphaWord) continue;
         if (matcher.isChinese) {
           if (rawText.includes(matcher.lowerKeyword) || normalized.includes(matcher.lowerKeyword)) return regionName;
           continue;
         }
-        if (matcher.isShortAlphaWord) {
-          if (hasWholeWord(rawText, matcher.lowerKeyword) || hasWholeWord(normalized, matcher.lowerKeyword)) return regionName;
-          continue;
-        }
         if (normalized.includes(matcher.lowerKeyword)) return regionName;
         if (matcher.compactKeyword !== matcher.lowerKeyword && compact.includes(matcher.compactKeyword)) return regionName;
+      }
+    }
+    // 第二阶段：短 ISO/机场码整词匹配，作为高置信关键词未命中时的补充。
+    for (let regionIndex = 0; regionIndex < REGION_PRIORITY.length; regionIndex++) {
+      const regionName = REGION_PRIORITY[regionIndex];
+      const matchers = compiledRegionMatcherMap[regionName] || [];
+      for (let i = 0; i < matchers.length; i++) {
+        const matcher = matchers[i];
+        if (!matcher.isShortAlphaWord) continue;
+        if (hasWholeWord(rawText, matcher.lowerKeyword) || hasWholeWord(normalized, matcher.lowerKeyword)) return regionName;
       }
     }
     return null;
@@ -1392,6 +1478,8 @@ function buildConfig(config) {
     return merged.length ? merged : ['DIRECT'];
   }
   function makeSmartGroup(name, icon, nodes, interval, tolerance, options = {}) {
+    const sampleRate = options.sampleRate !== undefined ? options.sampleRate : 0.3;
+    const residentialPriority = options.residentialPriority !== undefined ? options.residentialPriority : false;
     const proxies = ensureGroupList(nodes, []);
     if (!ENABLE_SMART_GROUPS) return makeUrlTestGroup(name, icon, nodes, interval, tolerance, options);
     if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
@@ -1400,8 +1488,9 @@ function buildConfig(config) {
       strategy: options.smartStrategy || SMART_STRATEGY,
       uselightgbm: typeof options.uselightgbm === 'boolean' ? options.uselightgbm : SMART_USE_LIGHTGBM,
       collectdata: typeof options.collectdata === 'boolean' ? options.collectdata : SMART_COLLECT_DATA,
-      'sample-rate': options.sampleRate || SMART_SAMPLE_RATE,
+      'sample-rate': String(sampleRate),
       'prefer-asn': typeof options.preferAsn === 'boolean' ? options.preferAsn : SMART_PREFER_ASN,
+      'expected-rtt': options.expectedRtt || SMART_EXPECTED_RTT,
       'policy-priority': typeof options.policyPriority === 'string' ? options.policyPriority : '',
       'type-priority': typeof options.typePriority === 'string' ? options.typePriority : '',
       proxies
@@ -1933,6 +2022,11 @@ function buildConfig(config) {
     { key: '美国', groupName: '美国下载', icon: regionIconMap['美国'] || qIcon('US') },
     { key: '欧盟', groupName: '欧盟下载', icon: regionIconMap['欧盟'] || qIcon('EU') }
   ];
+  // Load-balance 健康检查基线：负载均衡类组的探测超时不能压得太低。
+  // 本订阅里 Cloudflare anycast 节点（xhttp + TLS）首包 RTT 常在 100~460ms，
+  // 叠加 TLS 握手后很容易超过 800ms，导致节点被误判失败、频繁在组内被剔除。
+  // 这里放宽到 2500ms 并把探测间隔拉长，减少无谓探测压力与误杀。
+  const LOAD_BALANCE_HEALTH = { interval: 180, timeout: 2500, maxFailedTimes: 3 };
   // Load-balance 组
   function makeLoadBalanceGroup(name, icon, nodes, options = {}) {
     const proxies = ensureGroupList(nodes, []);
@@ -1973,7 +2067,7 @@ function buildConfig(config) {
   const downloadRegionGroupArtifacts = makeLoadBalanceGroupArtifacts(
     DOWNLOAD_REGION_DEFS,
     def => getRegionNodes(def.key, { includeResidential: false }),
-    () => ({ interval: 60, timeout: 800, strategy: 'consistent-hashing' })
+    () => ({ interval: LOAD_BALANCE_HEALTH.interval, timeout: LOAD_BALANCE_HEALTH.timeout, maxFailedTimes: LOAD_BALANCE_HEALTH.maxFailedTimes, strategy: 'consistent-hashing' })
   );
   const downloadRegionGroups = downloadRegionGroupArtifacts.groups;
   // 下载候选池
@@ -2019,20 +2113,22 @@ function buildConfig(config) {
   const playStoreServiceChoices = ['谷歌商店专用', '智能选择'];
   const playStoreLoadBalanceOptions = {
     url: PLAY_STORE_TEST_URL,
-    interval: 45,
-    timeout: 600,
-    maxFailedTimes: 2,
+    // 商店组原来是 45s/600ms 的激进探测。600ms 对 Cloudflare anycast 类节点（TLS 握手后
+    // 常见 100~460ms 起步）几乎必然误判超时，因此放宽到 2000ms，并把间隔拉到 120s。
+    interval: 120,
+    timeout: 2000,
+    maxFailedTimes: 3,
     strategy: 'consistent-hashing',
     lazy: false
   };
   // 负载均衡组改为真实节点均衡
   const loadBalanceGroupArtifacts = collectNamedGroups([
-    makeLoadBalanceGroup('负载均衡', iconMap.balance, ensureGroupList(allProxyNames, []), { interval: 60, timeout: 800, strategy: 'consistent-hashing' }),
+    makeLoadBalanceGroup('负载均衡', iconMap.balance, ensureGroupList(allProxyNames, []), Object.assign({}, LOAD_BALANCE_HEALTH, { strategy: 'consistent-hashing' })),
     // 下载散列组：consistent-hashing，同一目标固定映射到同一地区自动组，节点池同下载轮询组。此组不在主列表展示，仅供下载专用组内部引用。
-    makeLoadBalanceGroup('下载散列组', iconMap.balance, ensureGroupList(regionAutoNames, []), { interval: 60, timeout: 800, strategy: 'consistent-hashing' }),
+    makeLoadBalanceGroup('下载散列组', iconMap.balance, ensureGroupList(regionAutoNames, []), Object.assign({}, LOAD_BALANCE_HEALTH, { strategy: 'consistent-hashing' })),
     // 下载轮询组：round-robin 按连接轮流分配节点池；节点池用各地区自动组（而非真实节点），
     // 既能利用地区组自身的测速兜底，又能在多连接下载时把流量分摊到不同地区自动组，聚合下载速度。此组不在主列表展示，仅供下载专用组内部引用。
-    makeLoadBalanceGroup('下载轮询组', iconMap.balance, ensureGroupList(regionAutoNames, []), { interval: 60, timeout: 800, strategy: 'round-robin' }),
+    makeLoadBalanceGroup('下载轮询组', iconMap.balance, ensureGroupList(regionAutoNames, []), Object.assign({}, LOAD_BALANCE_HEALTH, { strategy: 'round-robin' })),
     makeLoadBalanceGroup('谷歌商店专用', iconMap.playstore, ensureGroupList(playStoreBalanceChoices, []), playStoreLoadBalanceOptions)
   ]);
   const loadBalanceGroups = loadBalanceGroupArtifacts.groups;
@@ -2101,7 +2197,9 @@ function buildConfig(config) {
   const globalFeatureAutoGroups = [globalHomeAuto, globalDedicatedAuto, globalMultiplierAuto, lowMultiplierAuto, globalStreamingAuto].filter(Boolean);
   // 候选菜单总索引：把 fallback、负载均衡、特征组、地区组与原始节点拼成通用候选池。
   // 排除谷歌商店专属组
-  const playStoreExclusiveSet = new Set(['谷歌商店专用']);
+  // 下载散列组 / 下载轮询组也一并排除：它们是「下载专用组」的内部编排单元（隐藏组），
+  // 不应作为通用候选出现在其它业务组的选项里，否则每个业务组都会冒出这两个下载组。
+  const playStoreExclusiveSet = new Set(['谷歌商店专用', '下载散列组', '下载轮询组']);
   const commonLoadBalanceNames = loadBalanceNames.filter(name => !playStoreExclusiveSet.has(name));
   const regionFallbackNames = ['港台智能选择', '日韩智能选择', '欧美智能选择'];
   const fallbackNameSet = makeNameSet(fallbackNames);
@@ -2856,10 +2954,10 @@ function buildConfig(config) {
   };
   // 全球特征组自动名映射
   GROUP_EMOJI_MAP['🏡全球家宽智能'] = '🏡全球家宽智能';
-  GROUP_EMOJI_MAP['全球专线智能'] = '🚄全球专线自动';
-  GROUP_EMOJI_MAP['全球倍率智能'] = '🔄全球倍率自动';
-  GROUP_EMOJI_MAP['低倍率节点智能'] = '🐢低倍率节点自动';
-  GROUP_EMOJI_MAP['全球流媒体智能'] = '🎞️全球流媒体自动';
+  GROUP_EMOJI_MAP['全球专线智能'] = '🚄全球专线智能';
+  GROUP_EMOJI_MAP['全球倍率智能'] = '🔄全球倍率智能';
+  GROUP_EMOJI_MAP['低倍率节点智能'] = '🐢低倍率节点智能';
+  GROUP_EMOJI_MAP['全球流媒体智能'] = '🎞️全球流媒体智能';
   // 链式双组
   GROUP_EMOJI_MAP['🌐链式出口'] = '🌐链式出口';
   GROUP_EMOJI_MAP['🪜链式中转'] = '🪜链式中转';
@@ -3156,7 +3254,7 @@ function buildConfig(config) {
       'com.microsoft.office.powerpoint', 'com.xbox.gamepass',
       'com.azure.authenticator', 'com.microsoft.windowsintune.companyportal'
     ], '微软服务'),
-    ...ruleProcess(['com.apple.android.music', 'com.apple.movetoios', 'com.icloud.mobile'], 'Apple'),
+    ...ruleProcess(['com.apple.android.music', 'com.apple.movetoios', 'com.icloud.mobile', 'com.apple.atve.androidtv.appletv', 'com.apple.android.tv', 'com.apple.iCloudDriveApp'], 'Apple'),
     ...ruleProcess(['com.github.android', 'com.github.mobile', 'com.jetradarmobile.stackoverflow'], 'GitHub'),
     ...ruleProcess([
       'com.paypal.android.p2pmobile', 'com.stripe.android.dashboard', 'com.wise.android',
@@ -3339,7 +3437,10 @@ function buildConfig(config) {
     ], '流媒体')
   ];
   // 台湾媒体规则
-  const RULES_TAIWAN_MEDIA = ruleSuffix(['hamivideo.hinet.net', 'hami.video', 'litv.tv', '4gtv.tv', 'myvideo.net.tw', 'ofiii.com', 'catchplay.com', 'catchplay.com.tw', 'garageplay.tw', 'friday.tw', 'video.friday.tw', 'kktv.com.tw', 'linetv.tw', 'bahamut.com.tw', 'gamer.com.tw', 'ani.gamer.com.tw', 'ptsplus.tv', 'pts.org.tw', 'cts.com.tw', 'ftvnews.com.tw', 'news.tvbs.com.tw', 'tvbs.com.tw', 'setn.com', 'ettoday.net', 'mirrormedia.mg', 'bcc.com.tw', 'dcard.tw', 'dcard.video', 'udn.com', 'udngroup.com', 'ltn.com.tw', 'thenewslens.com', 'businessweekly.com.tw', 'cmmedia.com.tw', 'storm.mg', 'nownews.com', 'cna.com.tw', 'books.com.tw', 'readmoo.com', 'mojim.com', 'kkbox.com'], '台湾媒体');
+  const RULES_TAIWAN_MEDIA = [
+    ...ruleProcess(['tw.com.gamer.android.animad', 'com.kkbox.tv.kkbox', 'com.kkbox.kkboxandroid', 'com.kktv.kktv', 'tw.litv.tv.androidmobile', 'com.fetnet.friday'], '台湾媒体'),
+    ...ruleSuffix(['hamivideo.hinet.net', 'hami.video', 'litv.tv', '4gtv.tv', 'myvideo.net.tw', 'ofiii.com', 'catchplay.com', 'catchplay.com.tw', 'garageplay.tw', 'friday.tw', 'video.friday.tw', 'kktv.com.tw', 'linetv.tw', 'bahamut.com.tw', 'gamer.com.tw', 'ani.gamer.com.tw', 'ptsplus.tv', 'pts.org.tw', 'cts.com.tw', 'ftvnews.com.tw', 'news.tvbs.com.tw', 'tvbs.com.tw', 'setn.com', 'ettoday.net', 'mirrormedia.mg', 'bcc.com.tw', 'dcard.tw', 'dcard.video', 'udn.com', 'udngroup.com', 'ltn.com.tw', 'thenewslens.com', 'businessweekly.com.tw', 'cmmedia.com.tw', 'storm.mg', 'nownews.com', 'cna.com.tw', 'books.com.tw', 'readmoo.com', 'mojim.com', 'kkbox.com'], '台湾媒体')
+  ];
   // Twitch 规则
   const RULES_TWITCH = [
     ...ruleProcess(['tv.twitch.android.app','tv.twitch.android.viewer'], 'Twitch'),
@@ -3355,6 +3456,7 @@ function buildConfig(config) {
   ];
   // Spotify 规则
   const RULES_SPOTIFY = [
+    ...ruleProcess(['com.spotify.music', 'com.spotify.lite', 'com.spotify.tv.android'], 'Spotify'),
     ...ruleSuffix(['spotify.com','scdn.co','spoti.fi','pscdn.co','spotifycdn.com'], 'Spotify')
   ];
   // Telegram 规则
@@ -3422,7 +3524,10 @@ function buildConfig(config) {
     ], '日韩生态区')
   ];
   // Niconico 规则
-  const RULES_NICONICO = ruleSuffix(['nicovideo.jp','nimg.jp','nicofarre.com','smilevideo.jp','dmc.nico'], 'Niconico');
+  const RULES_NICONICO = [
+    ...ruleProcess(['jp.nicovideo.android', 'jp.nicovideo.nicobox', 'jp.co.dwango.nicocas'], 'Niconico'),
+    ...ruleSuffix(['nicovideo.jp','nimg.jp','nicofarre.com','smilevideo.jp','dmc.nico'], 'Niconico')
+  ];
   // 社交补充规则
   const RULES_SOCIAL_FEED_SUPPLEMENT = [
     ...ruleDomain(['connect.facebook.net', 'graph.facebook.com'], 'Meta')
