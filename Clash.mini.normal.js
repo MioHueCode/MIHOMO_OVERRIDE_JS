@@ -253,11 +253,12 @@ function buildConfig(config) {
     'store-selected': true,
     'store-fake-ip': true
   };
-  // 网络与端口配置
+  // 网络与端口配置：优先保留上游已有端口（避免覆盖用户自定义端口）
   config['mixed-port'] = config['mixed-port'] || 7890;
-  config['allow-lan'] = false;
+  config['allow-lan'] = config['allow-lan'] !== undefined ? config['allow-lan'] : false;
   config['mode'] = 'rule';
-  config['log-level'] = config['log-level'] || 'error';
+  // log-level 保留上游值，仅当为空时设置默认
+  config['log-level'] = (config['log-level'] && config['log-level'] !== 'info') ? config['log-level'] : 'error';
   config.ipv6 = true;
   // TCP 优化
   config['tcp-concurrent'] = true;
@@ -552,6 +553,14 @@ function buildConfig(config) {
   // 1) fake-ip 接管应用 DNS，避免系统直连 ISP DNS；
   // 2) respect-rules=true 让 DNS 查询跟随分流规则（境外走代理、国内直连）；
   // 3) nameserver 用境外可信 DoH；direct-nameserver / proxy-server-nameserver 用国内解析，避免环依赖与污染。
+  // 安全兜底：确保关键 DNS 数组不为空，防止内核因空 nameserver 崩溃。
+  const safeTrustDns = trustDns.length ? trustDns : ['https://1.1.1.1/dns-query'];
+  const safeLocalDns = localDns.length ? localDns : ['223.5.5.5'];
+  const safeCnDns = cnDns.length ? cnDns : ['223.5.5.5'];
+  const safeFallbackDns = fallbackDns.length ? fallbackDns : ['https://dns.quad9.net/dns-query'];
+  const safeFastDomesticDns = fastDomesticDns.length ? fastDomesticDns : safeLocalDns;
+  const safeAdguardDns = adguardDns.length ? adguardDns : ['https://dns.adguard-dns.com/dns-query'];
+  const safeProxyBootstrapDns = proxyBootstrapDns.length ? proxyBootstrapDns : ['223.5.5.5', '1.1.1.1'];
   config.dns = Object.assign({}, config.dns || {}, {
     enable: true,
     listen: '0.0.0.0:1053',
@@ -590,23 +599,23 @@ function buildConfig(config) {
     ])),
     // 主 nameserver 只保留可信 DoH；国内域名由 nameserver-policy / direct-nameserver 接管，避免上游本地 DNS 混入海外解析路径。
     nameserver: uniqList([
-      ...trustDns,
+      ...safeTrustDns,
       ...asArray(config.dns && config.dns.nameserver).filter(item => {
         const text = String(item || '');
-        return /^https:\/\//i.test(text) && !localDns.includes(item) && !cnDns.includes(item);
+        return /^https:\/\//i.test(text) && !safeLocalDns.includes(item) && !safeCnDns.includes(item);
       })
     ]),
     // bootstrap 只允许 IP。中立公共 DNS 优先，国内 IP DNS 作为低延迟自举兜底，避免 DoH 域名解析环。
     'default-nameserver': uniqList([
       ...trustBootstrapDns,
-      ...localDns
+      ...safeLocalDns
     ]),
     // 直连域名优先使用国内 DNS / 本地 DNS，同时保留上游已有项增强兼容性。
-    'direct-nameserver': fastDomesticDns,
+    'direct-nameserver': safeFastDomesticDns,
     // 节点服务器域名必须直连解析；不再追加本地 DNS 回退，优先使用可直连的中立公共解析器完成自举。
     'proxy-server-nameserver': uniqList([
-      ...proxyBootstrapDns,
-      ...asArray(config.dns && config.dns['proxy-server-nameserver']).filter(item => !cnDns.includes(item) && !localDns.includes(item))
+      ...safeProxyBootstrapDns,
+      ...asArray(config.dns && config.dns['proxy-server-nameserver']).filter(item => !safeCnDns.includes(item) && !safeLocalDns.includes(item))
     ])
   });
   // Google Play 下载链路应保留 fake-ip 以便 TUN/规则持续接管；主动清理上游遗留的真实解析例外。
@@ -625,14 +634,14 @@ function buildConfig(config) {
   // DNS 分流策略：按私有网络 / 国内 / 境外 / 广告 / 特殊业务域名分别指定解析器。
   // nameserver-policy 维护提示：键必须保持 Mihomo 可识别的 geosite / 域名模式，值必须是一维 DNS 列表。
   const nameserverPolicy = Object.assign({}, config.dns['nameserver-policy'] || {}, {
-    'geosite:private': fastDomesticDns,
-    'geosite:cn': fastDomesticDns,
-    'geosite:geolocation-!cn': trustDns,
-    'geosite:category-ads-all': adguardDns,
+    'geosite:private': safeFastDomesticDns,
+    'geosite:cn': safeFastDomesticDns,
+    'geosite:geolocation-!cn': safeTrustDns,
+    'geosite:category-ads-all': safeAdguardDns,
   });
-  // DNS 自举映射注入
+  // DNS 自举映射：用循环注入
   const dnsBootstrapPolicy = {
-    'dns.alidns.com': localDns, 'doh.pub': localDns, 'doh.360.cn': localDns,
+    'dns.alidns.com': safeLocalDns, 'doh.pub': safeLocalDns, 'doh.360.cn': safeLocalDns,
     'dns.google': trustBootstrapDns, 'dns.google.com': trustBootstrapDns, 'dns64.dns.google': trustBootstrapDns,
     'cloudflare-dns.com': trustBootstrapDns, 'mozilla.cloudflare-dns.com': trustBootstrapDns,
     'one.one.one.one': trustBootstrapDns, 'family.cloudflare-dns.com': trustBootstrapDns,
@@ -650,35 +659,35 @@ function buildConfig(config) {
   // DNS / 分组 / 规则联动注册表：每项声明业务目标、策略域名、解析器和 fallback 域名。
   // 新增或扩展业务时优先修改此表及对应域名集合，避免 nameserver-policy 与 fallback-filter 分散维护。
   const DNS_SERVICE_BINDINGS = [
-    { key: '广告拦截', policyDomains: DNS_POLICY_DOMAIN_SETS.adguard, dns: adguardDns },
+    { key: '广告拦截', policyDomains: DNS_POLICY_DOMAIN_SETS.adguard, dns: safeAdguardDns },
     { key: '国内服务', policyDomains: uniqList([].concat(
       DNS_POLICY_DOMAIN_SETS.domesticMain,
       DNS_POLICY_DOMAIN_SETS.domesticCdn,
       DNS_POLICY_DOMAIN_SETS.domesticAi,
       DNS_POLICY_DOMAIN_SETS.domestic
-    )), dns: fastDomesticDns },
-    { key: 'TikTok', policyDomains: DNS_POLICY_DOMAIN_SETS.tiktok, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok, dns: trustDns },
-    { key: 'AdGuard服务', policyDomains: DNS_POLICY_DOMAIN_SETS.adguardService, dns: trustDns, auxiliary: true },
-    { key: '风控安全', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.browserRisk, DNS_POLICY_DOMAIN_SETS.finance, DNS_POLICY_DOMAIN_SETS.crypto)), fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: trustDns },
-    { key: 'AI', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.openaiRealtime, DNS_POLICY_DOMAIN_SETS.aiFinanceRisk)), fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.ai, dns: trustDns },
-    { key: 'Google', policyDomains: DNS_POLICY_DOMAIN_SETS.google, dns: trustDns },
-    { key: '谷歌商店', policyDomains: DNS_POLICY_DOMAIN_SETS.playStore, fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.playStore, DNS_FALLBACK_FILTER_DOMAIN_SETS.googlePlayIntegrity)), dns: trustDns },
-    { key: 'YouTube', policyDomains: DNS_POLICY_DOMAIN_SETS.youtubeMedia, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.youtubeMedia, dns: trustDns },
-    { key: '翻译服务', policyDomains: DNS_POLICY_DOMAIN_SETS.translation, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.translation, dns: trustDns },
-    { key: 'Telegram', policyDomains: DNS_POLICY_DOMAIN_SETS.telegram, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.telegram, dns: trustDns },
-    { key: 'Meta', policyDomains: DNS_POLICY_DOMAIN_SETS.meta, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.meta, dns: trustDns },
-    { key: 'Discord', policyDomains: DNS_POLICY_DOMAIN_SETS.discord, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.discord, dns: trustDns },
-    { key: '流媒体', policyDomains: DNS_POLICY_DOMAIN_SETS.streaming, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.streaming, dns: trustDns },
-    { key: '国外游戏', policyDomains: DNS_POLICY_DOMAIN_SETS.gaming, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.gaming, dns: trustDns },
-    { key: '微软Bing', policyDomains: DNS_POLICY_DOMAIN_SETS.microsoftBing, dns: trustDns },
-    { key: 'GitHub', policyDomains: DNS_POLICY_DOMAIN_SETS.developer, fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.developer, DNS_FALLBACK_FILTER_DOMAIN_SETS.devCommunity)), dns: trustDns },
-    { key: 'Twitter', policyDomains: DNS_POLICY_DOMAIN_SETS.twitter, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.twitter, dns: trustDns },
-    { key: 'Apple', policyDomains: DNS_POLICY_DOMAIN_SETS.appleService, dns: trustDns },
-    { key: 'Twitch', policyDomains: DNS_POLICY_DOMAIN_SETS.twitch, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.twitch, dns: trustDns },
-    { key: '社交信息流', policyDomains: DNS_POLICY_DOMAIN_SETS.socialFeed, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.socialFeed, dns: trustDns },
-    { key: '日韩生态区', policyDomains: DNS_POLICY_DOMAIN_SETS.jpKrEcosystem, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.jpKrEcosystem, dns: trustDns },
-    { key: 'Niconico', policyDomains: DNS_POLICY_DOMAIN_SETS.niconico, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.niconico, dns: trustDns },
-    { key: '台湾媒体', policyDomains: DNS_POLICY_DOMAIN_SETS.taiwanMedia, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.taiwanMedia, dns: trustDns },
+    )), dns: safeFastDomesticDns },
+    { key: 'TikTok', policyDomains: DNS_POLICY_DOMAIN_SETS.tiktok, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok, dns: safeTrustDns },
+    { key: 'AdGuard服务', policyDomains: DNS_POLICY_DOMAIN_SETS.adguardService, dns: safeTrustDns, auxiliary: true },
+    { key: '风控安全', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.browserRisk, DNS_POLICY_DOMAIN_SETS.finance, DNS_POLICY_DOMAIN_SETS.crypto)), fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: safeTrustDns },
+    { key: 'AI', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.openaiRealtime, DNS_POLICY_DOMAIN_SETS.aiFinanceRisk)), fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.ai, dns: safeTrustDns },
+    { key: 'Google', policyDomains: DNS_POLICY_DOMAIN_SETS.google, dns: safeTrustDns },
+    { key: '谷歌商店', policyDomains: DNS_POLICY_DOMAIN_SETS.playStore, fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.playStore, DNS_FALLBACK_FILTER_DOMAIN_SETS.googlePlayIntegrity)), dns: safeTrustDns },
+    { key: 'YouTube', policyDomains: DNS_POLICY_DOMAIN_SETS.youtubeMedia, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.youtubeMedia, dns: safeTrustDns },
+    { key: '翻译服务', policyDomains: DNS_POLICY_DOMAIN_SETS.translation, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.translation, dns: safeTrustDns },
+    { key: 'Telegram', policyDomains: DNS_POLICY_DOMAIN_SETS.telegram, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.telegram, dns: safeTrustDns },
+    { key: 'Meta', policyDomains: DNS_POLICY_DOMAIN_SETS.meta, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.meta, dns: safeTrustDns },
+    { key: 'Discord', policyDomains: DNS_POLICY_DOMAIN_SETS.discord, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.discord, dns: safeTrustDns },
+    { key: '流媒体', policyDomains: DNS_POLICY_DOMAIN_SETS.streaming, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.streaming, dns: safeTrustDns },
+    { key: '国外游戏', policyDomains: DNS_POLICY_DOMAIN_SETS.gaming, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.gaming, dns: safeTrustDns },
+    { key: '微软Bing', policyDomains: DNS_POLICY_DOMAIN_SETS.microsoftBing, dns: safeTrustDns },
+    { key: 'GitHub', policyDomains: DNS_POLICY_DOMAIN_SETS.developer, fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.developer, DNS_FALLBACK_FILTER_DOMAIN_SETS.devCommunity)), dns: safeTrustDns },
+    { key: 'Twitter', policyDomains: DNS_POLICY_DOMAIN_SETS.twitter, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.twitter, dns: safeTrustDns },
+    { key: 'Apple', policyDomains: DNS_POLICY_DOMAIN_SETS.appleService, dns: safeTrustDns },
+    { key: 'Twitch', policyDomains: DNS_POLICY_DOMAIN_SETS.twitch, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.twitch, dns: safeTrustDns },
+    { key: '社交信息流', policyDomains: DNS_POLICY_DOMAIN_SETS.socialFeed, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.socialFeed, dns: safeTrustDns },
+    { key: '日韩生态区', policyDomains: DNS_POLICY_DOMAIN_SETS.jpKrEcosystem, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.jpKrEcosystem, dns: safeTrustDns },
+    { key: 'Niconico', policyDomains: DNS_POLICY_DOMAIN_SETS.niconico, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.niconico, dns: safeTrustDns },
+    { key: '台湾媒体', policyDomains: DNS_POLICY_DOMAIN_SETS.taiwanMedia, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.taiwanMedia, dns: safeTrustDns },
     { key: '海外通用', policyDomains: DNS_POLICY_DOMAIN_SETS.mainstreamOverseas, fallbackDomains: uniqList([].concat(
       DNS_FALLBACK_FILTER_DOMAIN_SETS.meta,
       DNS_FALLBACK_FILTER_DOMAIN_SETS.devCommunity,
@@ -689,8 +698,8 @@ function buildConfig(config) {
       DNS_FALLBACK_FILTER_DOMAIN_SETS.collaboration,
       DNS_FALLBACK_FILTER_DOMAIN_SETS.socialExtra,
       DNS_FALLBACK_FILTER_DOMAIN_SETS.bigTech
-    )), dns: trustDns, auxiliary: true },
-    { key: '隐私与连通性', policyDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.privacyAndCaptivePortal, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.privacyAndCaptivePortal, dns: trustDns, auxiliary: true }
+    )), dns: safeTrustDns, auxiliary: true },
+    { key: '隐私与连通性', policyDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.privacyAndCaptivePortal, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.privacyAndCaptivePortal, dns: safeTrustDns, auxiliary: true }
   ];
   const dnsBindingFallbackDomains = [];
   for (let i = 0; i < DNS_SERVICE_BINDINGS.length; i++) {
@@ -745,9 +754,9 @@ function buildConfig(config) {
     ])
   };
   // DNS fallback：主查询保持 Cloudflare + Google，后备层额外纳入 Quad9 扩大污染兜底面。
-  config.dns.fallback = fallbackDns;
+  config.dns.fallback = safeFallbackDns;
   // 直连域名（国内 / 局域网 / 直连策略）使用国内 DoH + 本地 DNS，避免境外绕路。
-  config.dns['direct-nameserver'] = uniqList([...cnDns, ...localDns]);
+  config.dns['direct-nameserver'] = uniqList([...safeCnDns, ...safeLocalDns]);
   // default-nameserver 只能是 IP，避免 DoH 域名在 bootstrap 阶段形成解析环。
   config.dns['default-nameserver'] = uniqList(asArray(config.dns['default-nameserver']).filter(server => {
     const text = String(server || '').trim();
@@ -980,6 +989,10 @@ function buildConfig(config) {
     }
   }
   config.proxies = cleanProxies;
+  // 空节点保护：若过滤后无可用节点，强行插入直连占位以防内核崩溃
+  if (!config.proxies.length) {
+    config.proxies.push({ name: 'DIRECT', type: 'direct' });
+  }
   perfEnd('proxy_classify');
   const wholeWordPatternCache = new Map();
   function hasWholeWord(text, word) {
@@ -2475,13 +2488,21 @@ function buildConfig(config) {
     }
   );
   // 链式双组：中转(隐藏 fallback，自动选跳板) + 出口(可见 select，手动选落地)
-  // 中转候选顺序：自动选择 → 自动兜底 → 地区自动组/地区节点组
+  // 风控只看「出口」的落地 IP（dialer-proxy 使路径为 客户端→中转→出口→目标，出口 IP 才是目标可见的最终出口）。
+  // 因此：出口优先干净的家宽/住宅 IP；中转对目标不可见，只需快、稳、低成本。
+  // 中转候选顺序：专线(骨干最稳) → 低倍率(链式流量翻倍，省成本) → 自动选择 → 自动兜底 → 地区自动组/地区节点组
+  // 中转刻意排除家宽：家宽带宽有限且珍贵，应全部留给出口落地，不消耗在中转跳板上。
   const chainTransitChoices = sanitizeUiChoiceList(
+    [
+      globalDedicatedGroup ? '全球专线' : null,
+      lowMultiplierGroup ? '低倍率节点' : null
+    ].filter(Boolean),
     ['自动选择', '自动兜底'],
     regionAutoNames,
     regionManualNames.filter(name => !String(name).includes('家宽'))
   );
   // 出口候选顺序：全球家宽 → 地区家宽节点 → 家宽故障转移 → 自动兜底 → 地区节点组 → 特征组 → 真实节点
+  // 出口 IP 直接决定风控判定，家宽/住宅 IP 排最前以最大化落地清白度。
   const chainExitChoices = sanitizeUiChoiceList(
     globalHomeGroup ? ['🏡全球家宽'] : [],
     regionHomeManualNames,
