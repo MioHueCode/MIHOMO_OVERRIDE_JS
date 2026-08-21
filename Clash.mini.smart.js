@@ -3223,7 +3223,7 @@ function buildConfig(config) {
   ];
   const RULES_RISK_CONTROL_PLAY_STORE = [
     ...ruleProcess(['com.android.vending', 'com.android.providers.downloads', 'com.android.providers.downloads.ui'], '谷歌商店'),
-    ...ruleSuffix(['play.google.com', 'play.googleapis.com', 'play-fe.googleapis.com', 'play-pa.googleapis.com', 'playatoms-pa.googleapis.com', 'play-apps-fe-pa.googleapis.com', 'play-apps-download-frontend.googleapis.com', 'play-lh.googleusercontent.com', 'play-games.googleusercontent.com', 'market.android.com', 'android.googleapis.com', 'android.clients.google.com', 'android.clients.google.com.cn', 'clientservices.googleapis.com', 'dl.google.com', 'dl.l.google.com', 'gvt1.com', 'gvt2.com', 'gvt3.com', 'xn--ngstr-lra8j.com', 'xn--ngstr-cn-8za9o.com'], '谷歌商店')
+    ...ruleSuffix(['play.google.com', 'play.googleapis.com', 'play-fe.googleapis.com', 'play-pa.googleapis.com', 'playatoms-pa.googleapis.com', 'play-apps-fe-pa.googleapis.com', 'play-apps-download-frontend.googleapis.com', 'play-lh.googleusercontent.com', 'play-games.googleusercontent.com', 'market.android.com', 'dl.google.com', 'dl.l.google.com', 'gvt1.com', 'gvt2.com', 'gvt3.com', 'xn--ngstr-lra8j.com', 'xn--ngstr-cn-8za9o.com'], '谷歌商店')
   ];
   const RULES_RISK_CONTROL_YOUTUBE_EXTRA = ruleSuffix(['youtube-nocookie.com', 'yt.be', 'yt3.ggpht.com', 'youtubekids.com', 'sponsor.ajay.app', 'returnyoutubedislikeapi.com'], 'YouTube');
   const RULES_RISK_CONTROL_GOOGLE_AI = ruleSuffix(['gemini.google.com', 'generativeai.google', 'generativelanguage.googleapis.com', 'proactivebackend-pa.googleapis.com', 'notebooklm.google.com'], 'AI');
@@ -3391,6 +3391,13 @@ function buildConfig(config) {
   // Google 通用规则
   const RULES_GOOGLE = [
     ...ruleDomain(['dns.google', 'dns.google.com', 'mail.google.com'], 'Google'),
+    // GMS 共享端点：android.googleapis.com / android.clients.google.com 是 Google Play Services
+    // 的通用 API 网关（设备 checkin、配置拉取、Play Integrity 认证、FCM token 注册等多服务共用），
+    // 不专属于谷歌商店下载，也不是 FCM 推送通道，统一归 Google 走稳定境外线路。
+    ...ruleDomain([
+      'android.googleapis.com', 'android.clients.google.com', 'android.clients.google.com.cn',
+      'clientservices.googleapis.com'
+    ], 'Google'),
     ...ruleSuffix([
       'google.com', 'googleapis.com', 'gstatic.com', 'gmail.com', 'googlemail.com', 'ggpht.cn',
       'googleusercontent.com', 'googleusercontent.cn', 'withgoogle.com', 'g.co', 'goo.gl', 'googleearth.com',
@@ -3514,11 +3521,11 @@ function buildConfig(config) {
       'braintreegateway.com', 'braintreepayments.com', 'venmo.com', 'xoom.com', 'airwallex.com'
     ], '支付服务')
   ];
-  // 兜底规则：国内直连 / 境外走节点选择 / 漏网之鱼
+  // 兜底规则：CN直连 → 境外域名走节点 → 未知境外IP走漏网之鱼 → MATCH收尾
   const RULES_DIRECT_AND_FALLBACK = [
     'GEOIP,CN,DIRECT',
     'GEOSITE,geolocation-!cn,节点选择',
-    'GEOIP,!CN,节点选择',
+    'GEOIP,!CN,漏网之鱼',
     'MATCH,漏网之鱼'
   ];
   // 规则内容与装配顺序分离
