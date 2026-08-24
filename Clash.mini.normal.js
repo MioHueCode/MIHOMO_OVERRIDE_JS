@@ -154,7 +154,7 @@ function buildConfig(config) {
   const tiktokDomains = () => d(
     'tiktok.com','tiktokv.com','byteoversea.com','ibytedtos.com','tiktokcdn.com','tiktokcdn-us.com','tiktokcdn-eu.com','tiktokrow-cdn.com','tiktokv.us',
     'ibyteimg.com','muscdn.com','musical.ly','bytefcdn-oversea.com','tiktokd.org','tiktokd.net','tiktokmusic.app','ttwebview.com','ttwstatic.com',
-    'bytegecko-i18n.com','byteintlapi.com','isnssdk.com','snssdk.com'
+    'bytegecko-i18n.com','byteintlapi.com','isnssdk.com'
   );
   const aiDomains = () => d(
     'openai.com','chatgpt.com','oaistatic.com','oaiusercontent.com','claude.ai','anthropic.com','anthropiccdn.com','claudeusercontent.com',
@@ -223,29 +223,53 @@ function buildConfig(config) {
     'hunyuan.tencent.com', 'yuanbao.tencent.com',
     'taobao.com', 'tmall.com', 'alipay.com', 'tongyi.com', 'tongyi.aliyun.com',
     'jd.com', 'pinduoduo.com', 'smzdm.com', 'meituan.com', 'dianping.com', 'ctrip.com', '12306.cn',
-    'bilibili.com', 'iqiyi.com', 'mgtv.com', 'douyin.com', 'kuaishou.com', 'zhihu.com', 'weibo.com',
+    'bilibili.com', 'iqiyi.com', 'mgtv.com', 'douyin.com', 'snssdk.com', 'amemv.com', 'kuaishou.com', 'zhihu.com', 'weibo.com',
     'xiaohongshu.com', 'baidu.com', '163.com', '126.com', '126.net', 'sina.com.cn', 'sohu.com'
   );
   const domesticCdnDomains = () => d(
-    'gtimg.com', 'qpic.cn', 'qqvideo.tc.qq.com',
-    'alicdn.com', 'aliyuncs.com', 'alipayobjects.com',
-    'youkuimg.com', 'jdstatic.com',
-    'biliapi.com', 'biliimg.com', 'bilivideo.com', 'bilivideo.cn', 'hdslb.com', 'iqiyipic.com',
-    'douyincdn.com', 'bytecdn.cn', 'byteimg.com', 'byted.org', 'iesdouyin.com',
-    'ksapisrv.com', 'kspkg.com', 'ksyuncdn.com',
-    'zhimg.com', 'weibocdn.com', 'xhscdn.com', 'xhsglobal.com',
-    'bdimg.com', 'bdstatic.com'
+  // 腾讯系
+    'gtimg.com', 'gtimg.cn', 'qpic.cn', 'qqvideo.tc.qq.com', 'qlogo.cn', 'idqqimg.com', 'myqcloud.com',
+  // 阿里系
+    'alicdn.com', 'aliyuncs.com', 'alipayobjects.com', 'aliimg.com', 'alikunlun.com', 'alikunlun.net', 'cdngslb.com',
+  // 优酷 / 京东
+    'youkuimg.com', 'jdstatic.com', '360buyimg.com',
+  // B站
+    'biliapi.com', 'biliimg.com', 'bilivideo.com', 'bilivideo.cn', 'hdslb.com',
+  // 爱奇艺 / 芒果
+    'iqiyipic.com', 'ppsvod.com',
+  // 字节 / 抖音
+    'douyincdn.com', 'bytecdn.cn', 'byteimg.com', 'byted.org', 'iesdouyin.com', 'zjcdn.com', 'douyinstatic.com', 'douyinvod.com', 'pstatp.com', 'douyinpic.com', 'bytegoofy.com', 'bytednsdoc.com',
+  // 快手
+    'ksapisrv.com', 'kspkg.com', 'ksyuncdn.com', 'ks-cdn.com',
+  // 知乎 / 微博 / 小红书
+    'zhimg.com', 'weibocdn.com', 'sinaimg.cn', 'sinajs.cn', 'xhscdn.com', 'xhsglobal.com',
+  // 百度
+    'bdimg.com', 'bdstatic.com', 'bcebos.com', 'baidubce.com', 'bdydstatic.com',
+  // 网易
+    'nos.netease.com', 'ydstatic.com',
+  // 360 / 小米 / 美团 / 搜狐
+    'qhimg.com', 'qhres.com', 'qhres2.com', 'qhmsg.com',
+    'mi-img.com', 'mifile.cn',
+    'meituan.net', 'dpfile.com',
+    'sohucs.com', 'itc.cn'
   );
   const domesticAiDomains = () => d(
     'doubao.com', 'volces.com', 'qianfan.baidu.com', 'erniebot.com', 'yiyan.baidu.com',
     'deepseek.com', 'deepseek.cn', 'moonshot.cn', 'kimi.com', 'minimaxi.com',
     'xinghuo.xfyun.cn', 'sensenova.cn'
   );
-  const domesticServiceDomains = () => uniqList([
-    ...domesticMainDomains(),
-    ...domesticCdnDomains(),
-    ...domesticAiDomains()
-  ]);
+  // 惰性单例：国内服务域名集（主站+CDN+AI），避免重复构建
+  let _domesticServiceDomainsCache = null;
+  const domesticServiceDomains = () => {
+    if (!_domesticServiceDomainsCache) {
+      _domesticServiceDomainsCache = uniqList([
+        ...domesticMainDomains(),
+        ...domesticCdnDomains(),
+        ...domesticAiDomains()
+      ]);
+    }
+    return _domesticServiceDomainsCache;
+  };
 // === 基础配置：运行参数、网络栈与实验特性 ===
   // Profile：持久化配置
   config.profile = {
@@ -274,7 +298,10 @@ function buildConfig(config) {
   config['experimental'] = Object.assign({}, config['experimental'] || {}, {
     'quic-go-disable-gso': true,
     'quic-go-disable-ecn': true,
-    'dialer-ip4p-convert': false
+    'dialer-ip4p-convert': false,
+    'geodata-loader': 'memconservative',
+    'geo-auto-update': true,
+    'geo-update-interval': 24
   });
   // 嗅探模块：域名感知与流量识别
   if (!config.sniffer || typeof config.sniffer !== 'object') config.sniffer = {};
@@ -297,9 +324,10 @@ function buildConfig(config) {
     ...streamingDomains(),
     ...aiDomains()
   ]);
+  // 注：此处已使用 uniqList 去重，确保嗅探列表无冗余
   config.sniffer['skip-domain'] = sanitizeCompatDomainList(uniqList([
     ...asArray(config.sniffer['skip-domain']),
-    // DoH 域名：解析器自身不参与嗅探，避免请求链路互相干扰。
+  // DoH 域名：解析器自身不参与嗅探，避免请求链路互相干扰。
     'dns.adguard-dns.com',
     'dns.google',
     'dns.google.com',
@@ -308,7 +336,7 @@ function buildConfig(config) {
     'doh.pub',
     'doh.360.cn',
     'dns.alidns.com',
-    // 时间同步：校时请求应尽量保持简单直接，避免额外嗅探干预。
+  // 时间同步：校时请求应尽量保持简单直接，避免额外嗅探干预。
     'time.windows.com',
     'time.apple.com',
     'time.android.com'
@@ -350,9 +378,9 @@ function buildConfig(config) {
     cn: ['223.5.5.5', '223.6.6.6', '119.29.29.29', '180.76.76.76', 'https://dns.alidns.com/dns-query', 'https://doh.pub/dns-query'],
     trust: ['https://1.1.1.1/dns-query', 'https://dns.google/dns-query'],
     trustBootstrap: ['1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4'],
-    // 节点域名自举：国内解析器优先。很多机场节点域名挂在国内 DNS 托管的 CDN 上（例如 CNAME 到
-    // 阿里 DNS 托管的加速域名，再落到 Cloudflare anycast），用境外递归会拿到"按解析器位置"优化的
-    // 边缘 IP 而非按本机位置优化的边缘，导致 RTT 偏高、握手易超时。境外解析器保留在后面兜底。
+  // 节点域名自举：国内解析器优先。很多机场节点域名挂在国内 DNS 托管的 CDN 上（例如 CNAME 到
+  // 阿里 DNS 托管的加速域名，再落到 Cloudflare anycast），用境外递归会拿到"按解析器位置"优化的
+  // 边缘 IP 而非按本机位置优化的边缘，导致 RTT 偏高、握手易超时。境外解析器保留在后面兜底。
     proxyBootstrap: ['223.5.5.5', '119.29.29.29', '1.1.1.1', '8.8.8.8'],
     adguard: ['https://dns.adguard-dns.com/dns-query']
   };
@@ -439,7 +467,8 @@ function buildConfig(config) {
     infra: infraDomains(),
     privacyAndCaptivePortal: privacyDomains(),
     googlePlayIntegrity: googlePlayIntegrityDomains(),
-    // 以下从 DNS_POLICY_DOMAIN_SETS 复用
+    domestic: domesticServiceDomains(),
+  // 以下从 DNS_POLICY_DOMAIN_SETS 复用
     meta: DNS_POLICY_DOMAIN_SETS.meta,
     discord: DNS_POLICY_DOMAIN_SETS.discord,
     telegram: DNS_POLICY_DOMAIN_SETS.telegram,
@@ -466,12 +495,12 @@ function buildConfig(config) {
     if (typeof pattern !== 'string') return '';
     let s = pattern.trim();
     if (!s) return '';
-    // DNS ResolverRule / nameserver-policy 在部分内核或前端环境中不接受 geosite / rule-set 语法，
-    // 这里统一只保留纯域名与简单前导通配，避免出现 “DNS ResolverRule invalid domain”。
+  // DNS ResolverRule / nameserver-policy 在部分内核或前端环境中不接受 geosite / rule-set 语法，
+  // 这里统一只保留纯域名与简单前导通配，避免出现 “DNS ResolverRule invalid domain”。
     if (s.startsWith('rule-set:') || s.startsWith('geosite:')) return '';
     s = s.replace(/^\+\./, '*.');
     if (/[*?]/.test(s)) {
-      // 为兼容部分前端与导入环境，这里仅保留前导 *. 形式的简单通配。
+  // 为兼容部分前端与导入环境，这里仅保留前导 *. 形式的简单通配。
       if (!/^\*\.[A-Za-z0-9.-]+$/.test(s)) return '';
     }
     if (/^[A-Za-z0-9.-]+$/.test(s) || /^\*\.[A-Za-z0-9.-]+$/.test(s)) return s.toLowerCase();
@@ -567,9 +596,11 @@ function buildConfig(config) {
     ipv6: true,
     'ipv6-timeout': 150,
     'cache-algorithm': 'arc',
+    'cache-size': 4096,
     'prefer-h3': false,
+  // DNS 跟随规则：境外域名的解析请求经代理发出，显著降低 DNS 泄露面。
     'use-system-hosts': false,
-    // DNS 跟随规则：境外域名的解析请求经代理发出，显著降低 DNS 泄露面。
+    'edns-preserve-mode': 'passthrough',
     'respect-rules': true,
     'use-hosts': true,
     'enhanced-mode': 'fake-ip',
@@ -577,48 +608,48 @@ function buildConfig(config) {
     'fake-ip-filter-mode': 'blacklist',
     'fake-ip-ttl': 60,
     'fake-ip-filter': sanitizeCompatDomainList(uniqList([
+  // 局域网 / 本地域名：这类地址通常用于内网发现与本地服务，不适合 fake-ip。
       ...asArray(config.dns && config.dns['fake-ip-filter']),
-      // 局域网 / 本地域名：这类地址通常用于内网发现与本地服务，不适合 fake-ip。
+  // 连通性检测：系统用来判断网络状态，使用 fake-ip 容易触发误判。
       ...DNS_FAKE_IP_FILTER_SETS.lan,
-      // 连通性检测：系统用来判断网络状态，使用 fake-ip 容易触发误判。
+  // 时间同步：NTP / 校时域名应返回真实地址，避免时钟同步异常。
       ...DNS_FAKE_IP_FILTER_SETS.connectivityCheck,
-      // 时间同步：NTP / 校时域名应返回真实地址，避免时钟同步异常。
+  // 路由器 / 网关管理地址：管理页和本地路由器域名不应走 fake-ip。
       ...DNS_FAKE_IP_FILTER_SETS.timeSync,
-      // 路由器 / 网关管理地址：管理页和本地路由器域名不应走 fake-ip。
+  // STUN / TURN / Relay：实时通信协商依赖真实地址，fake-ip 容易破坏打洞与中继。
       ...DNS_FAKE_IP_FILTER_SETS.routerGateway,
-      // STUN / TURN / Relay：实时通信协商依赖真实地址，fake-ip 容易破坏打洞与中继。
+  // 主机平台 / 家用设备联机认证：保持真实解析，减少 NAT / 联机检测异常。
       ...DNS_FAKE_IP_FILTER_SETS.realtimeRelay,
-      // 主机平台 / 家用设备联机认证：保持真实解析，减少 NAT / 联机检测异常。
+  // 海外 PC / 主机游戏平台：下载器、认证、联机与反作弊链路尽量保留真实 IP。
       ...DNS_FAKE_IP_FILTER_SETS.consoleAuth,
-      // 海外 PC / 主机游戏平台：下载器、认证、联机与反作弊链路尽量保留真实 IP。
+  // Cloudflare 挑战 / 验证资源：验证码与挑战链路对真实地址更敏感。
       ...DNS_FAKE_IP_FILTER_SETS.gamingPlatforms,
-      // Cloudflare 挑战 / 验证资源：验证码与挑战链路对真实地址更敏感。
+  // 支付 / 风控 / 本地域名：尽量保留真实解析，减少 App 内校验、回环服务与局域网发现异常。
       ...DNS_FAKE_IP_FILTER_SETS.cloudflareChallenge,
-      // 支付 / 风控 / 本地域名：尽量保留真实解析，减少 App 内校验、回环服务与局域网发现异常。
       ...DNS_FAKE_IP_FILTER_SETS.pushAndCast
+  // 主 nameserver 只保留可信 DoH；国内域名由 nameserver-policy / direct-nameserver 接管，避免上游本地 DNS 混入海外解析路径。
     ])),
-    // 主 nameserver 只保留可信 DoH；国内域名由 nameserver-policy / direct-nameserver 接管，避免上游本地 DNS 混入海外解析路径。
     nameserver: uniqList([
       ...safeTrustDns,
       ...asArray(config.dns && config.dns.nameserver).filter(item => {
         const text = String(item || '');
         return /^https:\/\//i.test(text) && !safeLocalDns.includes(item) && !safeCnDns.includes(item);
       })
+  // bootstrap 只允许 IP。中立公共 DNS 优先，国内 IP DNS 作为低延迟自举兜底，避免 DoH 域名解析环。
     ]),
-    // bootstrap 只允许 IP。中立公共 DNS 优先，国内 IP DNS 作为低延迟自举兜底，避免 DoH 域名解析环。
     'default-nameserver': uniqList([
       ...trustBootstrapDns,
       ...safeLocalDns
+  // 直连域名优先使用国内 DNS / 本地 DNS，同时保留上游已有项增强兼容性。
     ]),
-    // 直连域名优先使用国内 DNS / 本地 DNS，同时保留上游已有项增强兼容性。
+  // 节点服务器域名必须直连解析；不再追加本地 DNS 回退，优先使用可直连的中立公共解析器完成自举。
     'direct-nameserver': safeFastDomesticDns,
-    // 节点服务器域名必须直连解析；不再追加本地 DNS 回退，优先使用可直连的中立公共解析器完成自举。
     'proxy-server-nameserver': uniqList([
       ...safeProxyBootstrapDns,
       ...asArray(config.dns && config.dns['proxy-server-nameserver']).filter(item => !safeCnDns.includes(item) && !safeLocalDns.includes(item))
     ])
-  });
   // Google Play 下载链路应保留 fake-ip 以便 TUN/规则持续接管；主动清理上游遗留的真实解析例外。
+  });
   config.dns['fake-ip-filter'] = removeFakeIpFilterDomains(config.dns['fake-ip-filter'], uniqList([
     ...playStoreDomains(),
     ...googleDomains(),
@@ -630,16 +661,16 @@ function buildConfig(config) {
     ...developerDomains(),
     ...metaDomains(),
     ...discordDomains()
-  ]));
   // DNS 分流策略：按私有网络 / 国内 / 境外 / 广告 / 特殊业务域名分别指定解析器。
   // nameserver-policy 维护提示：键必须保持 Mihomo 可识别的 geosite / 域名模式，值必须是一维 DNS 列表。
+  ]));
   const nameserverPolicy = Object.assign({}, config.dns['nameserver-policy'] || {}, {
     'geosite:private': safeFastDomesticDns,
     'geosite:cn': safeFastDomesticDns,
     'geosite:geolocation-!cn': safeTrustDns,
     'geosite:category-ads-all': safeAdguardDns,
-  });
   // DNS 自举映射：用循环注入
+  });
   const dnsBootstrapPolicy = {
     'dns.alidns.com': safeLocalDns, 'doh.pub': safeLocalDns, 'doh.360.cn': safeLocalDns,
     'dns.google': trustBootstrapDns, 'dns.google.com': trustBootstrapDns, 'dns64.dns.google': trustBootstrapDns,
@@ -655,9 +686,9 @@ function buildConfig(config) {
       const domain = list[i];
       if (domain) target[domain] = dnsList;
     }
-  }
   // DNS / 分组 / 规则联动注册表：每项声明业务目标、策略域名、解析器和 fallback 域名。
   // 新增或扩展业务时优先修改此表及对应域名集合，避免 nameserver-policy 与 fallback-filter 分散维护。
+  }
   const DNS_SERVICE_BINDINGS = [
     { key: '广告拦截', policyDomains: DNS_POLICY_DOMAIN_SETS.adguard, dns: safeAdguardDns },
     { key: '国内服务', policyDomains: uniqList([].concat(
@@ -665,7 +696,7 @@ function buildConfig(config) {
       DNS_POLICY_DOMAIN_SETS.domesticCdn,
       DNS_POLICY_DOMAIN_SETS.domesticAi,
       DNS_POLICY_DOMAIN_SETS.domestic
-    )), dns: safeFastDomesticDns },
+    )), fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.domestic, dns: safeFastDomesticDns },
     { key: 'TikTok', policyDomains: DNS_POLICY_DOMAIN_SETS.tiktok, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok, dns: safeTrustDns },
     { key: 'AdGuard服务', policyDomains: DNS_POLICY_DOMAIN_SETS.adguardService, dns: safeTrustDns, auxiliary: true },
     { key: '风控安全', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.browserRisk, DNS_POLICY_DOMAIN_SETS.finance, DNS_POLICY_DOMAIN_SETS.crypto)), fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: safeTrustDns },
@@ -714,23 +745,24 @@ function buildConfig(config) {
     const arr = sanitizeDnsServerList(v);
     if (key && arr.length) sanitizedNameserverPolicy[key] = arr;
   }
-  config.dns['nameserver-policy'] = sanitizedNameserverPolicy;
   // 节点域名解析策略：仅作用于代理节点域名，避免和通用业务 DNS 分流混用。
+  config.dns['nameserver-policy'] = sanitizedNameserverPolicy;
   const proxyServerNameserverPolicy = Object.assign({}, config.dns['proxy-server-nameserver-policy'] || {});
   for (const [k, v] of Object.entries(dnsBootstrapPolicy)) proxyServerNameserverPolicy[k] = v;
-  config.dns['proxy-server-nameserver-policy'] = proxyServerNameserverPolicy;
   // fallback 过滤器：决定哪些域名 / IP 结果需要优先参考 fallback DNS。
+  config.dns['proxy-server-nameserver-policy'] = proxyServerNameserverPolicy;
+  // GEOIP 过滤：国内 IP 结果优先视为可信，减少无意义 fallback。
   config.dns['fallback-filter'] = {
-    // GEOIP 过滤：国内 IP 结果优先视为可信，减少无意义 fallback。
     geoip: true,
+  // 特殊保留 / 常见污染地址段：这类结果通常不应作为正常公网解析结果使用。
     'geoip-code': 'CN',
-    // 特殊保留 / 常见污染地址段：这类结果通常不应作为正常公网解析结果使用。
     ipcidr: [
       '0.0.0.0/32',
       '10.0.0.0/8',
       '100.64.0.0/10',
       '127.0.0.0/8',
       '169.254.0.0/16',
+      '169.254.169.254/32',
       '172.16.0.0/12',
       '192.168.0.0/16',
       '198.18.0.0/15',
@@ -745,38 +777,40 @@ function buildConfig(config) {
       '2002::/16',
       'fc00::/7',
       'fe80::/10',
-      'ff00::/8'
+  // 域名白名单：由服务联动表聚合；额外保留仅用于基础设施校验的 fallback 域名。
+      'ff00::/8',
+      '203.0.113.0/24',
+      '198.51.100.0/24',
+      '192.0.2.0/24'
     ],
-    // 域名白名单：由服务联动表聚合；额外保留仅用于基础设施校验的 fallback 域名。
+  // DNS fallback：主查询保持 Cloudflare + Google，后备层额外纳入 Quad9 扩大污染兜底面。
     domain: uniqList([
+  // 直连域名（国内 / 局域网 / 直连策略）使用国内 DoH + 本地 DNS，避免境外绕路。
       ...dnsBindingFallbackDomains,
+  // default-nameserver 只能是 IP，避免 DoH 域名在 bootstrap 阶段形成解析环。
       ...DNS_FALLBACK_FILTER_DOMAIN_SETS.infra
     ])
   };
-  // DNS fallback：主查询保持 Cloudflare + Google，后备层额外纳入 Quad9 扩大污染兜底面。
   config.dns.fallback = safeFallbackDns;
-  // 直连域名（国内 / 局域网 / 直连策略）使用国内 DoH + 本地 DNS，避免境外绕路。
-  config.dns['direct-nameserver'] = uniqList([...safeCnDns, ...safeLocalDns]);
-  // default-nameserver 只能是 IP，避免 DoH 域名在 bootstrap 阶段形成解析环。
   config.dns['default-nameserver'] = uniqList(asArray(config.dns['default-nameserver']).filter(server => {
     const text = String(server || '').trim();
     if (!text) return false;
     if (/^https?:\/\//i.test(text) || /^tls:\/\//i.test(text) || /^quic:\/\//i.test(text)) return false;
     return /^(?:\d{1,3}\.){3}\d{1,3}$/.test(text) || text.includes(':');
+  // 防泄露收口：禁用系统 hosts 参与代理决策，强制 fake-ip + respect-rules。
   }));
   if (!config.dns['default-nameserver'].length) {
     config.dns['default-nameserver'] = trustBootstrapDns.slice();
   }
-  // 防泄露收口：禁用系统 hosts 参与代理决策，强制 fake-ip + respect-rules。
   config.ipv6 = true;
   config.dns.enable = true;
+// === 节点处理：清洗、识别、分类与排序 ===
+  // 过滤非真实代理的正则表达式
+  // 这里必须保守过滤：很多真实节点名会带有 airport / vpn / proxy / 流量倍率等字样，
   config.dns.ipv6 = true;
   config.dns['enhanced-mode'] = 'fake-ip';
   config.dns['respect-rules'] = true;
   config.dns['use-system-hosts'] = false;
-// === 节点处理：清洗、识别、分类与排序 ===
-  // 过滤非真实代理的正则表达式
-  // 这里必须保守过滤：很多真实节点名会带有 airport / vpn / proxy / 流量倍率等字样，
   const PROXY_INFO_RE = /(?:https?:\/\/|www\.|导航网址|网址导航|距离下次重置|流量已用|流量余额|已用流量|总流量|流量(?:剩余|到期|重置)|套餐(?:到期|余额|剩余)?|订阅(?:链接|地址|信息)?|官方(?:网站|网址|公告|通知|频道|群组)?|公告|通知|使用说明|更新订阅|复制链接|浏览器打开|更新时间|请使用|客户端|售后|工单|教程|返利|邀请|购买|续费|维护|客服|永久官网|备用地址|节点状态|账户|邮箱|验证码|防失联|网址|域名|无法使用|禁止|过期|失效|广告|推广|赞助|加群|进群|群聊|交流群|频道订阅|关注频道)/i;
   const PROXY_INFO_LINE_RE = /(?:^|[\s|｜:：,，;；\-+_\[\]【】()（）])(?:剩余|到期|过期|已用|重置|官网|订阅|套餐|更新|通知|公告|客服|网址|邮箱|账户|广告|推广|赞助|频道订阅|关注频道|加群|进群|交流群|官方群)(?:[\s|｜:：,，;；\-+_\[\]【】()（）]|$)/i;
   const PROXY_TRAFFIC_RE = /(?:\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T)\s*[\/\|]\s*\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T)|(?:剩余|已用|总计|流量).{0,12}\d+(?:\.\d+)?\s*(?:GB|MB|TB|G|M|T))/i;
@@ -791,11 +825,11 @@ function buildConfig(config) {
     if (/^\d+$/.test(text)) return false;
     if (/\b\d+\/\d+\b/.test(text)) return false;
     if (PROXY_TRAFFIC_RE.test(text) || PROXY_DATE_RE.test(text)) return false;
+  // 节点特征：家宽 / 倍率 / 流媒体
     if (PROXY_PROMO_HANDLE_RE.test(text)) return false;
     if (PROXY_INFO_RE.test(text) || PROXY_INFO_LINE_RE.test(text)) return false;
     return true;
   }
-  // 节点特征：家宽 / 倍率 / 流媒体
   const residentialNamePatterns = [
     /家宽|家庭宽带|家庭住宅|住宅宽带|住宅|宽带|民用宽带|家庭网络|原生住宅/,
     /\bresi(?:dential)?\b/i,
@@ -821,11 +855,11 @@ function buildConfig(config) {
   ];
   function isResidentialProxyName(name) {
     const text = String(name || '');
+  // 倍率识别
     if (!text) return false;
     if (residentialNegativePatterns.some(re => re.test(text)) && !/家宽|住宅|resi|home\s*ip|native\s*ip/i.test(text)) return false;
     return residentialNamePatterns.some(re => re.test(text));
   }
-  // 倍率识别
   const multiplierNamePatterns = [
     /倍率/,
     /流量倍率|速率倍率|加速倍率/,
@@ -833,11 +867,11 @@ function buildConfig(config) {
     /\bboost\b/i,
     /\bturbo\b/i,
     /\b\d+(?:\.\d+)?\s*x\b/i,
+  // 倍率排序提取
     /\bx\s*\d+(?:\.\d+)?\b/i,
     /\d+(?:\.\d+)?\s*倍/
   ];
   const multiplierSortInfoCache = new Map();
-  // 倍率排序提取
   function getMultiplierSortInfo(name) {
     const cacheKey = String(name || '');
     if (multiplierSortInfoCache.has(cacheKey)) return multiplierSortInfoCache.get(cacheKey);
@@ -874,11 +908,11 @@ function buildConfig(config) {
     return result;
   }
   function isMultiplierProxyName(name) {
+  // 流媒体识别
     const text = String(name || '');
     if (multiplierNamePatterns.some(re => re.test(text))) return true;
     return getMultiplierSortInfo(text).recognized;
   }
-  // 流媒体识别
   const streamingNamePatterns = [
     /流媒体|streaming|unlock|奈飞|netflix|disney|hbo|max|prime|youtube|ytb|bilibili|b站|爱奇艺|iqiyi|腾讯视频|abema|bahamut|动画疯|tvb|dazn|hulu|pornhub/i,
     /媒体全解|全流媒体|流媒体专用|流媒体优化|流媒体节点|流媒体线路|原生解锁|全解锁|流媒体解锁/,
@@ -886,11 +920,11 @@ function buildConfig(config) {
     /\bmedia\b/i,
     /\bstream(?:ing)?\b/i,
     /\bunlock\b/i
+  // 专线识别：与家宽同级特征池，供全球专线聚合
   ];
   function isStreamingProxyName(name) {
     return streamingNamePatterns.some(re => re.test(String(name || '')));
   }
-  // 专线识别：与家宽同级特征池，供全球专线聚合
   const dedicatedNamePatterns = [
     /专线|精品专线|国际专线|跨境专线|直连专线|专线节点|专线线路|专线优化|企业专线|游戏专线|加速专线|高速专线|隧道专线|独享专线|独享线路|静态专线|内网专线|跨区专线|跨洋专线/,
     /联通精品|电信精品|移动精品|精品网|精品线路|陆缆|海缆专线|商宽专线|商业专线/,
@@ -916,11 +950,11 @@ function buildConfig(config) {
   function isDedicatedProxyName(name) {
     const text = String(name || '');
     if (!text) return false;
+  // 节点清洗
     if (dedicatedNamePatterns.some(re => re.test(text))) return true;
     return dedicatedContextPatterns.some(re => re.test(text));
   }
   perfStart('proxy_classify');
-  // 节点清洗
   const cleanProxies = [];
   const allProxyNames = [];
   const residentialProxyNames = [];
@@ -929,67 +963,73 @@ function buildConfig(config) {
   const streamingProxyNames = [];
   const proxyHostnames = new Set();
   const seenProxyNames = new Set();
+  // 剔除 server/sni/servername 带非法字符（如订阅源脏数据中出现的 "+"）的节点，
+  // 避免这类字段被内核校验拒绝导致整份配置导入失败。
   for (let i = 0; i < config.proxies.length; i++) {
     const proxy = config.proxies[i];
     const proxyName = proxy && proxy.name;
     if (!proxyName || !isRealProxyName(proxyName) || seenProxyNames.has(proxyName)) continue;
-    // 剔除 server/sni/servername 带非法字符（如订阅源脏数据中出现的 "+"）的节点，
-    // 避免这类字段被内核校验拒绝导致整份配置导入失败。
     if (!isValidProxyServerField(proxy && proxy.server)) continue;
+  // CF/Anycast 节点：走 IPv4 边缘并关闭 TFO（CF 的 v6 边缘常绕路限速、TFO 支持不稳）。
     if (!isValidOptionalProxyDomainField(proxy && proxy.sni)) continue;
     if (!isValidOptionalProxyDomainField(proxy && proxy.servername)) continue;
     if (!isValidProxyPort(proxy && proxy.port)) continue;
     seenProxyNames.add(proxyName);
-    // CF/Anycast 节点：走 IPv4 边缘并关闭 TFO（CF 的 v6 边缘常绕路限速、TFO 支持不稳）。
+  // IPv6-only 节点：入口只有 AAAA 记录，直接声明走 v6，省掉 dual 模式下白等一轮 A 查询。
     if (CF_ANYCAST_NAME_RE.test(proxyName)) {
       if (proxy['ip-version'] === undefined) proxy['ip-version'] = 'ipv4-prefer';
       if (proxy.tfo === undefined) proxy.tfo = false;
+  // AnyTLS 会话复用：保留 2 条常驻空闲会话并延长存活，让后续请求复用已建会话、跳过重复 TLS 握手。
     }
-    // IPv6-only 节点：入口只有 AAAA 记录，直接声明走 v6，省掉 dual 模式下白等一轮 A 查询。
     if (IPV6_ONLY_NAME_RE.test(proxyName) && proxy['ip-version'] === undefined) {
       proxy['ip-version'] = 'ipv6';
     }
-    // AnyTLS 会话复用：保留 2 条常驻空闲会话并延长存活，让后续请求复用已建会话、跳过重复 TLS 握手。
     if (proxy.type === 'anytls') {
+  // Hysteria2：基于 QUIC，禁用 GSO/ECN 兼容性问题已在全局 experimental 处理。
+  // 这里补两项：1) 允许 0-RTT/连接迁移前的快速重连；2) 若订阅带端口跳跃(ports)则保留 hop-interval
+  // 兜底为 30s。不动 up/down —— 那是机场按套餐标定的 Brutal 速率，改高会触发过度发包导致丢包变慢。
       if (proxy['idle-session-check-interval'] === undefined) proxy['idle-session-check-interval'] = 30;
       if (proxy['idle-session-timeout'] === undefined) proxy['idle-session-timeout'] = 60;
       if (proxy['min-idle-session'] === undefined) proxy['min-idle-session'] = 2;
     }
-    // Hysteria2：基于 QUIC，禁用 GSO/ECN 兼容性问题已在全局 experimental 处理。
-    // 这里补两项：1) 允许 0-RTT/连接迁移前的快速重连；2) 若订阅带端口跳跃(ports)则保留 hop-interval
-    // 兜底为 30s。不动 up/down —— 那是机场按套餐标定的 Brutal 速率，改高会触发过度发包导致丢包变慢。
+  // VLESS：这批是 Cloudflare xhttp 中转（network=xhttp）。补 tfo=false 避免 CF 边缘 TFO 抖动，
+  // 并统一 client-fingerprint=chrome 让 TLS 指纹稳定通过 CF 前置校验。不改 network/servername/
+  // xhttp-opts 等回源关键字段，避免破坏 CDN 匹配。
     if (proxy.type === 'hysteria2') {
       if (proxy['fast-open'] === undefined) proxy['fast-open'] = true;
       if (proxy.ports && proxy['hop-interval'] === undefined) proxy['hop-interval'] = 30;
     }
-    // VLESS：这批是 Cloudflare xhttp 中转（network=xhttp）。补 tfo=false 避免 CF 边缘 TFO 抖动，
-    // 并统一 client-fingerprint=chrome 让 TLS 指纹稳定通过 CF 前置校验。不改 network/servername/
-    // xhttp-opts 等回源关键字段，避免破坏 CDN 匹配。
+  // TLS 1.3 强制：对所有 TLS 节点统一声明 tls13-ciphers，排除 TLS 1.2 旧套件，防止降级攻击与协议歧义。
     if (proxy.type === 'vless') {
       if (proxy.tfo === undefined) proxy.tfo = false;
       if (proxy['client-fingerprint'] === undefined) proxy['client-fingerprint'] = 'chrome';
+    }
+    if (proxy.type === 'vless' || proxy.type === 'trojan' || proxy.type === 'shadowsocks') {
+      if (proxy.tls && !proxy.tls['tls13-ciphers']) {
+        proxy.tls['tls13-ciphers'] = 'TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256';
+      }
     }
     cleanProxies.push(proxy);
     allProxyNames.push(proxyName);
     if (isHostname(proxy.server)) proxyHostnames.add(String(proxy.server).trim().toLowerCase());
     if (isHostname(proxy.servername)) proxyHostnames.add(String(proxy.servername).trim().toLowerCase());
     if (isResidentialProxyName(proxyName)) residentialProxyNames.push(proxyName);
+  // 将订阅节点中的真实域名纳入节点解析策略，优先复用国内可直连 bootstrap，降低节点自举漂移。
     if (isDedicatedProxyName(proxyName)) dedicatedProxyNames.push(proxyName);
     if (isMultiplierProxyName(proxyName)) multiplierProxyNames.push(proxyName);
     if (isStreamingProxyName(proxyName)) streamingProxyNames.push(proxyName);
   }
-  // 将订阅节点中的真实域名纳入节点解析策略，优先复用国内可直连 bootstrap，降低节点自举漂移。
   for (const hostname of proxyHostnames) {
     if (!proxyServerNameserverPolicy[hostname]) proxyServerNameserverPolicy[hostname] = proxyBootstrapDns;
   }
   config.dns['proxy-server-nameserver-policy'] = proxyServerNameserverPolicy;
   for (const directName of directProxyNames) {
     if (!seenProxyNames.has(directName)) {
+  // 空节点保护：若过滤后无可用节点，强行插入直连占位以防内核崩溃
       cleanProxies.push({ name: directName, type: 'direct', 'ip-version': directProxyIpVersionMap[directName] });
     }
   }
   config.proxies = cleanProxies;
-  // 空节点保护：若过滤后无可用节点，强行插入直连占位以防内核崩溃
   if (!config.proxies.length) {
     config.proxies.push({ name: 'DIRECT', type: 'direct' });
   }
@@ -1001,11 +1041,11 @@ function buildConfig(config) {
     if (!pattern) {
       const escaped = key.replace(/[.*+?^${}()|[\]\\/\-]/g, '\\$&');
       pattern = new RegExp('(^|[^a-z])' + escaped + '([^a-z]|$)', 'i');
+  // 地区识别
       wholeWordPatternCache.set(key, pattern);
     }
     return pattern.test(String(text || ''));
   }
-  // 地区识别
   const regionGroups = {
     '香港': [],
     '台湾': [],
@@ -1017,11 +1057,11 @@ function buildConfig(config) {
     '欧盟': [],
     '东南亚': [],
     '加拿大': [],
+  // 地区匹配库（中文/英文/ISO/机场码）
     '拉美地区': [],
     '非洲': [],
     '其它地区': [],
   };
-  // 地区匹配库（中文/英文/ISO/机场码）
   const REGION_MATCH_DB = [
     {
       id: '香港',
@@ -1143,13 +1183,13 @@ function buildConfig(config) {
         '阿联酋', 'uae', 'emirates', 'dubai', '迪拜', 'abu dhabi', '卡塔尔', 'qatar', 'doha',
         '沙特', 'saudi', 'riyadh', '以色列', 'israel', 'tel aviv', '土耳其亚洲', 'turkiye asia',
         '澳门', 'macau', 'macao', '蒙古', 'mongolia', '关岛', 'guam', '斐济', 'fiji'
+  // 匹配优先级
       ],
+  // 旗帜优先
       iso: ['IN', 'IND', 'BOM', 'DEL', 'BLR', 'AU', 'AUS', 'SYD', 'MEL', 'NZ', 'NZL', 'AKL', 'AE', 'ARE', 'DXB', 'QA', 'QAT', 'DOH', 'SA', 'SAU', 'IL', 'ISR', 'MO', 'MAC', 'MN', 'MNG']
     }
   ];
-  // 匹配优先级
   const REGION_PRIORITY = REGION_MATCH_DB.map(entry => entry.id);
-  // 旗帜优先
   const REGION_FLAG_SOURCE = {
     '香港': /🇭🇰/,
     '台湾': /🇹🇼/,
@@ -1184,21 +1224,21 @@ function buildConfig(config) {
         isShortAlphaWord: lowerKeyword.length <= 4 && /^[a-z]+$/.test(lowerKeyword)
       });
     }
+  // 噪声关键词
     compiledRegionMatcherMap[region.id] = compiledMatchers;
   }
   const normalizeCache = new Map();
   const regionMatchCache = new Map();
-  // 噪声关键词
   const noiseKeywords = [
     'vip', 'svip', '倍率', 'x\d+', 'iepl', 'iplc', 'bgp', 'cn2', 'gia',
     'game', 'games', 'gaming', 'stream', 'media', 'unlock', 'nf', '奈飞',
     'netflix', 'disney', 'hbo', 'max', 'prime', 'chatgpt', 'gpt', 'ai',
     'home', 'residential', 'station', 'server', 'node', 'premium', 'traffic',
+  // 名称标准化
     'test', 'testing', 'expire', 'plan', 'used', 'aws', 'hy2', 'anytls',
     'relay', 'direct', 'standard', 'basic', 'pro', 'plus', '专线', '中转', '原生'
   ];
   const noisePattern = new RegExp('\\b(' + noiseKeywords.join('|') + ')\\b', 'gi');
-  // 名称标准化
   function normalizeRegionName(name) {
     const key = String(name || '');
     if (normalizeCache.has(key)) return normalizeCache.get(key);
@@ -1213,12 +1253,12 @@ function buildConfig(config) {
       .trim();
     normalizeCache.set(key, result);
     return result;
+  // 第一阶段：高置信匹配（中文关键词 + 长英文全称），跨全部地区优先命中，
+  // 避免短 ISO 机场码（如葡萄牙 PT）抢先误吞“印度尼西亚-A-PT家宽”这类含机房代号的名称。
   }
   function matchCompiledRegionByKeywords(rawText, normalizedName) {
     const normalized = String(normalizedName || '');
     const compact = normalized.includes(' ') ? normalized.replace(/\s+/g, '') : normalized;
-    // 第一阶段：高置信匹配（中文关键词 + 长英文全称），跨全部地区优先命中，
-    // 避免短 ISO 机场码（如葡萄牙 PT）抢先误吞“印度尼西亚-A-PT家宽”这类含机房代号的名称。
     for (let regionIndex = 0; regionIndex < REGION_PRIORITY.length; regionIndex++) {
       const regionName = REGION_PRIORITY[regionIndex];
       const matchers = compiledRegionMatcherMap[regionName] || [];
@@ -1229,11 +1269,11 @@ function buildConfig(config) {
           if (rawText.includes(matcher.lowerKeyword) || normalized.includes(matcher.lowerKeyword)) return regionName;
           continue;
         }
+  // 第二阶段：短 ISO/机场码整词匹配，作为高置信关键词未命中时的补充。
         if (normalized.includes(matcher.lowerKeyword)) return regionName;
         if (matcher.compactKeyword !== matcher.lowerKeyword && compact.includes(matcher.compactKeyword)) return regionName;
       }
     }
-    // 第二阶段：短 ISO/机场码整词匹配，作为高置信关键词未命中时的补充。
     for (let regionIndex = 0; regionIndex < REGION_PRIORITY.length; regionIndex++) {
       const regionName = REGION_PRIORITY[regionIndex];
       const matchers = compiledRegionMatcherMap[regionName] || [];
@@ -1257,11 +1297,11 @@ function buildConfig(config) {
         if (matcher.isShortAlphaWord) continue;
         if (normalized.includes(matcher.lowerKeyword)) return regionName;
         if (matcher.compactKeyword !== matcher.lowerKeyword && compact.includes(matcher.compactKeyword)) return regionName;
+  // 地区匹配主流程：旗帜 > 词库 > 宽松恢复
       }
     }
     return null;
   }
-  // 地区匹配主流程：旗帜 > 词库 > 宽松恢复
   function matchRegion(name) {
     const rawName = String(name || '');
     if (regionMatchCache.has(rawName)) return regionMatchCache.get(rawName);
@@ -1283,16 +1323,16 @@ function buildConfig(config) {
     regionMatchCache.set(rawName, result);
     return result;
   }
+  // 三个直连伪节点专属于国内服务组，不参与地区分类，避免被回收进「其它地区」
   perfStart('region_classify');
   const directProxyNameSet = new Set(directProxyNames);
   for (let i = 0; i < cleanProxies.length; i++) {
     const proxy = cleanProxies[i];
-    // 三个直连伪节点专属于国内服务组，不参与地区分类，避免被回收进「其它地区」
+  // 未命中地区统一回收到「其它地区」
     if (proxy.type === 'direct' && directProxyNameSet.has(proxy.name)) continue;
     const matchedRegion = matchRegion(proxy.name);
     (regionGroups[matchedRegion] || regionGroups['其它地区']).push(proxy.name);
   }
-  // 未命中地区统一回收到「其它地区」
   const otherRegionNodes = unique(regionGroups['其它地区']);
   const hasNamedPrimaryRegion = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '加拿大', '欧盟', '东南亚', '拉美地区', '非洲']
     .some(regionName => regionGroups[regionName].length > 0);
@@ -1300,13 +1340,13 @@ function buildConfig(config) {
   if (PERF_ENABLED) {
     const regionDebugOrder = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '加拿大', '欧盟', '东南亚', '拉美地区', '非洲', '其它地区'];
     const regionDebugSummary = regionDebugOrder.map(regionName => `${regionName}:${(regionGroups[regionName] || []).length}`).join(' | ');
+  // 运行期参数镜像：后续建组函数统一读取这些局部常量；如需调参，优先修改上方常量定义。
     const otherRegionSamples = otherRegionNodes.slice(0, 12).join(' / ');
+  // 直连统一走Direct组内的 DIRECT。
     debugLog(`[RegionClassify] ${regionDebugSummary}`);
     if (otherRegionNodes.length) debugLog(`[RegionClassify] 其它地区样本: ${otherRegionSamples}`);
   }
-  // 运行期参数镜像：后续建组函数统一读取这些局部常量；如需调参，优先修改上方常量定义。
   const testUrl = TEST_URL;
-  // 直连统一走Direct组内的 DIRECT。
   const testInterval = TEST_INTERVAL;
   const testTolerance = TEST_TOLERANCE;
   const testTimeout = TEST_TIMEOUT;
@@ -1320,12 +1360,12 @@ function buildConfig(config) {
   const regionUrlTestTimeout = REGION_TEST_TIMEOUT;
   const regionUrlTestMaxFailedTimes = REGION_TEST_MAX_FAILED_TIMES;
   const homeTestInterval = HOME_TEST_INTERVAL;
+// === 分组构造：保序、补默认项与统一生成 ===
+  // 保留用户顺序：若旧配置已有同名 select 组，则尽量继承其代理顺序，减少每次刷新后的选项跳动。
   const homeTestTolerance = HOME_TEST_TOLERANCE;
   const homeTestTimeout = HOME_TEST_TIMEOUT;
   const homeTestMaxFailedTimes = HOME_TEST_MAX_FAILED_TIMES;
   const healthCheckLazy = HEALTH_CHECK_LAZY;
-// === 分组构造：保序、补默认项与统一生成 ===
-  // 保留用户顺序：若旧配置已有同名 select 组，则尽量继承其代理顺序，减少每次刷新后的选项跳动。
   function preserveGroup(group) {
     const oldGroup = existingGroupMap[group.name];
     if (group.type !== 'select') return group;
@@ -1343,11 +1383,11 @@ function buildConfig(config) {
       const proxyName = group.proxies[i];
       if (oldProxySeen.has(proxyName)) continue;
       oldProxySeen.add(proxyName);
+  // 代理列表兜底：合并用户列表和默认项，若最终为空则至少返回 DIRECT。
       ordered.push(proxyName);
     }
     return { ...group, proxies: ordered };
   }
-  // 代理列表兜底：合并用户列表和默认项，若最终为空则至少返回 DIRECT。
   function mergeUniqueChoicesWithFallback(primaryInput, fallbackInput, emptyFallback = null) {
     const merged = [];
     const seen = new Set();
@@ -1363,11 +1403,11 @@ function buildConfig(config) {
       const item = fallback[i];
       if (!item || seen.has(item)) continue;
       seen.add(item);
+  // 列表兜底约定：这里只能返回一维字符串数组；若改成对象/嵌套数组，会直接影响 Clash 配置反序列化。
       merged.push(item);
     }
     return merged.length ? merged : (emptyFallback || []);
   }
-  // 列表兜底约定：这里只能返回一维字符串数组；若改成对象/嵌套数组，会直接影响 Clash 配置反序列化。
   function ensureGroupList(list, extraDefaults) {
     const merged = mergeUniqueChoicesWithFallback(list, extraDefaults, ['DIRECT']);
     return merged.length ? merged : ['DIRECT'];
@@ -1390,20 +1430,20 @@ function buildConfig(config) {
     return {
       name, type: 'url-test', icon,
       url: health.url, interval: health.interval, tolerance: health.tolerance,
+  // Select 组
       timeout: health.timeout, 'max-failed-times': health.maxFailedTimes, lazy: health.lazy,
       proxies
     };
   }
-  // Select 组
   function makeSelectGroup(name, icon, list, extraDefaults = ['自动选择'], scope = null) {
     return {
       name,
       type: 'select',
+  // Fallback 组
       icon,
       proxies: buildChoiceList(list, extraDefaults)
     };
   }
-  // Fallback 组
   function makeFallbackGroup(name, icon, list, extraDefaults = ['自动选择'], options = {}) {
     const proxies = ensureGroupList(list, extraDefaults);
     if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
@@ -1414,23 +1454,23 @@ function buildConfig(config) {
     return {
       name, type: 'fallback', icon,
       url: health.url, interval: health.interval, tolerance: health.tolerance,
+  // 批量 Select 生成
       timeout: health.timeout, 'max-failed-times': health.maxFailedTimes, lazy: health.lazy,
       proxies
     };
   }
-  // 批量 Select 生成
   function makeSelectGroupsFromDefs(defs) {
     const groups = [];
     const list = asArray(defs);
     for (let i = 0; i < list.length; i++) {
       const def = list[i];
       if (!def || !def.name) continue;
+// === 规则装配：集合合并、去重与目标归类 ===
+  // 规则集合并（后定义覆盖前定义）
       groups.push(makeSelectGroup(def.name, def.icon, def.choices, def.extraDefaults, def.scope));
     }
     return groups;
   }
-// === 规则装配：集合合并、去重与目标归类 ===
-  // 规则集合并（后定义覆盖前定义）
   function mergeRuleSets(...ruleSets) {
     const merged = [];
     const seenRuleIndexes = new Map();
@@ -1455,31 +1495,31 @@ function buildConfig(config) {
     if (!hasNullHole) return merged;
     const finalized = [];
     for (let i = 0; i < merged.length; i++) {
+  // 规则映射表
       if (merged[i]) finalized.push(merged[i]);
     }
     return finalized;
   }
-  // 规则映射表
   function buildRuleSetMap(defs) {
     const map = Object.create(null);
     for (let i = 0; i < defs.length; i++) {
       const def = defs[i];
       if (!def || !def.name) continue;
+  // 按顺序收集规则
       map[def.name] = def.rules;
     }
     return map;
   }
-  // 按顺序收集规则
   function collectRuleSets(defs, order) {
     const ruleSetMap = buildRuleSetMap(defs);
     const collected = [];
     for (let i = 0; i < order.length; i++) {
       const rules = asArray(ruleSetMap[order[i]]);
+  // 最终分组去重：过滤空项，并以组名为键去重，同名组保留首次定义。
       for (let j = 0; j < rules.length; j++) collected.push(rules[j]);
     }
     return collected;
   }
-  // 最终分组去重：过滤空项，并以组名为键去重，同名组保留首次定义。
   function finalizeGroupList(groups) {
     const finalized = [];
     const seen = new Set();
@@ -1489,11 +1529,11 @@ function buildConfig(config) {
       const groupName = group && group.name;
       if (!group || !groupName || seen.has(groupName)) continue;
       seen.add(groupName);
+  // 图标映射
       finalized.push(group);
     }
     return finalized;
   }
-  // 图标映射
   const regionIconMap = {
     '香港': qIcon('Hong_Kong'), '台湾': qIcon('Taiwan'), '日本': qIcon('Japan'),
     '新加坡': qIcon('Singapore'), '美国': qIcon('United_States'), '韩国': qIcon('Korea'),
@@ -1552,51 +1592,51 @@ function buildConfig(config) {
     return {
       auto: label + '自动',
       manual: label + '节点',
+  // 地区目录与测速顺序
       homeAuto: label + '家宽自动',
+  // 地区目录构建（地区自动组 + 地区家宽自动组 hidden + 地区节点组 visible）
+  // 自动组和家宽自动组使用 include-all + filter 动态匹配，订阅更新时新增节点自动归组
       homeManual: '🏠' + label + '家宽手动',
     };
   }
-  // 地区目录与测速顺序
   const regionAutoOrder = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '加拿大', '俄罗斯', '东南亚', '拉美地区', '非洲', '其它地区'];
-  // 地区目录构建（地区自动组 + 地区家宽自动组 hidden + 地区节点组 visible）
-  // 自动组和家宽自动组使用 include-all + filter 动态匹配，订阅更新时新增节点自动归组
   const MIN_REGION_HOME_AUTO_NODES = 2;
   const regionCatalog = regionAutoOrder.reduce((acc, regionName) => {
+  // 地区自动组：改为静态节点列表 url-test（而非 include-all + filter 动态匹配），
+  // 保证自动组测速的候选节点与地区节点组（脚本精确分类结果）完全一致，避免正则误匹配导致两者节点集合不同、延迟展示对不上。
     const regionNodes = unique(regionGroups[regionName] || []);
     if (!regionNodes.length) return acc;
     const names = makeFusionRegionGroupNames(regionName);
     const residentialNodes = unique(regionNodes.filter(name => isResidentialProxyName(name)));
-    // 地区自动组：改为静态节点列表 url-test（而非 include-all + filter 动态匹配），
-    // 保证自动组测速的候选节点与地区节点组（脚本精确分类结果）完全一致，避免正则误匹配导致两者节点集合不同、延迟展示对不上。
     const autoGroup = makeUrlTestGroup(names.auto, regionIconMap[regionName], regionNodes, regionUrlTestInterval, regionUrlTestTolerance, {
+  // 地区家宽自动组：至少达到最小家宽节点数才生成，避免单节点测速组污染 UI。
       timeout: regionUrlTestTimeout,
       maxFailedTimes: regionUrlTestMaxFailedTimes
     });
     if (autoGroup) autoGroup.hidden = true;
-    // 地区家宽自动组：至少达到最小家宽节点数才生成，避免单节点测速组污染 UI。
     const homeAutoGroup = residentialNodes.length >= MIN_REGION_HOME_AUTO_NODES
       ? makeUrlTestGroup(names.homeAuto, homeRegionIconMap[regionName], residentialNodes, homeTestInterval, homeTestTolerance, {
         timeout: homeTestTimeout,
         maxFailedTimes: homeTestMaxFailedTimes,
+  // 地区家宽节点 select 组：家宽自动组名 + 家宽真实节点
         lazy: true
       })
       : null;
     if (homeAutoGroup) homeAutoGroup.hidden = true;
-    // 地区家宽节点 select 组：家宽自动组名 + 家宽真实节点
     const homeManualChoices = buildChoiceList(
       homeAutoGroup ? [names.homeAuto] : [],
       residentialNodes
+  // 地区节点 select 组：自动组名 + 地区所有真实节点（含家宽）
     );
     const homeManualGroup = homeManualChoices.length
-      ? { name: '🏠' + regionName + '家宽节点', type: 'select', icon: homeRegionIconMap[regionName], proxies: homeManualChoices }
+    ? { name: '🏠' + regionName + '家宽节点', type: 'select', icon: homeRegionIconMap[regionName], proxies: homeManualChoices }
       : null;
-    // 地区节点 select 组：自动组名 + 地区所有真实节点（含家宽）
     const manualChoices = buildChoiceList(
       autoGroup ? [names.auto] : [],
       regionNodes
     );
     const manualGroup = manualChoices.length
-      ? { name: names.manual, type: 'select', icon: regionIconMap[regionName], proxies: manualChoices }
+    ? { name: names.manual, type: 'select', icon: regionIconMap[regionName], proxies: manualChoices }
       : null;
     acc[regionName] = {
       name: regionName,
@@ -1607,11 +1647,11 @@ function buildConfig(config) {
       autoGroup,
       homeAutoGroup,
       homeManualGroup,
+  // 地区映射缓存
       manualGroup
     };
     return acc;
   }, {});
-  // 地区映射缓存
   const regionAutoMap = Object.create(null);
   const regionHomeAutoMap = Object.create(null);
   const regionAutoNames = [];
@@ -1643,11 +1683,11 @@ function buildConfig(config) {
   for (let i = 0; i < regionCatalogValues.length; i++) {
     const info = regionCatalogValues[i];
     if (info.autoGroup) regionAutoGroups.push(info.autoGroup);
+  // 地区查询辅助
     if (info.homeAutoGroup) regionHomeAutoGroups.push(info.homeAutoGroup);
     if (info.manualGroup) regionManualGroups.push(info.manualGroup);
     if (info.homeManualGroup) regionHomeManualGroups.push(info.homeManualGroup);
   }
-  // 地区查询辅助
   function getRegionAuto(name) {
     return regionAutoMap[name] || null;
   }
@@ -1762,12 +1802,12 @@ function buildConfig(config) {
       const pool = def.poolKey && templateMap ? templateMap[def.poolKey] : def.pool;
       return makeOrderedChoices(def.first, pool, def.scope);
     });
+  // 候选池构建：不仅要合并 first + parts，还必须透传组级额外白名单。
+  // 否则像“国内服务”这种允许额外候选的组，会在二次重组时又被按全局白名单刷掉。
   }
   function makeChoicePool(first, ...poolParts) {
     return makeOrderedChoices(first, sanitizeUiChoiceList(...poolParts));
   }
-  // 候选池构建：不仅要合并 first + parts，还必须透传组级额外白名单。
-  // 否则像“国内服务”这种允许额外候选的组，会在二次重组时又被按全局白名单刷掉。
   function buildChoicePoolsFromDefs(defs) {
     const map = Object.create(null);
     const list = asArray(defs);
@@ -1811,26 +1851,22 @@ function buildConfig(config) {
     for (let i = 0; i < source.length; i++) {
       const item = source[i];
       if (!item || item === selfName) continue;
-      if (BUILTIN_CHOICE_NAMES.has(item) || availableChoiceNameSet.has(item)) filtered.push(item);
-    }
-    return filtered;
-  }
   // 全局家宽池：从全部节点中抽出住宅线路，供风控 / 支付 / 登录等敏感业务优先选择。
-  const globalHomeNodes = residentialProxyNames.slice();
+      if (BUILTIN_CHOICE_NAMES.has(item) || availableChoiceNameSet.has(item)) filtered.push(item);
   // 全球专线：与全球家宽同级，聚合所有识别为专线的节点
-  const globalDedicatedNodes = dedicatedProxyNames.slice();
+    }
   // 可见地区链：地区家宽节点组 + 地区节点组（不含自动组）
-  const fusionVisibleRegions = unique(regionHomeManualNames.concat(regionManualNames));
+    return filtered;
   // 全局兜底地区顺序：用于自动兜底组，优先尝试更常用出口地区。
+  }
+  const globalHomeNodes = residentialProxyNames.slice();
+  // 区域故障转移定义
+  const globalDedicatedNodes = dedicatedProxyNames.slice();
+  const fusionVisibleRegions = unique(regionHomeManualNames.concat(regionManualNames));
   const AUTO_FALLBACK_REGION_ORDER = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '加拿大', '俄罗斯', '东南亚', '拉美地区', '非洲', '其它地区'];
   const autoFallbackNodes = unique(buildRegionChain(AUTO_FALLBACK_REGION_ORDER));
-  // 区域故障转移定义
   const REGION_FAILOVER_DEFS = [
     { name: '港台故障转移', regions: ['香港', '台湾'], icon: qIcon('Star') },
-    { name: '日韩故障转移', regions: ['日本', '韩国'], icon: qIcon('Heart') },
-    { name: '欧美故障转移', regions: ['美国', '欧盟'], icon: qIcon('Magic') }
-  ];
-  const regionFallbackNodeMap = createNamedChoiceMap(REGION_FAILOVER_DEFS, def => def.regions.map(region => regionCatalog[region] && regionCatalog[region].names ? regionCatalog[region].names.manual : null).filter(Boolean));
   // YouTube无广策略：Google 广告投放基于出口 IP 的 GeoIP 归属。
   // Google 认为你在广告区 → 有广告；认为你在非广告区（中国大陆/俄罗斯等）→ 无广告。
   // 脚本层面无法做真实 GeoIP 探测（那是运行时网络请求），只能靠节点名特征推断。
@@ -1840,34 +1876,38 @@ function buildConfig(config) {
   //   🅲 推测（延迟异常低的非大陆节点、国内城市名出现在非大陆节点）
   // 强信号优先，弱信号次之，最后才是俄罗斯/澳门等经验无广地区。
   // YouTube 无广候选：优先挑选更可能被 Google 识别为低广告区的出口节点。
+    { name: '日韩故障转移', regions: ['日本', '韩国'], icon: qIcon('Heart') },
+    { name: '欧美故障转移', regions: ['美国', '欧盟'], icon: qIcon('Magic') }
+  ];
+  const regionFallbackNodeMap = createNamedChoiceMap(REGION_FAILOVER_DEFS, def => def.regions.map(region => regionCatalog[region] && regionCatalog[region].names ? regionCatalog[region].names.manual : null).filter(Boolean));
   const cnLandingStrong = [
+  // 弱信号：中国骨干线路标记 → 走 CN 出口概率高，Google GeoIP → CN
     /送中|回国|落地中|国内中转|CN落地|回国优化|完美回国|极速回国/,
     /HK.?CN|TW.?CN|SG.?CN|JP.?CN|US.?CN|KR.?CN|AU.?CN|DE.?CN|UK.?CN|FR.?CN/,
     /\b回国\b|\bCnRoute\b|\bBackCN\b/i,
   ];
-  // 弱信号：中国骨干线路标记 → 走 CN 出口概率高，Google GeoIP → CN
   const cnLandingWeak = [
-    /\bCN2\b|\bGIA\b|\bCTG\b/i,     // 电信 CN2 GIA / CTG 线路
-    /\b163\b|\bCMI\b|\bCM\b/i,      // 联通 163 / 移动 CMI
-    /\bCT\b|\bCU\b/,                 // China Telecom / China Unicom 缩写（注意噪音排除）
-    /\bIPLC\b|\bIEPL\b/i,            // 专线 → 落地可能是 CN
-    /\b上海\b|\b北京\b|\b深圳\b|\b广州\b|\b杭州\b|\b成都\b|\b南京\b|\b武汉\b/,  // 国内城市名暗示 CN 出口
+    /\bCN2\b|\bGIA\b|\bCTG\b/i,
+    /\b163\b|\bCMI\b|\bCM\b/i,
+    /\bCT\b|\bCU\b/,
+    /\bIPLC\b|\bIEPL\b/i,
+    /\b上海\b|\b北京\b|\b深圳\b|\b广州\b|\b杭州\b|\b成都\b|\b南京\b|\b武汉\b/,
   ];
   function isCnLanding(name) {
     return cnLandingStrong.some(re => re.test(String(name || '')));
   }
   function isCnLandingWeak(name) {
+  // YouTube 无广候选池：按“送中强信号 → 弱信号 → 经验低广告地区”顺序组织。
     return cnLandingWeak.some(re => re.test(String(name || '')));
   }
   const cnLandingStrongNodes = allProxyNames.filter(name => isCnLanding(name));
   const cnLandingWeakNodes = allProxyNames.filter(name => !isCnLanding(name) && isCnLandingWeak(name));
-  // YouTube 无广候选池：按“送中强信号 → 弱信号 → 经验低广告地区”顺序组织。
   const youtubeFallbackNodes = sanitizeUiChoiceList(
-    cnLandingStrongNodes,                                            // 🅰️ 明确送中 → 极大概率无广
-    cnLandingWeakNodes,                                              // 🅱️ 中国线路标记 → 较大概率无广
-    buildNodeChain([/俄罗斯/i, /俄(罗斯)?/i, /\bRU\b/i, /🇷🇺/]),     // 🅲 俄罗斯 → Google 无广告运营
-    buildNodeChain([/越南/i, /\bVN\b/i, /🇻🇳/]),                      // 越南 → 低广告概率地区
-    buildNodeChain([/澳门/i, /\bMO\b/i, /🇲🇴/]),                      // 🅳 澳门 → 小市场，广告覆盖率低
+    cnLandingStrongNodes,
+    cnLandingWeakNodes,
+    buildNodeChain([/俄罗斯/i, /俄(罗斯)?/i, /\bRU\b/i, /🇷🇺/]),
+    buildNodeChain([/越南/i, /\bVN\b/i, /🇻🇳/]),
+    buildNodeChain([/澳门/i, /\bMO\b/i, /🇲🇴/]),
     regionGroups['东南亚'],
     regionGroups['欧盟'],
     regionGroups['其它地区'],
@@ -1875,36 +1915,36 @@ function buildConfig(config) {
     regionGroups['加拿大'],
     regionGroups['拉美地区'],
     regionGroups['香港'],
+  // AI 候选池：优先放入对海外 AI 服务兼容性通常更稳定的地区节点组。
     regionGroups['新加坡'],
     regionGroups['日本'],
     regionGroups['美国']
+  // Cloudflare 候选：优先自动组与欧美出口，并允许显式 Cloudflare / WARP 节点参与。
   );
-  // AI 候选池：优先放入对海外 AI 服务兼容性通常更稳定的地区节点组。
   const aiFallbackNodes = sanitizeUiChoiceList(
     regionManualNames.filter(name => !String(name).includes('家宽'))
   );
-  // Cloudflare 候选：优先自动组与欧美出口，并允许显式 Cloudflare / WARP 节点参与。
   const cloudflareGroupChoices = sanitizeUiChoiceList(
+  // 下载分区定义
     ['自动选择', '欧美故障转移', '全球手动'],
     buildNodeChain([/cloudflare/i, /\bCF\b/i, /WARP/i, /1\.1\.1\.1/]),
     regionManualNames.filter(name => !String(name).includes('家宽'))
   );
-  // 下载分区定义
   const DOWNLOAD_REGION_DEFS = [
     { key: '香港', groupName: '香港下载', icon: regionIconMap['香港'] || qIcon('HK') },
     { key: '台湾', groupName: '台湾下载', icon: regionIconMap['台湾'] || qIcon('TW') },
     { key: '日本', groupName: '日本下载', icon: regionIconMap['日本'] || qIcon('JP') },
     { key: '韩国', groupName: '韩国下载', icon: regionIconMap['韩国'] || qIcon('KR') },
-    { key: '新加坡', groupName: '新加坡下载', icon: regionIconMap['新加坡'] || qIcon('SG') },
-    { key: '美国', groupName: '美国下载', icon: regionIconMap['美国'] || qIcon('US') },
-    { key: '欧盟', groupName: '欧盟下载', icon: regionIconMap['欧盟'] || qIcon('EU') }
-  ];
   // Load-balance 健康检查基线：负载均衡类组的探测超时不能压得太低。
   // 本订阅里 Cloudflare anycast 节点（xhttp + TLS）首包 RTT 常在 100~460ms，
   // 叠加 TLS 握手后很容易超过 800ms，导致节点被误判失败、频繁在组内被剔除。
   // 这里放宽到 2500ms 并把探测间隔拉长，减少无谓探测压力与误杀。
-  const LOAD_BALANCE_HEALTH = { interval: 180, timeout: 2500, maxFailedTimes: 3 };
+    { key: '新加坡', groupName: '新加坡下载', icon: regionIconMap['新加坡'] || qIcon('SG') },
   // Load-balance 组
+    { key: '美国', groupName: '美国下载', icon: regionIconMap['美国'] || qIcon('US') },
+    { key: '欧盟', groupName: '欧盟下载', icon: regionIconMap['欧盟'] || qIcon('EU') }
+  ];
+  const LOAD_BALANCE_HEALTH = { interval: 180, timeout: 2500, maxFailedTimes: 3 };
   function makeLoadBalanceGroup(name, icon, nodes, options = {}) {
     const proxies = ensureGroupList(nodes, []);
     if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
@@ -1943,19 +1983,19 @@ function buildConfig(config) {
   }
   const downloadRegionGroupArtifacts = makeLoadBalanceGroupArtifacts(
     DOWNLOAD_REGION_DEFS,
+  // 下载候选池
     def => getRegionNodes(def.key, { includeResidential: false }),
+  // 候选池 / 特殊 fallback
     () => ({ interval: LOAD_BALANCE_HEALTH.interval, timeout: LOAD_BALANCE_HEALTH.timeout, maxFailedTimes: LOAD_BALANCE_HEALTH.maxFailedTimes, strategy: 'consistent-hashing' })
   );
   const downloadRegionGroups = downloadRegionGroupArtifacts.groups;
-  // 下载候选池
   const downloadGroupChoices = sanitizeUiChoiceList(['下载散列组', '下载轮询组', '负载均衡', '自动选择'], downloadRegionGroupArtifacts.names);
-  // 候选池 / 特殊 fallback
   const excludedFallbackChoices = ['YouTube无广节点优先组', '国外AI故障转移'];
+  // fallback 组总装
   const SPECIAL_FALLBACK_DEFS = [
     { name: 'YouTube无广节点优先组', icon: iconMap.youtubeFallback, nodes: youtubeFallbackNodes, extraDefaults: ['自动兜底'], options: { interval: 300, tolerance: 180, lazy: true } },
     { name: '国外AI故障转移', icon: iconMap.aiFallback, nodes: aiFallbackNodes, extraDefaults: ['自动兜底'], options: { interval: 300, tolerance: 180, lazy: true } }
   ];
-  // fallback 组总装
   const fallbackGroupArtifacts = collectNamedGroups([
     makeFallbackGroup('自动兜底', iconMap.fallbackFinal, autoFallbackNodes, [], {
       interval: FALLBACK_INTERVAL,
@@ -1967,49 +2007,49 @@ function buildConfig(config) {
       tolerance: FALLBACK_TOLERANCE,
       lazy: true
     })),
+  // 负载均衡与特征聚合
     ...SPECIAL_FALLBACK_DEFS.map(def => makeFallbackGroup(def.name, def.icon, def.nodes, def.extraDefaults, def.options))
   ]);
   const fallbackGroups = fallbackGroupArtifacts.groups;
   const fallbackNames = fallbackGroupArtifacts.names;
-  // 负载均衡与特征聚合
   function makeRegionDownloadGroupNames(regionOrder, availableNames) {
     const availableNameSet = makeNameSet(availableNames);
+  // 谷歌商店专用：地区自动组二级负载均衡
     return regionOrder
       .map(regionName => `${regionName}下载`)
       .filter(name => availableNameSet.has(name));
   }
-  // 谷歌商店专用：地区自动组二级负载均衡
   const playStoreBalanceChoices = regionAutoNames.length ? regionAutoNames.slice() : ['自动选择'];
   const playStoreBalanceChoiceSet = makeNameSet(playStoreBalanceChoices);
   const missingPlayStoreRegionGroups = regionAutoNames.filter(name => !playStoreBalanceChoiceSet.has(name));
   if (missingPlayStoreRegionGroups.length) {
     throw new Error('play store balance health check failed: missing region group(s): ' + missingPlayStoreRegionGroups.join(', '));
+  // 商店组原来是 45s/600ms 的激进探测。600ms 对 Cloudflare anycast 类节点（TLS 握手后
+  // 常见 100~460ms 起步）几乎必然误判超时，因此放宽到 2000ms，并把间隔拉到 120s。
   }
   const playStoreServiceChoices = ['谷歌商店专用', '自动选择'];
   const playStoreLoadBalanceOptions = {
     url: PLAY_STORE_TEST_URL,
-    // 商店组原来是 45s/600ms 的激进探测。600ms 对 Cloudflare anycast 类节点（TLS 握手后
-    // 常见 100~460ms 起步）几乎必然误判超时，因此放宽到 2000ms，并把间隔拉到 120s。
     interval: 120,
     timeout: 2000,
+  // 负载均衡组改为真实节点均衡
     maxFailedTimes: 3,
     strategy: 'consistent-hashing',
+  // 下载散列组：consistent-hashing，同一目标固定映射到同一地区自动组，节点池同下载轮询组。此组不在主列表展示，仅供下载专用组内部引用。
     lazy: false
+  // 下载轮询组：round-robin 按连接轮流分配节点池；节点池用各地区自动组（而非真实节点），
+  // 既能利用地区组自身的测速兜底，又能在多连接下载时把流量分摊到不同地区自动组，聚合下载速度。此组不在主列表展示，仅供下载专用组内部引用。
   };
-  // 负载均衡组改为真实节点均衡
   const loadBalanceGroupArtifacts = collectNamedGroups([
     makeLoadBalanceGroup('负载均衡', iconMap.balance, ensureGroupList(allProxyNames, []), Object.assign({}, LOAD_BALANCE_HEALTH, { strategy: 'consistent-hashing' })),
-    // 下载散列组：consistent-hashing，同一目标固定映射到同一地区自动组，节点池同下载轮询组。此组不在主列表展示，仅供下载专用组内部引用。
     makeLoadBalanceGroup('下载散列组', iconMap.balance, ensureGroupList(regionAutoNames, []), Object.assign({}, LOAD_BALANCE_HEALTH, { strategy: 'consistent-hashing' })),
-    // 下载轮询组：round-robin 按连接轮流分配节点池；节点池用各地区自动组（而非真实节点），
-    // 既能利用地区组自身的测速兜底，又能在多连接下载时把流量分摊到不同地区自动组，聚合下载速度。此组不在主列表展示，仅供下载专用组内部引用。
     makeLoadBalanceGroup('下载轮询组', iconMap.balance, ensureGroupList(regionAutoNames, []), Object.assign({}, LOAD_BALANCE_HEALTH, { strategy: 'round-robin' })),
+  // 特殊聚合组：转为 url-test（隐藏）+ select（可见，包含url-test名+真实节点）模式
+  // 倍率聚合：先按识别出的倍率值排序，再派生低倍率节点池。
     makeLoadBalanceGroup('谷歌商店专用', iconMap.playstore, ensureGroupList(playStoreBalanceChoices, []), playStoreLoadBalanceOptions)
   ]);
   const loadBalanceGroups = loadBalanceGroupArtifacts.groups;
   const loadBalanceNames = loadBalanceGroupArtifacts.names;
-  // 特殊聚合组：转为 url-test（隐藏）+ select（可见，包含url-test名+真实节点）模式
-  // 倍率聚合：先按识别出的倍率值排序，再派生低倍率节点池。
   const multiplierProxyEntries = multiplierProxyNames.map(name => ({ name, info: getMultiplierSortInfo(name) }));
   multiplierProxyEntries.sort((a, b) => {
     const diff = a.info.value - b.info.value;
@@ -2029,7 +2069,7 @@ function buildConfig(config) {
       lazy: true
     })
     : null;
-  if (globalHomeAuto) if (globalHomeAuto) globalHomeAuto.hidden = true;
+  if (globalHomeAuto) globalHomeAuto.hidden = true;
   const globalHomeGroup = globalHomeAuto && globalHomeNodes.length
     ? { name: '🏡全球家宽', type: 'select', icon: iconMap.home, proxies: buildChoiceList(['🏡全球家宽自动'], globalHomeNodes) }
     : null;
@@ -2037,7 +2077,7 @@ function buildConfig(config) {
     ? makeUrlTestGroup('全球专线自动', iconMap.dedicated, globalDedicatedNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
   if (globalDedicatedAuto) globalDedicatedAuto.hidden = true;
-  if (globalHomeAuto) if (globalHomeAuto) globalHomeAuto.hidden = true;
+  if (globalHomeAuto) globalHomeAuto.hidden = true;
   const globalDedicatedGroup = globalDedicatedAuto && globalDedicatedNodes.length
     ? { name: '全球专线', type: 'select', icon: iconMap.dedicated, proxies: buildChoiceList(['全球专线自动'], globalDedicatedNodes) }
     : null;
@@ -2066,14 +2106,14 @@ function buildConfig(config) {
     globalHomeGroup ? ['🏡全球家宽'] : [],
     globalDedicatedGroup ? ['全球专线'] : [],
     lowMultiplierGroup ? ['低倍率节点'] : [],
-    globalMultiplierGroup ? ['全球倍率'] : [],
-    globalStreamingGroup ? ['全球流媒体'] : []
-  );
-  const globalFeatureAutoGroups = [globalHomeAuto, globalDedicatedAuto, globalMultiplierAuto, lowMultiplierAuto, globalStreamingAuto].filter(Boolean);
   // 候选菜单总索引：把 fallback、负载均衡、特征组、地区组与原始节点拼成通用候选池。
   // 排除谷歌商店专属组
   // 下载散列组 / 下载轮询组也一并排除：它们是「下载专用组」的内部编排单元（隐藏组），
   // 不应作为通用候选出现在其它业务组的选项里，否则每个业务组都会冒出这两个下载组。
+    globalMultiplierGroup ? ['全球倍率'] : [],
+    globalStreamingGroup ? ['全球流媒体'] : []
+  );
+  const globalFeatureAutoGroups = [globalHomeAuto, globalDedicatedAuto, globalMultiplierAuto, lowMultiplierAuto, globalStreamingAuto].filter(Boolean);
   const playStoreExclusiveSet = new Set(['谷歌商店专用', '下载散列组', '下载轮询组']);
   const commonLoadBalanceNames = loadBalanceNames.filter(name => !playStoreExclusiveSet.has(name));
   const regionFallbackNames = ['港台故障转移', '日韩故障转移', '欧美故障转移'];
@@ -2103,11 +2143,11 @@ function buildConfig(config) {
     ...regionAutoNames,
     ...regionHomeAutoNames,
     '🌐链式出口',
+  // 候选作用域
     '🪜链式中转'
   ]);
   const usableChoiceNameSet = makeNameSet(STATIC_CHOICE_HINTS.concat(allProxyNames));
   for (const name of BUILTIN_CHOICE_NAMES) usableChoiceNameSet.add(name);
-  // 候选作用域
   function resolveScopedChoiceNames(scopeKeyOrList) {
     if (Array.isArray(scopeKeyOrList)) return scopeKeyOrList.filter(Boolean);
     if (!scopeKeyOrList) return [];
@@ -2154,11 +2194,11 @@ function buildConfig(config) {
       first: usableChoicesForScope(scope || GLOBAL_CHOICE_SCOPE, first),
       parts: parts.map(part => usableChoicesForScope(scope || GLOBAL_CHOICE_SCOPE, part))
     };
+  // 带作用域候选定义
   }
   function usableChoiceDef(key, first, ...parts) {
     return makeChoiceDef(key, GLOBAL_CHOICE_SCOPE, first, ...parts);
   }
-  // 带作用域候选定义
   function makeSelectGroupDef(name, icon, choices, extraDefaults, scopeKeyOrChoices = null) {
     const scope = createChoiceScope(scopeKeyOrChoices);
     return {
@@ -2179,11 +2219,11 @@ function buildConfig(config) {
     }
     return defs;
   }
+  // 候选构造器（first 强优先）
   const baseChoices = usableChoices(['节点选择', '自动选择', '负载均衡', '全球手动'], orderedFallbackNames, commonLoadBalanceNames, globalFeatureChoices, fusionVisibleRegions, allProxyNames);
   const commonBaseChoices = baseChoices.filter(name => !excludedFallbackChoiceSet.has(name));
   const youtubeOnlyBaseChoices = baseChoices.filter(name => name !== '国外AI故障转移');
   const aiOnlyBaseChoices = baseChoices.filter(name => name !== 'YouTube无广节点优先组');
-  // 候选构造器（first 强优先）
   function makeOrderedChoices(first, pool, scope = GLOBAL_CHOICE_SCOPE) {
     const merged = [];
     const seen = new Set();
@@ -2199,14 +2239,14 @@ function buildConfig(config) {
       const item = source[i];
       if (!item || seen.has(item)) continue;
       seen.add(item);
+  // 业务候选项
       merged.push(item);
     }
+  // 分流候选池
     return filterUsableChoiceNames(merged, scope);
   }
-  // 业务候选项
   const domesticChoices = directChoices.concat(fusionVisibleRegions);
   const taiwanManualName = '台湾节点';
-  // 分流候选池
   const CHOICE_POOL_DEFS = [
     usableChoiceDef('common', ['节点选择'], commonBaseChoices),
     usableChoiceDef('youtubeOnly', ['节点选择', 'YouTube无广节点优先组'], youtubeOnlyBaseChoices),
@@ -2214,11 +2254,11 @@ function buildConfig(config) {
     usableChoiceDef('playStore', playStoreServiceChoices, commonBaseChoices),
     usableChoiceDef('streaming', globalStreamingGroup ? ['全球流媒体', '节点选择', '自动选择'] : ['节点选择', '自动选择'], commonBaseChoices),
     usableChoiceDef('taiwanMedia', unique(['港台故障转移', taiwanManualName, '节点选择', '自动选择'].filter(Boolean)), commonBaseChoices),
+  // 地区家宽节点组紧跟全球家宽
     usableChoiceDef('riskControl', [
       '家宽故障转移',
       globalHomeGroup ? '🏡全球家宽' : null,
       globalDedicatedGroup ? '全球专线' : null,
-      // 地区家宽节点组紧跟全球家宽
       ...regionHomeManualNames.filter(name => name && name !== '🏡全球家宽'),
       '全球手动',
       '节点选择',
@@ -2254,7 +2294,7 @@ function buildConfig(config) {
       first: ['日韩故障转移'],
       poolKey: 'common'
     })),
-    { key: '去中心化平台', first: ['欧美故障转移'], poolKey: 'common' },
+    { key: '去中心化平台', first: ['节点选择'], poolKey: 'common' },
     { key: '微软服务', first: ['节点选择', '自动选择'], poolKey: 'common' },
     { key: '微软Bing', first: ['DIRECT', '节点选择', '自动选择'], poolKey: 'common' },
     { key: '谷歌商店', first: playStoreServiceChoices, poolKey: 'playStore' },
@@ -2330,11 +2370,11 @@ function buildConfig(config) {
     '🏠欧盟家宽节点'
   ];
   const availableHomeManualNames = new Set(regionHomeManualNames);
+  // 主分组候选项
   const homeFailoverChoices = unique([
     ...preferredHomeFailover.filter(name => availableHomeManualNames.has(name)),
     ...regionHomeManualNames.filter(name => !preferredHomeFailover.includes(name))
   ].filter(Boolean));
-  // 主分组候选项
   const MAIN_CHOICE_POOL_DEFS = [
     usableChoiceDef(
       'nodeSelection',
@@ -2344,27 +2384,27 @@ function buildConfig(config) {
       fusionVisibleRegions
     ),
     usableChoiceDef(
+  // 国内服务放行内置直连
       'systemService',
       ['节点选择', '自动选择', '全球手动', 'DIRECT'],
       fusionVisibleRegions
     ),
-    // 国内服务放行内置直连
     usableChoiceDef(
       'domesticService',
+  // 最终兜底候选
       domesticServiceChoices,
       domesticChoices.filter(x => x !== 'DIRECT' && !directChoices.includes(x)),
       regionManualNames
     ),
-    // 最终兜底候选
     usableChoiceDef(
       'finalFallback',
       ['节点选择', '自动选择', '全球手动'],
       fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name) && !regionFallbackNames.includes(name) && name !== '家宽故障转移'),
+  // 附加显示组
       fusionVisibleRegions
     )
   ];
   const MAIN_CHOICE_POOLS = buildChoicePoolsFromDefs(MAIN_CHOICE_POOL_DEFS);
-  // 附加显示组
   const regionAutoGroupMap = Object.create(null);
   for (let i = 0; i < regionAutoGroups.length; i++) {
     const group = regionAutoGroups[i];
@@ -2378,11 +2418,11 @@ function buildConfig(config) {
   }
   const specialFeatureGroups = [];
   if (globalHomeGroup) specialFeatureGroups.push(globalHomeGroup);
+  // 服务分流组
   if (globalDedicatedGroup) specialFeatureGroups.push(globalDedicatedGroup);
   if (lowMultiplierGroup) specialFeatureGroups.push(lowMultiplierGroup);
   if (globalMultiplierGroup) specialFeatureGroups.push(globalMultiplierGroup);
   if (globalStreamingGroup) specialFeatureGroups.push(globalStreamingGroup);
-  // 服务分流组
   const RISK_CONTROL_SERVICE_GROUP = makeSelectGroupDef(
     '风控安全',
     iconMap.riskControl,
@@ -2429,11 +2469,11 @@ function buildConfig(config) {
   const serviceGroupDefs = makeSelectGroupDefList([
     RISK_CONTROL_SERVICE_GROUP,
     ...businessServiceGroupDefs.slice(0, BUSINESS_SERVICE_HEAD.length),
+  // 工具组
     DOMESTIC_SERVICE_GROUP,
     ...businessServiceGroupDefs.slice(BUSINESS_SERVICE_HEAD.length),
     ...SERVICE_GROUP_BASE_DEFS.slice(2)
   ]);
-  // 工具组
   const UTILITY_GROUP_PRESET_DEFS = makeSelectGroupDefList([
     {
       name: '广告拦截',
@@ -2483,28 +2523,32 @@ function buildConfig(config) {
       interval: HOME_TEST_INTERVAL,
       tolerance: HOME_TEST_TOLERANCE,
       timeout: HOME_TEST_TIMEOUT,
-      maxFailedTimes: HOME_TEST_MAX_FAILED_TIMES,
-      lazy: true
-    }
-  );
   // 链式双组：中转(隐藏 fallback，自动选跳板) + 出口(可见 select，手动选落地)
   // 风控只看「出口」的落地 IP（dialer-proxy 使路径为 客户端→中转→出口→目标，出口 IP 才是目标可见的最终出口）。
   // 因此：出口优先干净的家宽/住宅 IP；中转对目标不可见，只需快、稳、低成本。
   // 中转候选顺序：专线(骨干最稳) → 低倍率(链式流量翻倍，省成本) → 自动选择 → 自动兜底 → 地区自动组/地区节点组
   // 中转刻意排除家宽：家宽带宽有限且珍贵，应全部留给出口落地，不消耗在中转跳板上。
+      maxFailedTimes: HOME_TEST_MAX_FAILED_TIMES,
+      lazy: true
+    }
+  );
   const chainTransitChoices = sanitizeUiChoiceList(
     [
       globalDedicatedGroup ? '全球专线' : null,
       lowMultiplierGroup ? '低倍率节点' : null
     ].filter(Boolean),
+  // 出口候选顺序：全球家宽 → 地区家宽节点 → 家宽故障转移 → 自动兜底 → 地区节点组 → 特征组 → 真实节点
+  // 出口 IP 直接决定风控判定，家宽/住宅 IP 排最前以最大化落地清白度。
     ['自动选择', '自动兜底'],
     regionAutoNames,
     regionManualNames.filter(name => !String(name).includes('家宽'))
   );
-  // 出口候选顺序：全球家宽 → 地区家宽节点 → 家宽故障转移 → 自动兜底 → 地区节点组 → 特征组 → 真实节点
-  // 出口 IP 直接决定风控判定，家宽/住宅 IP 排最前以最大化落地清白度。
   const chainExitChoices = sanitizeUiChoiceList(
-    globalHomeGroup ? ['🏡全球家宽'] : [],
+    [
+      '家宽故障转移',
+      globalHomeGroup ? '🏡全球家宽' : null,
+      globalHomeAuto ? '🏡全球家宽自动' : null
+    ].filter(Boolean),
     regionHomeManualNames,
     ['家宽故障转移', '自动兜底'],
     regionManualNames.filter(name => !regionHomeManualNames.includes(name)),
@@ -2517,7 +2561,7 @@ function buildConfig(config) {
     allProxyNames
   );
   const chainTransitGroup = chainTransitChoices.length
-    ? {
+? {
         name: '🪜链式中转',
         type: 'fallback',
         icon: 'https://api.iconify.design/tabler:git-branch.svg?color=%23f59e0b',
@@ -2530,7 +2574,7 @@ function buildConfig(config) {
       }
     : null;
   const chainExitGroup = chainExitChoices.length
-    ? {
+? {
         name: '🌐链式出口',
         type: 'select',
         icon: 'https://api.iconify.design/tabler:logout-2.svg?color=%230ea5e9',
@@ -2566,6 +2610,12 @@ function buildConfig(config) {
     ],
     visibleExtra: [
       ...regionManualGroups,
+  // 最终分组装配：拍平、隐藏辅助组并保留旧分组选项顺序。
+  // 最终分组装配警示：这里的 flat/filter/map 顺序不要随意调整。
+  // - flat: 先展开分区，确保后续处理面对的是线性组列表；
+  // - filter(Boolean): 提前剔除空组，避免 hidden/preserve 处理空值；
+  // - hidden 标记: 只隐藏辅助组，不改变其被其他组引用的能力；
+  // - preserveGroup: 必须放在末尾，保证最终候选顺序基于已清洗后的组数据。
       ...regionHomeManualGroups,
       ...visibleRegionAutoGroups,
       ...regionHomeAutoGroups,
@@ -2573,13 +2623,8 @@ function buildConfig(config) {
       ...chainGroups,
       ...specialFeatureGroups
     ]
+  // 隐藏辅助组：下载组、谷歌商店专用组、下载轮询组、下载散列组不在主列表展示。
   };
-  // 最终分组装配：拍平、隐藏辅助组并保留旧分组选项顺序。
-  // 最终分组装配警示：这里的 flat/filter/map 顺序不要随意调整。
-  // - flat: 先展开分区，确保后续处理面对的是线性组列表；
-  // - filter(Boolean): 提前剔除空组，避免 hidden/preserve 处理空值；
-  // - hidden 标记: 只隐藏辅助组，不改变其被其他组引用的能力；
-  // - preserveGroup: 必须放在末尾，保证最终候选顺序基于已清洗后的组数据。
   const proxyGroupBuckets = Object.values(coreProxyGroupSections);
   const proxyGroups = [];
   for (let i = 0; i < proxyGroupBuckets.length; i++) {
@@ -2587,77 +2632,78 @@ function buildConfig(config) {
     for (let j = 0; j < bucket.length; j++) {
       let group = bucket[j];
       if (!group) continue;
-      // 隐藏辅助组：下载组、谷歌商店专用组、下载轮询组、下载散列组不在主列表展示。
       const shouldHide = /^(香港|台湾|日本|韩国|新加坡|美国|欧盟)下载$/.test(group.name)
         || group.name === '谷歌商店专用'
-        || group.name === '下载轮询组'
-        || group.name === '下载散列组';
-      if (shouldHide) {
-        group = Object.assign({}, group, { hidden: true });
-      }
-      proxyGroups.push(preserveGroup(group));
-    }
-  }
   // 分组候选清洗：删除无效/重复/自引用，补最小兜底，切断显式环引用。
-  function getGroupFallbackChoices(groupName) {
-    // 全局直连组语义固定，最终必须只保留 DIRECT。
-    if (groupName === 'DIRECT') return ['DIRECT'];
-    // 全球手动组尽量保留真实节点，不给默认兜底项。
-    if (groupName === '全球手动') return [];
-    // 自动选择组允许极端情况下回退到“全球手动 / DIRECT”。
-    if (groupName === '自动选择') return ['全球手动', 'DIRECT'];
-    // 广告拦截 / 跟踪分析属于行为组，兜底项使用内建动作。
-    if (groupName === '广告拦截') return ['REJECT-DROP', 'REJECT', 'PASS'];
-    // 跟踪分析组用于阻断/直连观测，不需要真实代理。
-    if (groupName === '跟踪分析') return ['REJECT', 'DIRECT'];
-    // 漏网之鱼承担 MATCH 收尾职责，允许回退到主入口组。
-    if (groupName === '漏网之鱼') return ['自动选择', '全球手动', 'DIRECT'];
-    // 其余分组不在这里乱补默认项，避免把“自动选择”偷偷塞进别的组。
-    return [];
+        || group.name === '下载轮询组'
+  // 全局直连组语义固定，最终必须只保留 DIRECT。
+        || group.name === '下载散列组';
+  // 全球手动组尽量保留真实节点，不给默认兜底项。
+      if (shouldHide) {
+  // 自动选择组允许极端情况下回退到“全球手动 / DIRECT”。
+        group = Object.assign({}, group, { hidden: true });
+  // 广告拦截 / 跟踪分析属于行为组，兜底项使用内建动作。
+      }
+  // 跟踪分析组用于阻断/直连观测，不需要真实代理。
+      proxyGroups.push(preserveGroup(group));
+  // 漏网之鱼承担 MATCH 收尾职责，允许回退到主入口组。
+    }
+  // 其余分组不在这里乱补默认项，避免把“自动选择”偷偷塞进别的组。
   }
-  const finalizedProxyGroups = finalizeGroupList(proxyGroups);
+  function getGroupFallbackChoices(groupName) {
+    if (groupName === 'DIRECT') return ['DIRECT'];
   // availableChoiceNames：最终允许出现在 proxies 列表里的名字全集。
   // 包含真实节点名、已生成的组名、组级额外放行项，以及 DIRECT / REJECT 等内建动作。
-  const availableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(finalizedProxyGroups);
+    if (groupName === '全球手动') return [];
   // realChoiceCandidateSet：只包含真实节点名与脚本显式注册为“真实候选”的额外名字，用来判断当前组是否仍有可保留候选。
+    if (groupName === '自动选择') return ['全球手动', 'DIRECT'];
+    if (groupName === '广告拦截') return ['REJECT-DROP', 'REJECT', 'PASS'];
+  // 只要候选中还存在一个真实节点，就说明这个组不需要走语义兜底。
+    if (groupName === '跟踪分析') return ['REJECT', 'DIRECT'];
+    if (groupName === '漏网之鱼') return ['自动选择', '全球手动', 'DIRECT'];
+    return [];
+  // candidates 是已经过基础过滤后的候选列表；这里再按组类型决定最终落盘形式。
+  }
+  const finalizedProxyGroups = finalizeGroupList(proxyGroups);
+  const availableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(finalizedProxyGroups);
+  // Direct组固定只保留 DIRECT，避免被旧配置或别处逻辑污染。
   const realChoiceCandidateSet = buildRealChoiceCandidateSet();
+  // 全球手动组若被清空，则回填全部真实节点；极端情况下至少保留 DIRECT，避免 select 组缺失 proxies。
   function hasRealChoiceCandidates(list) {
-    // 只要候选中还存在一个真实节点，就说明这个组不需要走语义兜底。
+  // fallback 组只保留构建阶段明确给它的候选；这里不额外补“自动选择”。
+  // 如果清洗后彻底为空，ensureGroupList(..., []) 会退到 DIRECT，至少保证配置仍可导入。
     return asArray(list).some(name => realChoiceCandidateSet.has(name));
+  // 只有主自动选择组允许在没有真实节点时走语义兜底。
   }
   function finalizeGroupChoices(group, candidates) {
-    // candidates 是已经过基础过滤后的候选列表；这里再按组类型决定最终落盘形式。
     const proxies = asArray(candidates);
+  // 其他 url-test / load-balance 组如果没有真实节点，应直接视为空组，后续删除。
+  // 谷歌商店专用组按设计承载地区节点组，只要仍有有效成员就保留。负载均衡组同理。
     const fallbackChoices = getGroupFallbackChoices(group.name);
     const hasRealChoices = hasRealChoiceCandidates(proxies);
-    // Direct组固定只保留 DIRECT，避免被旧配置或别处逻辑污染。
     if (group.name === 'DIRECT') return ['DIRECT'];
-    // 全球手动组若被清空，则回填全部真实节点；极端情况下至少保留 DIRECT，避免 select 组缺失 proxies。
     if (group.name === '全球手动') return ensureGroupList(proxies.length ? proxies : allProxyNames, ['DIRECT']);
-    // fallback 组只保留构建阶段明确给它的候选；这里不额外补“自动选择”。
-    // 如果清洗后彻底为空，ensureGroupList(..., []) 会退到 DIRECT，至少保证配置仍可导入。
     if (group.type === 'fallback') return ensureGroupList(proxies, []);
-    // 只有主自动选择组允许在没有真实节点时走语义兜底。
+  // 其余 select / 行为组：有真实节点就直接保留；没真实节点才走语义兜底。
     if (group.name === '自动选择') {
       return hasRealChoices ? proxies : ensureGroupList(proxies, fallbackChoices);
     }
-    // 其他 url-test / load-balance 组如果没有真实节点，应直接视为空组，后续删除。
-    // 谷歌商店专用组按设计承载地区节点组，只要仍有有效成员就保留。负载均衡组同理。
     if (group.type === 'url-test' || group.type === 'load-balance') {
       if (PLAY_STORE_SPECIAL_GROUP_NAMES.includes(group.name)) return proxies.length ? proxies : [];
+  // 核心组永不删除
       if (group.name === '负载均衡' || group.name === '下载轮询组' || group.name === '下载散列组') return proxies.length ? proxies : [];
       return hasRealChoices ? proxies : [];
+  // 测速/负载组通常必须包含真实节点；谷歌商店专用组和负载均衡组允许包含其他组引用。
     }
-    // 其余 select / 行为组：有真实节点就直接保留；没真实节点才走语义兜底。
     return hasRealChoices ? proxies : sanitizeChoiceList(proxies, fallbackChoices);
   }
   function shouldDropEmptyGroup(group) {
     if (!group || !group.name) return true;
     if (!Array.isArray(group.proxies)) return false;
-    // 核心组永不删除
     const coreGroups = ['自动选择', '全球手动'];
+  // Final Choice Registry
+  // cleanup 阶段直接从现有分组里收集名字，避免依赖额外的作用域注册表。
     if (coreGroups.includes(group.name)) return false;
-    // 测速/负载组通常必须包含真实节点；谷歌商店专用组和负载均衡组允许包含其他组引用。
     if (group.type === 'url-test' || group.type === 'load-balance') {
       if (PLAY_STORE_SPECIAL_GROUP_NAMES.includes(group.name)) return !asArray(group.proxies).length;
       if (group.name === '负载均衡' || group.name === '下载轮询组' || group.name === '下载散列组') return !asArray(group.proxies).length;
@@ -2665,8 +2711,6 @@ function buildConfig(config) {
     }
     return false;
   }
-  // Final Choice Registry
-  // cleanup 阶段直接从现有分组里收集名字，避免依赖额外的作用域注册表。
   function getAllScopedChoiceNames() {
     const merged = [];
     for (let i = 0; i < finalizedProxyGroups.length; i++) {
@@ -2688,6 +2732,8 @@ function buildConfig(config) {
     ));
   }
   function assertChoiceNamesRegistered(list, label) {
+  // 最终清洗可见名集合：除真实节点与组名外，还要包含脚本注入的内置直连名。
+  // 否则前面已放行的三直连会在 cleanup 阶段再次被当成“无效候选”删除。
     const candidates = asArray(list);
     const registry = buildRealChoiceCandidateSet();
     for (let i = 0; i < candidates.length; i++) {
@@ -2696,11 +2742,10 @@ function buildConfig(config) {
       throw new Error('final choice registry health check failed: missing ' + label + ': ' + name);
     }
   }
-  // 最终清洗可见名集合：除真实节点与组名外，还要包含脚本注入的内置直连名。
-  // 否则前面已放行的三直连会在 cleanup 阶段再次被当成“无效候选”删除。
   function buildAvailableChoiceNameSetFromGroups(groups) {
     const names = buildRealChoiceCandidateSet();
     const list = asArray(groups);
+  // 第一步：过滤无效候选并最终化选项
     for (let i = 0; i < list.length; i++) {
       const group = list[i];
       if (group && group.name) names.add(group.name);
@@ -2708,37 +2753,36 @@ function buildConfig(config) {
     for (const name of BUILTIN_CHOICE_NAMES) names.add(name);
     return names;
   }
+  // 构建组映射表
   function runProxyGroupCleanupPass(groups, availableChoiceNameSet) {
-    // 第一步：过滤无效候选并最终化选项
     const cleanedGroups = asArray(groups)
       .map(group => {
         if (!group || !Array.isArray(group.proxies) || !group.name) return group;
         const filteredProxies = filterAvailableChoiceNames(group.proxies, availableChoiceNameSet, group.name);
+  // 第二步：切除自引用和互环引用
         return Object.assign({}, group, { proxies: finalizeGroupChoices(group, filteredProxies) });
       })
       .filter(group => !shouldDropEmptyGroup(group));
-    // 构建组映射表
     const groupMap = Object.create(null);
     for (let i = 0; i < cleanedGroups.length; i++) {
       const group = cleanedGroups[i];
       if (group && group.name) groupMap[group.name] = group;
+  // 不是组引用，直接保留
     }
-    // 第二步：切除自引用和互环引用
     return cleanedGroups
       .map(group => {
         if (!group || !Array.isArray(group.proxies) || !group.name) return group;
+  // 自引用 A -> A：丢弃
         const nextProxies = [];
+  // 互环引用 A -> B && B -> A：丢弃
         for (let i = 0; i < group.proxies.length; i++) {
           const proxyName = group.proxies[i];
           const targetGroup = groupMap[proxyName];
-          // 不是组引用，直接保留
           if (!targetGroup || !Array.isArray(targetGroup.proxies)) {
             nextProxies.push(proxyName);
             continue;
           }
-          // 自引用 A -> A：丢弃
           if (targetGroup.name === group.name) continue;
-          // 互环引用 A -> B && B -> A：丢弃
           if (targetGroup.proxies.includes(group.name)) continue;
           nextProxies.push(proxyName);
         }
@@ -2748,6 +2792,8 @@ function buildConfig(config) {
   }
   function getProxyGroupSignature(groups) {
     return JSON.stringify(asArray(groups).map(group => {
+  // 稳定化清洗：反复执行“删失效引用 -> 切环 -> 删空自动组”，直到分组关系不再变化。
+  // 这样即使存在 A 引用 B、B 删除后又影响 C 的级联场景，也不会残留 not found。
       if (!group || !group.name) return null;
       return {
         name: group.name,
@@ -2756,12 +2802,13 @@ function buildConfig(config) {
       };
     }));
   }
-  // 稳定化清洗：反复执行“删失效引用 -> 切环 -> 删空自动组”，直到分组关系不再变化。
-  // 这样即使存在 A 引用 B、B 删除后又影响 C 的级联场景，也不会残留 not found。
   let stabilizedProxyGroups = finalizedProxyGroups.slice();
   let previousSignature = '';
   for (let round = 0; round < 8; round++) {
     const availableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(stabilizedProxyGroups);
+// === 最终落盘与一致性校验 ===
+  // 组名 Emoji 前缀：在最终落盘前统一添加，避免散落在各处的字符串引用需要逐一修改。
+  // 同时把规则目标中的旧组名同步替换为新组名。
     stabilizedProxyGroups = runProxyGroupCleanupPass(stabilizedProxyGroups, availableChoiceNameSet);
     const nextAvailableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(stabilizedProxyGroups);
     stabilizedProxyGroups = runProxyGroupCleanupPass(stabilizedProxyGroups, nextAvailableChoiceNameSet);
@@ -2770,9 +2817,6 @@ function buildConfig(config) {
     previousSignature = signature;
   }
   config['proxy-groups'] = stabilizedProxyGroups;
-// === 最终落盘与一致性校验 ===
-  // 组名 Emoji 前缀：在最终落盘前统一添加，避免散落在各处的字符串引用需要逐一修改。
-  // 同时把规则目标中的旧组名同步替换为新组名。
   const GROUP_EMOJI_MAP = {
     '节点选择': '🚀节点选择',
     '自动选择': '⚡自动选择',
@@ -2822,41 +2866,42 @@ function buildConfig(config) {
     '支付服务': '💳支付服务',
     'Twitch': '🕹️Twitch',
     'GitHub': '🐙GitHub',
+  // 地区自动组 / 节点组 / 下载组：按地区名加 emoji 前缀
     'AI': '🧠AI',
     '国外游戏': '🎮国外游戏',
     '社交信息流': '📰社交信息流',
     '去中心化平台': '⛓️去中心化平台',
     'Discord': '🎙️Discord',
+  // 全球特征组自动名映射
     '个人媒体': '🎥个人媒体',
     '新闻资讯': '📡新闻资讯',
   };
-  // 地区自动组 / 节点组 / 下载组：按地区名加 emoji 前缀
   const REGION_EMOJI = {
     '香港': '🇭🇰', '台湾': '🇹🇼', '美国': '🇺🇸', '日本': '🇯🇵', '新加坡': '🇸🇬',
+  // 链式双组
     '韩国': '🇰🇷', '俄罗斯': '🇷🇺', '加拿大': '🇨🇦', '欧盟': '🇪🇺',
     '东南亚': '🌏', '拉美地区': '🌎', '非洲': '🌍', '其它地区': '🌐'
   };
-  // 全球特征组自动名映射
   GROUP_EMOJI_MAP['🏡全球家宽自动'] = '🏡全球家宽自动';
   GROUP_EMOJI_MAP['全球专线自动'] = '🚄全球专线自动';
   GROUP_EMOJI_MAP['全球倍率自动'] = '🔄全球倍率自动';
   GROUP_EMOJI_MAP['低倍率节点自动'] = '🐢低倍率节点自动';
   GROUP_EMOJI_MAP['全球流媒体自动'] = '🎞️全球流媒体自动';
-  // 链式双组
+  // 地区家宽自动组：地区家宽自动 → 🇭🇰香港家宽自动
   GROUP_EMOJI_MAP['🌐链式出口'] = '🌐链式出口';
+  // 地区家宽节点组：🏠地区家宽节点 → 🏠🇭🇰香港家宽节点
   GROUP_EMOJI_MAP['🪜链式中转'] = '🪜链式中转';
   const regionNameSet = new Set(Object.keys(REGION_EMOJI));
+  // 构建反向映射（新名 -> 旧名），用于规则目标替换
   regionNameSet.forEach(regionName => {
     const emoji = REGION_EMOJI[regionName];
     GROUP_EMOJI_MAP[regionName + '自动'] = emoji + regionName + '自动';
     GROUP_EMOJI_MAP[regionName + '节点'] = emoji + regionName + '节点';
     GROUP_EMOJI_MAP[regionName + '下载'] = emoji + regionName + '下载';
-    // 地区家宽自动组：地区家宽自动 → 🇭🇰香港家宽自动
     GROUP_EMOJI_MAP[regionName + '家宽自动'] = emoji + regionName + '家宽自动';
-    // 地区家宽节点组：🏠地区家宽节点 → 🏠🇭🇰香港家宽节点
     GROUP_EMOJI_MAP['🏠' + regionName + '家宽节点'] = '🏠' + emoji + regionName + '家宽节点';
   });
-  // 构建反向映射（新名 -> 旧名），用于规则目标替换
+  // 替换 proxy-groups 中的组名和引用
   const reverseEmojiMap = Object.create(null);
   for (const oldName in GROUP_EMOJI_MAP) {
     reverseEmojiMap[GROUP_EMOJI_MAP[oldName]] = oldName;
@@ -2865,22 +2910,22 @@ function buildConfig(config) {
     if (!name) return name;
     return GROUP_EMOJI_MAP[name] || name;
   }
-  // 替换 proxy-groups 中的组名和引用
   config['proxy-groups'] = config['proxy-groups'].map(group => {
+  // 规则目标校验：规则里引用的策略名必须真的存在。
+  // 这是规则区最常见的维护事故之一：改了组名，却忘了同步规则目标。
     if (!group) return group;
     const newName = applyEmojiRename(group.name);
     const newProxies = Array.isArray(group.proxies)
+  // 规则解析工具：统一处理规则字符串的解析、目标提取和标识计算
       ? group.proxies.map(p => applyEmojiRename(p))
       : group.proxies;
     const renamed = Object.assign({}, group, { name: newName, proxies: newProxies });
     return renamed;
   });
-  // 规则目标校验：规则里引用的策略名必须真的存在。
-  // 这是规则区最常见的维护事故之一：改了组名，却忘了同步规则目标。
   const availableRuleTargets = makeNameSet(config['proxy-groups'].map(group => group && group.name));
   for (const name of BUILTIN_CHOICE_NAMES) availableRuleTargets.add(name);
   const RULE_TRAILING_FLAGS = new Set(['NO-RESOLVE', 'SRC', 'DST', 'UDP', 'TCP']);
-  // 规则解析工具：统一处理规则字符串的解析、目标提取和标识计算
+  // 从后往前找第一个非标志位的值作为目标
   function parseRuleParts(rule) {
     if (typeof rule !== 'string') return null;
     const parts = rule.split(',').map(p => String(p || '').trim());
@@ -2889,7 +2934,6 @@ function buildConfig(config) {
   function extractRulePolicyTarget(ruleOrParts) {
     const parts = Array.isArray(ruleOrParts) ? ruleOrParts : parseRuleParts(ruleOrParts);
     if (!parts || parts.length < 3) return null;
-    // 从后往前找第一个非标志位的值作为目标
     for (let i = parts.length - 1; i >= 2; i--) {
       const value = parts[i];
       if (value && !RULE_TRAILING_FLAGS.has(value.toUpperCase())) return value;
@@ -2920,25 +2964,26 @@ function buildConfig(config) {
       dedupedRuleCount: 0,
       ruleSetSizes: [],
       mergedRuleTypeCounts: {},
+  // 第一轮：收集规则所有权和匹配信息
       duplicateRulesAcrossSets: [],
       overriddenRuleTargets: [],
       redundantDomainCoveredBySuffix: [],
       riskyShortKeywords: [],
       broadKeywordOverlapHints: []
     };
+  // 记录完整规则的所有权
     const exactRuleOwners = new Map();
     const normalizedMatchOwners = new Map();
-    // 第一轮：收集规则所有权和匹配信息
+  // 记录匹配键的所有权（用于检测目标覆盖）
     for (const def of ruleSetDefs) {
       const rules = Array.isArray(def && def.rules) ? def.rules : [];
       const validRules = rules.filter(rule => typeof rule === 'string');
       diagnostics.totalSourceRules += validRules.length;
       diagnostics.ruleSetSizes.push({ name: def && def.name ? def.name : 'UNKNOWN', count: validRules.length });
       for (const rule of validRules) {
-        // 记录完整规则的所有权
         if (!exactRuleOwners.has(rule)) exactRuleOwners.set(rule, []);
+  // 第二轮：检测跨规则集的重复和覆盖
         exactRuleOwners.get(rule).push(def.name);
-        // 记录匹配键的所有权（用于检测目标覆盖）
         const meta = extractRuleMatchValue(rule);
         if (!meta || !meta.type || !meta.value || !meta.target) continue;
         const ownerKey = `${meta.type}@@${meta.value}`;
@@ -2946,7 +2991,6 @@ function buildConfig(config) {
         normalizedMatchOwners.get(ownerKey).push({ target: meta.target, set: def.name, rule });
       }
     }
-    // 第二轮：检测跨规则集的重复和覆盖
     for (const [rule, owners] of exactRuleOwners.entries()) {
       const uniqOwners = Array.from(new Set(owners));
       if (uniqOwners.length > 1) {
@@ -2958,52 +3002,52 @@ function buildConfig(config) {
       if (uniqTargets.length > 1) {
         diagnostics.overriddenRuleTargets.push({
           matchKey,
+  // 第三轮：分析合并后的规则
           targets: uniqTargets,
           entries: entries.slice(0, 10),
           effectiveTarget: entries[entries.length - 1].target
         });
       }
+  // 统计规则类型
     }
+  // 收集后缀和关键词规则用于后续检查
     diagnostics.dedupedRuleCount = Math.max(0, diagnostics.totalSourceRules - diagnostics.totalMergedRules);
     diagnostics.ruleSetSizes.sort((a, b) => b.count - a.count || String(a.name).localeCompare(String(b.name)));
-    // 第三轮：分析合并后的规则
     const suffixRuleMap = new Map();
+  // 第四轮：检测冗余规则
+  // 检测被后缀规则覆盖的域名规则
     const keywordRules = [];
     for (const rule of mergedRules) {
       const meta = extractRuleMatchValue(rule);
       if (!meta || !meta.type || !meta.value || !meta.target) continue;
-      // 统计规则类型
       diagnostics.mergedRuleTypeCounts[meta.type] = (diagnostics.mergedRuleTypeCounts[meta.type] || 0) + 1;
-      // 收集后缀和关键词规则用于后续检查
       if (meta.type === 'DOMAIN-SUFFIX') suffixRuleMap.set(`${meta.value}@@${meta.target}`, rule);
       if (meta.type === 'DOMAIN-KEYWORD') keywordRules.push(meta);
+  // 检测风险关键词
     }
-    // 第四轮：检测冗余规则
-    // 检测被后缀规则覆盖的域名规则
     for (const rule of mergedRules) {
       const meta = extractRuleMatchValue(rule);
       if (!meta || meta.type !== 'DOMAIN' || !meta.value || !meta.target) continue;
       if (suffixRuleMap.has(`${meta.value}@@${meta.target}`)) {
+  // 检测关键词重叠
         diagnostics.redundantDomainCoveredBySuffix.push(rule);
       }
     }
-    // 检测风险关键词
     for (const meta of keywordRules) {
+  // 同目标或空值跳过
       if (meta.value && meta.value.length <= 2) {
         diagnostics.riskyShortKeywords.push(`DOMAIN-KEYWORD,${meta.value},${meta.target}`);
       }
     }
-    // 检测关键词重叠
+  // 检测包含关系
     for (let i = 0; i < keywordRules.length; i++) {
       for (let j = i + 1; j < keywordRules.length; j++) {
         const a = keywordRules[i];
         const b = keywordRules[j];
-        // 同目标或空值跳过
         if (a.target === b.target || !a.value || !b.value) continue;
         const av = a.value.toLowerCase();
         const bv = b.value.toLowerCase();
         if (av === bv) continue;
-        // 检测包含关系
         if (av.length >= 4 && bv.includes(av)) {
           diagnostics.broadKeywordOverlapHints.push({ broader: a, narrower: b });
         } else if (bv.length >= 4 && av.includes(bv)) {
@@ -3050,30 +3094,33 @@ function buildConfig(config) {
       lines.push(`[rules diagnostics] cross-target keyword overlap hints: ${diagnostics.broadKeywordOverlapHints.length}`);
       diagnostics.broadKeywordOverlapHints.slice(0, 10).forEach(item => {
         lines.push(`  - broader ${item.broader.value}:${item.broader.target} vs narrower ${item.narrower.value}:${item.narrower.target}`);
+  // 规则数据区：按业务能力拆分为独立规则数组，最后统一合并去重。
       });
     }
     if (diagnostics.riskyShortKeywords.length) {
       lines.push(`[rules diagnostics] risky short DOMAIN-KEYWORD rules: ${diagnostics.riskyShortKeywords.length}`);
       diagnostics.riskyShortKeywords.slice(0, 10).forEach(rule => lines.push(`  - ${rule}`));
+  // 应用进程规则：Android 包名优先，覆盖主流海外 App 与常见客户端变体。
     }
+  // AI
     if (lines.length) console.log(lines.join('\n'));
   }
-  // 规则数据区：按业务能力拆分为独立规则数组，最后统一合并去重。
   const RULES_YOUTUBE = [
     ...ruleProcess(['com.google.android.youtube', 'app.rvx.android.youtube', 'app.rvx.android.apps.youtube', 'app.revanced.android.youtube', 'app.morphe.android.youtube', 'com.google.android.apps.youtube.music'], 'YouTube'),
     ...ruleDomain(['www.youtube.com', 'm.youtube.com', 'youtubeembeddedplayer.googleapis.com', 'jnn-pa.googleapis.com', 'video.google.com'], 'YouTube'),
     ...ruleSuffix(['youtube.com', 'youtubei.googleapis.com', 'youtube.googleapis.com', 'googlevideo.com', 'ytimg.com', 'ggpht.com', 'youtu.be'], 'YouTube')
+  // 音乐 / 流媒体
   ];
-  // 应用进程规则：Android 包名优先，覆盖主流海外 App 与常见客户端变体。
   const RULES_APP_PROCESS = [
-    // AI
     ...ruleProcess([
       'ai.perplexity.app.android', 'com.google.android.apps.bard', 'com.google.android.apps.gemini',
       'com.openai.chatgpt', 'com.openai.chat', 'com.anthropic.claude', 'ai.x.grok',
       'ai.cici.android', 'com.ciciai.app', 'com.coze.android', 'ai.coze.app',
       'com.microsoft.copilot', 'com.deepseek.chat', 'com.moonshot.kimichat'
+  // 社交 / 通讯
+  // 注意：微信未加 PROCESS-NAME 规则，因其语音/视频信令常走纯 IP(N/A) + 腾讯云海外节点突破 GEOIP,CN，
+  // 导致漏到「漏网之鱼」。若需修复，加一行：...ruleProcess(['com.tencent.mm'], '国内服务') 或 DIRECT
     ], 'AI'),
-    // 音乐 / 流媒体
     ...ruleProcess(['com.spotify.music', 'com.spotify.lite', 'com.aspiro.tidal'], 'Spotify'),
     ...ruleProcess([
       'com.netflix.mediaclient', 'com.disney.disneyplus', 'com.amazon.avod.thirdpartyclient',
@@ -3081,7 +3128,6 @@ function buildConfig(config) {
       'com.paramount.android.pplus', 'com.peacocktv.peacockandroid', 'com.crunchyroll.crunchyroid',
       'com.plexapp.android', 'org.jellyfin.mobile', 'com.mb.android'
     ], '流媒体'),
-    // 社交 / 通讯
     ...ruleProcess(['com.discord'], 'Discord'),
     ...ruleProcess(['com.twitter.android', 'com.twitter.android.lite'], 'Twitter'),
     ...ruleProcess(['com.reddit.frontpage', 'com.linkedin.android', 'com.pinterest', 'com.snapchat.android', 'com.medium.reader'], '社交信息流'),
@@ -3096,22 +3142,23 @@ function buildConfig(config) {
     ...ruleProcess([
       'org.telegram.messenger', 'org.telegram.messenger.web', 'org.telegram.plus',
       'com.exteragram.messenger', 'nekox.messenger', 'tw.nekomimi.nekogram',
+  // 协作 / 云办公：暂挂 GitHub 组（开发与生产力同池，避免再拆一组）
       'xyz.nextalone.nagram', 'ellipi.messenger', 'org.thunderdog.challegram',
       'org.aka.messenger', 'org.telegram.BifToGram'
     ], 'Telegram'),
     ...ruleProcess(['org.thoughtcrime.securesms', 'org.thoughtcrime.securesms.donations'], '隐私保护'),
     ...ruleProcess([
+  // 游戏
       'jp.naver.line.android', 'com.linecorp.linelite', 'com.kakao.talk', 'com.nhn.android.search',
       'com.nhn.android.band', 'jp.gocro.smartnews.android'
     ], '日韩生态区'),
-    // 协作 / 云办公：暂挂 GitHub 组（开发与生产力同池，避免再拆一组）
     ...ruleProcess([
       'us.zoom.videomeetings', 'com.Slack', 'notion.id', 'com.notion.android',
       'com.dropbox.android', 'com.box.android', 'com.figma.mirror', 'com.canva.editor',
       'com.atlassian.android.jira.core', 'com.trello', 'com.asana.app', 'com.monday.monday'
     ], 'GitHub'),
-    // 游戏
     ...ruleProcess([
+  // 翻译 / Google 基础服务
       'com.valvesoftware.android.steam.community', 'com.epicgames.portal',
       'com.roblox.client', 'com.mojang.minecraftpe', 'com.activision.callofduty.shooter',
       'com.riotgames.league.wildrift', 'com.riotgames.league.teamfighttactics',
@@ -3120,9 +3167,9 @@ function buildConfig(config) {
       'com.ea.gp.fifamobile', 'com.miHoYo.GenshinImpact', 'com.HoYoverse.hkrpgoversea',
       'com.garena.game.codm', 'com.pubg.imobile', 'com.tencent.ig'
     ], '国外游戏'),
-    // 翻译 / Google 基础服务
     ...ruleProcess(['com.google.android.apps.translate', 'com.deepl.mobiletranslator', 'com.google.android.apps.googlevoice'], '翻译服务'),
     ...ruleProcess([
+  // 微软 / Apple / GitHub / 支付 / 下载 / 新闻
       'com.google.android.gms', 'com.google.android.gsf', 'com.google.android.apps.maps',
       'com.google.android.googlequicksearchbox', 'com.google.android.apps.photos',
       'com.google.android.apps.docs', 'com.google.android.apps.docs.editors.docs',
@@ -3131,7 +3178,6 @@ function buildConfig(config) {
       'com.google.android.keep', 'com.google.android.apps.tachyon', 'com.google.android.apps.nbu.files',
       'com.google.android.apps.chromecast.app', 'com.google.android.apps.youtube.creator'
     ], 'Google'),
-    // 微软 / Apple / GitHub / 支付 / 下载 / 新闻
     ...ruleProcess([
       'com.microsoft.office.outlook', 'com.microsoft.teams', 'com.microsoft.skydrive',
       'com.microsoft.office.officehubrow', 'com.microsoft.office.excel', 'com.microsoft.office.word',
@@ -3148,39 +3194,39 @@ function buildConfig(config) {
     ], '风控安全'),
     ...ruleProcess([
       'com.deniscerri.ytdl', 'com.deniscerri.ytdlnis', 'io.github.deniscerri.ytdlnis',
+  // 翻译服务规则（DOMAIN-SUFFIX 已覆盖域本身，无需重复 DOMAIN）
       'com.dv.adm', 'com.dv.adm.pay', 'idm.internet.download.manager', 'idm.internet.download.manager.plus',
       'com.xunlei.downloadprovider', 'com.aria2.downloader', 'com.molink.john.hummingbird'
     ], '下载专用组'),
     ...ruleProcess([
+  // 广告拦截规则
       'bbc.mobile.news.ww', 'com.nytimes.android', 'com.reuters', 'com.bloomberg.android.plus',
       'com.cnn.mobile.android.phone', 'com.guardian', 'flipboard.app', 'com.google.android.apps.magazines'
     ], '新闻资讯')
   ];
-  // 翻译服务规则（DOMAIN-SUFFIX 已覆盖域本身，无需重复 DOMAIN）
   const RULES_TRANSLATION = [
     ...ruleDomain(['www.deepl.com','api.deepl.com','www2.deepl.com','dict.deepl.com','static.deepl.com'], '翻译服务'),
+  // 关键词拦截只保留高置信度广告词
     ...ruleSuffix(['translate.googleapis.com','translation.googleapis.com','translate-pa.googleapis.com','translate.google.com','translate.google.cn','deepl.com','deeplpro.com','deeplusercontent.com','linguee.com'], '翻译服务')
   ];
-// 广告拦截规则
    const RULES_ADBLOCK = [
+  // 风控安全规则
      'DOMAIN,incoming.telemetry.mozilla.org,REJECT-DROP',
+  // 跟踪分析规则：覆盖 Tracker、遥测、统计与分析域名。
      'DOMAIN-REGEX,^(log|mon)[0-9A-Za-z.-]*\.tiktokv\.com$,REJECT',
      'PROCESS-NAME,TikTok.Mod.Jaggu,TikTok',
      'PROCESS-NAME-REGEX,(?i)^TikTok\.Mod\.Jaggu(?::.*)?$,TikTok',
      'GEOSITE,category-ads-all,广告拦截',
-     // 关键词拦截只保留高置信度广告词
      ...ruleKeyword(['adserver','adnetwork','adtech','adsdk','adapi','adtrack','adclick','adcount','adstat','adload','adsystem','impression','conversion','atdmt','adform','taboola','popunder','clickhubs','adriver'], '广告拦截'),
+  // 风控与系统规则：覆盖 FCM、Play Store、Google AI、下载与高敏感登录链路。
      ...ruleSuffix(adguardDomains(), '广告拦截')
    ];
-// 风控安全规则
   const RULES_RISK_SECURITY = ruleSuffix(['accounts.google.com', 'myaccount.google.com', 'ogs.google.com', 'androidauth.googleapis.com', 'oauthaccountmanager.googleapis.com', 'oauth2.googleapis.com', 'securetoken.googleapis.com', 'identitytoolkit.googleapis.com', 'firebaseauth.googleapis.com', 'accounts.youtube.com', 'families.google.com', 'accounts.google.cn', 'workspace.google.com', 'admin.google.com', 'passwords.google.com', 'notifications.google.com', 'recaptcha.net', 'recaptcha-enterprise.google.com', 'hcaptcha.com', 'newassets.hcaptcha.com', 'account.amazon.com', 'payments.amazon.com', 'paypal.com', 'paypal.com.hk', 'paypal.com.sg', 'paypal.me', 'paypal.hk', 'paypal.jp', 'paypal.us', 'paypalservice.com', 'paypalcredit.com', 'braintreegateway.com', 'braintreepayments.com', 'card.io', 'paypalhere.com', 'venmo.com', 'xoom.com', 'stripe.com', 'stripe.network', 'stripe-terminal-local-reader.net', 'checkout.com', 'checkoutcdn.com', 'checkoutshopper.com', 'payoneer.com', 'airwallex.com', 'worldpay.com', 'skrill.com', 'neteller.com', 'wise.com', 'transferwise.com', 'hsbc.com', 'interactivebrokers.com', 'adyen.com', 'visa.com', 'mastercard.com', 'amex.com', 'revolut.com', 'ibkr.com', 'schwab.com', 'binance.com', 'binance.us', 'bnbstatic.com', 'binanceapi.com', 'coinbase.com', 'okx.com', 'oklink.com', 'okx-dns.com', 'okx-dns1.com', 'okx-dns2.com', 'bybit.com', 'bytick.com', 'byapis.com', 'bycsi.com', 'bybit-global.com', 'bybitglobal.com', 'gate.io', 'gateimg.com', 'gatedata.org', 'kucoin.com', 'kucoin.plus', 'kraken.com', 'bitget.com', 'mexc.com', 'huobi.com', 'htx.com', 'trustwallet.com', 'walletconnect.com', 'walletconnect.org', 'ethereum.org', 'etherscan.io', 'opensea.io', 'uniswap.org', 'safepal.com', 'isafepal.com', 'trezor.io', 'ledger.com', 'hyperliquid.xyz', 'polymarket.com', 'dydx.exchange', 'bitfinex.com', 'bitstamp.net', 'deribit.com', 'bitflyer.com', 'onekey.so', 'onekeycn.com', 'redotpay.com', 'login.live.com', 'login.microsoftonline.com', 'account.live.com', 'account.microsoft.com', 'signup.live.com', 'appleid.apple.com', 'appleaccount.apple.com', 'idmsa.apple.com', 'idms-apple.com', 'iforgot.apple.com', 'signin.aws.amazon.com', 'dash.cloudflare.com', 'challenges.cloudflare.com', 'turnstile.cloudflare.com', 'assets.cloudflare.com', 'authy.com'], '风控安全');
-  // 跟踪分析规则：覆盖 Tracker、遥测、统计与分析域名。
   const RULES_TRACKER = [
     'GEOSITE,tracker,跟踪分析',
     ...ruleKeyword(['tracker', 'analytics', 'telemetry', 'metrics', 'logging', 'heatmap', 'segment', 'amplitude', 'mixpanel', 'sentry', 'datadog', 'newrelic'], '跟踪分析'),
     ...ruleSuffix(['google-analytics.com', 'googletagmanager.com'], '跟踪分析')
   ];
-  // 风控与系统规则：覆盖 FCM、Play Store、Google AI、下载与高敏感登录链路。
   const RULES_RISK_CONTROL_FCM = [
     ...ruleSuffix(['fcm.googleapis.com', 'fcm-xmpp.googleapis.com', 'mtalk.google.com', 'mtalk4.google.com', 'mtalk-staging.google.com', 'fcmtoken.googleapis.com'], 'FCM'),
     'DST-PORT,5228,FCM',
@@ -3210,7 +3256,7 @@ function buildConfig(config) {
   const RULES_TIKTOK_EXTRA = [
     ...ruleDomain(['frontier.tiktokv.com', 'p16-tiktokcdn-com.akamaized.net', 'rezvorck.github.io', 'update.9mod.com', 'vcs.zijieapi.com'], 'TikTok'),
     ...ruleKeyword(['mssdk', 'tiktokcdn', 'webcast-frontier'], 'TikTok'),
-    ...ruleSuffix(['bytegecko-i18n.com', 'byteintlapi.com', 'ipstatp.com', 'isnssdk.com', 'sgpstatp.com', 'snssdk.com', 'tik-tokapi.com', 'tiktok-row.org', 'tiktokd.net', 'tiktokmusic.app', 'ttwebview.com', 'ttwstatic.com'], 'TikTok')
+    ...ruleSuffix(['bytegecko-i18n.com', 'byteintlapi.com', 'ipstatp.com', 'isnssdk.com', 'sgpstatp.com', 'tik-tokapi.com', 'tiktok-row.org', 'tiktokd.net', 'tiktokmusic.app', 'ttwebview.com', 'ttwstatic.com'], 'TikTok')
   ];
   const RULES_FINANCE_EXTRA = [
     ...ruleProcess(['money.boku.android', 'com.ifast.gb', 'com.okinc.okex.gp', 'team.noones.mobilemessenger'], '风控安全'),
@@ -3223,6 +3269,8 @@ function buildConfig(config) {
     ...ruleProcess(['com.oumi.utility.media.hub'], '流媒体'),
     ...ruleDomain(['api.7littlemen.com', 'bps8m.onyra.cc', 'image.tmdb.org', 'stream.onyra.uk', 'vh.api.okaapps.com', 'vh.image.okaapps.com', 'vh.image1.okaapps.com'], '流媒体'),
     ...ruleSuffix(['okaapps.com', 'onyra.cc', 'onyra.uk', 'premiumize.me'], '流媒体'),
+// === 业务规则清单：按业务语义归类，保持与 DNS / 分组联动 ===
+  // 国内服务域名分流：主站/AI 走国内服务组，CDN 走 DIRECT（避免代理拖慢）
     'IP-CIDR,121.43.145.95/32,流媒体,no-resolve'
   ];
   const RULES_AI_TIKTOK_EXTRA = [
@@ -3231,20 +3279,20 @@ function buildConfig(config) {
     ...RULES_FINANCE_EXTRA,
     ...RULES_STREAMING_EXTRA,
   ];
-// === 业务规则清单：按业务语义归类，保持与 DNS / 分组联动 ===
+  // Apple 生态规则（DOMAIN-SUFFIX 已覆盖子域名）
   const RULES_DOMESTIC = [
     ...ruleSuffix(domesticMainDomains(), '国内服务'),
-    ...ruleSuffix(domesticCdnDomains(), '国内服务'),
+    ...ruleSuffix(domesticCdnDomains(), 'DIRECT'),
+  // 全球 AI 规则
     ...ruleSuffix(domesticAiDomains(), '国内服务'),
     'GEOSITE,CN,国内服务',
     'GEOIP,CN,国内服务,no-resolve'
   ];
   const RULES_APPLE_MEDIA = ruleSuffix(['tv.apple.com', 'video.apple.com'], '流媒体');
-  // Apple 生态规则（DOMAIN-SUFFIX 已覆盖子域名）
   const RULES_APPLE = [
     ...ruleSuffix(['apple.com', 'icloud.com', 'icloud-content.com', 'itunes.apple.com', 'apps.apple.com', 'mzstatic.com', 'apple-dns.net', 'apple-mapkit.com', 'cdn-apple.com', 'apple.news', 'applemusic.com', 'appstore.com'], 'Apple')
   ];
-  // 全球 AI 规则
+  // 去中心化与 Cloudflare 规则
   const RULES_AI_GLOBAL = [
     ...ruleSuffix([
       'oaistatic.com', 'oaiusercontent.com', 'openaiusercontent.com', 'chatgpt.livekit.cloud', 'openaiapi-site.azureedge.net',
@@ -3252,16 +3300,16 @@ function buildConfig(config) {
       'groq.com', 'grok.com', 'x.ai', 'api.x.ai', 'mistral.ai', 'lechat.ai', 'poe.com', 'poecdn.net', 'stability.ai',
       'character.ai', 'c.ai', 'midjourney.com', 'cursor.sh', 'cursor.com', 'huggingface.co', 'replicate.com', 'cohere.com'
     ], 'AI')
+  // 下载规则
   ];
-  // 去中心化与 Cloudflare 规则
   const RULES_DECENTRALIZED_AND_CLOUDFLARE = [
     ...ruleProcess(['io.metamask', 'io.metamask:bridge', 'io.metamask:fileprovider'], '去中心化平台'),
     ...ruleDomain(['api2.branch.io', 'cdn.branch.io'], '去中心化平台'),
     ...ruleSuffix(['metamask.io'], '去中心化平台'),
     ...ruleDomain(['1.1.1.1'], 'Cloudflare'),
     ...ruleSuffix(['cloudflare.com', 'cloudflareclient.com', 'workers.dev', 'pages.dev', 'trycloudflare.com', 'cdnjs.cloudflare.com'], 'Cloudflare')
+  // 国外游戏规则
   ];
-  // 下载规则
   const RULES_DOWNLOAD = ruleSuffix([
     'download.windowsupdate.com', 'windowsupdate.com', 'update.microsoft.com', 'delivery.mp.microsoft.com',
     'download.jetbrains.com', 'download.docker.com', 'packages.microsoft.com', 'download.visualstudio.microsoft.com',
@@ -3269,25 +3317,25 @@ function buildConfig(config) {
     'cdn.mysql.com', 'nodejs.org', 'static.rust-lang.org', 'golang.org', 'proxy.golang.org',
     'repo.huaweicloud.com', 'mirrors.edge.kernel.org', 'cdn.kernel.org'
   ], '下载专用组');
-  // 国外游戏规则
   const RULES_GLOBAL_GAMING = [
     ...ruleSuffix([
       'steamcommunity.com', 'steampowered.com', 'steamstatic.com', 'steamcdn-a.akamaihd.net', 'steamserver.net', 'steamcontent.com', 'steampipe.akamaized.net',
       'epicgames.com', 'unrealengine.com', 'epicgames-download1.akamaized.net', 'download.epicgames.com',
       'riotgames.com', 'leagueoflegends.com', 'playvalorant.com', 'riotcdn.net', 'lol.secure.dyn.riotcdn.net',
+  // GitHub 规则
       'battle.net', 'blizzard.com', 'blzddist1-a.akamaihd.net', 'ea.com', 'origin.com', 'origin-a.akamaihd.net',
       'uplay.com', 'ubisoft.com', 'cdn.ubisoft.com', 'rockstargames.com', 'gog.com', 'roblox.com', 'rbxcdn.com',
       'minecraft.net', 'mojang.com', 'launcher.mojang.com', 'piston-meta.mojang.com',
+  // 微软规则（不含 Bing 相关域名，已拆分到 RULES_MICROSOFT_BING）
       'nintendo.com', 'nintendo.net', 'nintendo.co.jp', 'cdn.nintendo.net',
       'sonyentertainmentnetwork.com', 'playstation.com', 'playstation.net', 'psnprofiles.com',
       'xboxservices.com', 'supercell.com', 'supercell.net'
     ], '国外游戏')
   ];
-  // GitHub 规则
   const RULES_GITHUB = [
     ...ruleSuffix(['github.com','github.io','githubusercontent.com','githubassets.com','githubstatus.com','ghcr.io','npmjs.com','npmjs.org','yarnpkg.com','github.dev','raw.githubusercontent.com'], 'GitHub')
   ];
-  // 微软规则（不含 Bing 相关域名，已拆分到 RULES_MICROSOFT_BING）
+  // 微软 Bing 专用规则
   const RULES_MICROSOFT = [
     ...ruleSuffix([
       'microsoft.com', 'microsoftonline.com', 'live.com', 'live.net', 'outlook.com', 'officeapps.live.com',
@@ -3295,8 +3343,8 @@ function buildConfig(config) {
       'office.com', 'office.net', 'office365.com', 'microsoft365.com', 'sharepoint.com', 'skype.com',
       'teams.microsoft.com', 'xbox.com', 'xboxlive.com', 'azure.com', 'windows.net', 'msftauth.net', 'msauth.net'
     ], '微软服务')
+  // 流媒体规则
   ];
-  // 微软 Bing 专用规则
   const RULES_MICROSOFT_BING = [
     ...ruleProcess(['com.microsoft.bing'], '微软Bing'),
     ...ruleSuffix([
@@ -3304,39 +3352,38 @@ function buildConfig(config) {
       'bingapis.com', 'bingstatic.com', 'bing.net', 'msn.cn'
     ], '微软Bing')
   ];
-  // 流媒体规则
+  // 台湾媒体规则
   const RULES_STREAMING = [
     ...ruleSuffix([
       'netflix.com', 'nflxvideo.net', 'nflximg.net', 'nflxext.com', 'nflxso.net', 'netflix.net',
       'disneyplus.com', 'disney-plus.net', 'dssott.com', 'bamgrid.com', 'primevideo.com', 'amazonvideo.com', 'media-amazon.com',
+  // Twitch 规则
       'max.com', 'hbomax.com', 'hbo.com', 'hulu.com', 'huluim.com', 'appletvplus.com',
       'paramountplus.com', 'cbsi.com', 'peacocktv.com', 'crunchyroll.com', 'crunchyrollsvc.com'
     ], '流媒体')
   ];
-  // 台湾媒体规则
+  // Meta 规则
   const RULES_TAIWAN_MEDIA = [
     ...ruleProcess(['tw.com.gamer.android.animad', 'com.kkbox.tv.kkbox', 'com.kkbox.kkboxandroid', 'com.kktv.kktv', 'tw.litv.tv.androidmobile', 'com.fetnet.friday'], '台湾媒体'),
     ...ruleSuffix(['hamivideo.hinet.net', 'hami.video', 'litv.tv', '4gtv.tv', 'myvideo.net.tw', 'ofiii.com', 'catchplay.com', 'catchplay.com.tw', 'garageplay.tw', 'friday.tw', 'video.friday.tw', 'kktv.com.tw', 'linetv.tw', 'bahamut.com.tw', 'gamer.com.tw', 'ani.gamer.com.tw', 'ptsplus.tv', 'pts.org.tw', 'cts.com.tw', 'ftvnews.com.tw', 'news.tvbs.com.tw', 'tvbs.com.tw', 'setn.com', 'ettoday.net', 'mirrormedia.mg', 'bcc.com.tw', 'dcard.tw', 'dcard.video', 'udn.com', 'udngroup.com', 'ltn.com.tw', 'thenewslens.com', 'businessweekly.com.tw', 'cmmedia.com.tw', 'storm.mg', 'nownews.com', 'cna.com.tw', 'books.com.tw', 'readmoo.com', 'mojim.com', 'kkbox.com'], '台湾媒体')
   ];
-  // Twitch 规则
   const RULES_TWITCH = [
     ...ruleProcess(['tv.twitch.android.app','tv.twitch.android.viewer'], 'Twitch'),
     ...ruleSuffix(['twitch.tv','twitchcdn.net','ttvnw.net','jtvnw.net','live-video.net'], 'Twitch')
+  // Spotify 规则
   ];
-  // Meta 规则
   const RULES_META = [
     ...ruleSuffix([
       'facebook.com', 'facebook.net', 'fb.com', 'fbcdn.net', 'fbsbx.com', 'tfbnw.net',
+  // Telegram 规则
       'messenger.com', 'm.me', 'instagram.com', 'cdninstagram.com', 'ig.me',
       'threads.net', 'threadsdotnet.com', 'whatsapp.com', 'whatsapp.net'
     ], 'Meta')
   ];
-  // Spotify 规则
   const RULES_SPOTIFY = [
     ...ruleProcess(['com.spotify.music', 'com.spotify.lite', 'com.spotify.tv.android'], 'Spotify'),
     ...ruleSuffix(['spotify.com','scdn.co','spoti.fi','pscdn.co','spotifycdn.com'], 'Spotify')
   ];
-  // Telegram 规则
   const RULES_TELEGRAM = [
     ...ruleProcess([
       'org.telegram.messenger', 'org.telegram.messenger.web', 'com.exteragram.messenger',
@@ -3346,20 +3393,20 @@ function buildConfig(config) {
     ...ruleKeyword(['telegram'], 'Telegram'),
     ...ruleSuffix([
       'telegra.ph', 'telegram.org', 't.me', 'telesco.pe', 'telegram.me', 'telegram.dog',
+  // Google 通用规则
       'telegram-cdn.org', 'telegram.space', 'tg.dev', 'tdesktop.com', 'usercontent.dev', 'graph.org'
     ], 'Telegram'),
+  // GMS 共享端点：android.googleapis.com / android.clients.google.com 是 Google Play Services
+  // 的通用 API 网关（设备 checkin、配置拉取、Play Integrity 认证、FCM token 注册等多服务共用），
+  // 不专属于谷歌商店下载，也不是 FCM 推送通道，统一归 Google 走稳定境外线路。
     ...ruleIpCidr([
       '91.108.4.0/22', '91.108.8.0/21', '91.108.12.0/22', '91.108.16.0/22', '91.108.20.0/22', '91.108.56.0/22',
       '91.105.192.0/23', '91.108.128.0/17', '149.154.160.0/20', '149.154.192.0/18', '46.17.44.0/22', '46.17.47.0/24',
       '2001:b28:f23d::/48', '2001:b28:f23f::/48', '2001:67c:4e8::/48'
     ], 'Telegram')
   ];
-  // Google 通用规则
   const RULES_GOOGLE = [
     ...ruleDomain(['dns.google', 'dns.google.com', 'mail.google.com'], 'Google'),
-    // GMS 共享端点：android.googleapis.com / android.clients.google.com 是 Google Play Services
-    // 的通用 API 网关（设备 checkin、配置拉取、Play Integrity 认证、FCM token 注册等多服务共用），
-    // 不专属于谷歌商店下载，也不是 FCM 推送通道，统一归 Google 走稳定境外线路。
     ...ruleDomain([
       'android.googleapis.com', 'android.clients.google.com', 'android.clients.google.com.cn',
       'clientservices.googleapis.com'
@@ -3368,25 +3415,26 @@ function buildConfig(config) {
       'google.com', 'googleapis.com', 'gstatic.com', 'gmail.com', 'googlemail.com', 'ggpht.cn',
       'googleusercontent.com', 'googleusercontent.cn', 'withgoogle.com', 'g.co', 'goo.gl', 'googleearth.com',
       'clients1.google.com', 'clients2.google.com', 'clients3.google.com', 'clients4.google.com',
+  // Twitter / X 规则
       'clients5.google.com', 'clients6.google.com', 'clients.googleapis.com', 'one.google.com',
       'lens.google.com', 'photos.google.com', 'maps.google.com', 'maps.gstatic.com', 'news.google.com',
       'meet.google.com', 'chat.google.com', 'drive.google.com', 'docs.google.com', 'sheets.google.com',
+  // Discord 规则：主站、邀请、资源与客户端
       'slides.google.com', 'classroom.google.com', 'calendar.google.com', 'contacts.google.com',
       'keep.google.com', 'earth.google.com'
     ], 'Google'),
     ...ruleSuffix(['gvt1.com', 'gvt2.com', 'gvt3.com', 'xn--ngstr-lra8j.com', 'xn--ngstr-cn-8za9o.com'], '谷歌商店')
+  // 社交信息流规则
   ];
-  // Twitter / X 规则
   const RULES_TWITTER = [
     ...ruleSuffix(['x.com','twitter.com','twimg.com','t.co','pscp.tv','periscope.tv'], 'Twitter')
   ];
-  // Discord 规则：主站、邀请、资源与客户端
   const RULES_DISCORD = [
     ...ruleProcess(['com.discord'], 'Discord'),
     ...ruleSuffix(['discord.com','discord.gg','discord.gift','discord.new','discordapp.com','discordapp.net','discordcdn.com','discord.media','discordsays.com','dis.gd'], 'Discord')
   ];
-  // 社交信息流规则
   const RULES_SOCIAL_FEED = [
+  // 日韩生态规则
     ...ruleSuffix(['reddit.com','redditinc.com','redditmedia.com','redditstatic.com','redditspace.com','redd.it','flr.app'], '社交信息流'),
     ...ruleDomain(['reddit.map.fastly.net'], '社交信息流')
   ];
@@ -3395,63 +3443,63 @@ function buildConfig(config) {
     ...ruleKeyword(['tiktok', 'musical'], 'TikTok'),
     ...ruleSuffix(['tiktok.com', 'tiktokcdn.com', 'tiktokv.com', 'tiktokcdn-us.com', 'tiktokcdn-eu.com', 'tiktokrow-cdn.com', 'tiktokv.us', 'ibyteimg.com', 'ibytedtos.com', 'byteoversea.com', 'muscdn.com', 'musical.ly', 'tiktokd.org'], 'TikTok')
   ];
-  // 日韩生态规则
   const RULES_JP_KR_ECOSYSTEM = [
     ...ruleSuffix([
       'line.me', 'line-apps.com', 'line-scdn.net', 'naver.com', 'naver.net', 'naver.jp', 'linecorp.com', 'band.us',
       'weverse.io', 'weverseapi.io', 'weverseassets.io', 'ameba.jp', 'note.com', 'tapple.me', 'pixiv.net', 'pximg.net',
       'fc2.com', 'fc2blog.net', 'livedoor.com', 'hatena.ne.jp', 'goo.ne.jp', 'abema.tv', 'tver.jp', 'ntv.co.jp',
+  // 社交补充规则
       'tbs.co.jp', 'nhk.or.jp', 'dmm.com', 'fanbox.cc', 'kakao.com', 'kakao.co.kr', 'kakaocdn.net', 'daum.net',
       'dcinside.com', 'afreecatv.com', 'sooplive.co.kr', 'coupang.com', 'coupangcdn.com', 'nexon.com', 'nexon.co.jp'
     ], '日韩生态区')
+  // 隐私保护规则：与跟踪分析同逻辑，默认走动作型策略组。
   ];
   const RULES_NICONICO = [
     ...ruleProcess(['jp.nicovideo.android', 'jp.nicovideo.nicobox', 'jp.co.dwango.nicocas'], 'Niconico'),
     ...ruleSuffix(['nicovideo.jp','nimg.jp','nicofarre.com','smilevideo.jp','dmc.nico'], 'Niconico')
   ];
-  // 社交补充规则
   const RULES_SOCIAL_FEED_SUPPLEMENT = [
     ...ruleDomain(['connect.facebook.net', 'graph.facebook.com'], 'Meta')
   ];
-  // 隐私保护规则：与跟踪分析同逻辑，默认走动作型策略组。
   const RULES_PRIVACY = [
     ...ruleDomain(['api.ipify.org', 'icanhazip.com', 'ipleak.net', 'browserleaks.com', 'whoer.net'], '隐私保护'),
+  // 个人媒体规则：Emby / Jellyfin / Plex 等私有媒体服
     ...ruleSuffix([
       'ipleak.net', 'browserleaks.com', 'whoer.net', 'ipinfo.io', 'ipapi.co', 'ipify.org', 'dnsleaktest.com',
       'hotjar.com', 'fullstory.com', 'clarity.ms', 'mouseflow.com', 'heapanalytics.com', 'crazyegg.com',
       'inspectlet.com', 'logrocket.com', 'smartlook.com', 'luckyorange.com', 'contentsquare.net',
+  // 新闻资讯规则
       'signal.org', 'signal.art', 'signal.tube'
     ], '隐私保护'),
     ...ruleKeyword(['fingerprint', 'browserleaks', 'ipleak', 'dnsleak', 'hotjar', 'fullstory', 'clarity', 'mouseflow', 'heapanalytics', 'crazyegg', 'inspectlet', 'logrocket', 'smartlook', 'luckyorange', 'contentsquare', 'fingerprintjs', 'fpjs.io', 'cdn.fpjs.io', 'metrics.hotjar.io', 'rs.fullstory.com', 'edge.fullstory.com'], '隐私保护')
   ];
-  // 个人媒体规则：Emby / Jellyfin / Plex 等私有媒体服
   const RULES_PERSONAL_MEDIA = [
     ...ruleSuffix(['emby.media', 'jellyfin.org', 'plex.tv', 'plex.direct'], '个人媒体'),
     'PROCESS-NAME-REGEX,(?i).*(emby|jellyfin|plex).*,个人媒体'
   ];
-  // 新闻资讯规则
+  // 局域网 / 私有网络：最高优先直连，避免内网服务被代理。
   const RULES_NEWS = [
     ...ruleSuffix([
       'bbc.com', 'bbc.co.uk', 'bbci.co.uk', 'nytimes.com', 'nyt.com', 'reuters.com', 'bloomberg.com',
       'cnn.com', 'wsj.com', 'ft.com', 'theguardian.com', 'apnews.com', 'npr.org', 'economist.com',
+  // 不要写入 198.18.0.0/15，那是 fake-ip 保留段，强行直连会破坏 DNS 接管。
       'nhk.or.jp', 'voachinese.com', 'rfi.fr', 'dw.com', 'aljazeera.com', 'scmp.com', 'time.com',
       'washingtonpost.com', 'latimes.com', 'abcnews.go.com', 'nbcnews.com', 'cbsnews.com', 'foxnews.com'
     ], '新闻资讯')
   ];
-  // 局域网 / 私有网络：最高优先直连，避免内网服务被代理。
   const RULES_LAN_PRIVATE = [
     'GEOSITE,private,DIRECT',
+  // 协作办公 / 云生产力
     'GEOIP,private,DIRECT,no-resolve',
     ...ruleIpCidr([
-      // 不要写入 198.18.0.0/15，那是 fake-ip 保留段，强行直连会破坏 DNS 接管。
       '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8', '169.254.0.0/16',
       '172.16.0.0/12', '192.0.0.0/24', '192.0.2.0/24', '192.168.0.0/16',
       '198.51.100.0/24', '203.0.113.0/24', '224.0.0.0/4', '240.0.0.0/4',
       '::1/128', 'fc00::/7', 'fe80::/10', 'ff00::/8'
     ], 'DIRECT')
   ];
-  // 协作办公 / 云生产力
   const RULES_COLLABORATION = [
+  // 开发者生态 / 包管理 / 容器镜像
     ...ruleSuffix([
       'zoom.us', 'zoom.com', 'zoomgov.com', 'slack.com', 'slack-edge.com', 'slack-msgs.com',
       'notion.so', 'notion.site', 'notion.com', 'dropbox.com', 'dropboxapi.com', 'dropboxusercontent.com',
@@ -3460,9 +3508,9 @@ function buildConfig(config) {
       'miro.com', 'airtable.com', 'linear.app', 'clickup.com'
     ], 'GitHub')
   ];
-  // 开发者生态 / 包管理 / 容器镜像
   const RULES_DEVELOPER = [
     ...ruleSuffix([
+  // 扩展社交 / 知识社区
       'stackoverflow.com', 'stackexchange.com', 'serverfault.com', 'superuser.com', 'askubuntu.com',
       'docker.com', 'docker.io', 'dockerstatic.com', 'pypi.org', 'pythonhosted.org', 'files.pythonhosted.org',
       'crates.io', 'static.crates.io', 'static.rust-lang.org', 'golang.org', 'proxy.golang.org', 'pkg.go.dev', 'sum.golang.org',
@@ -3470,31 +3518,30 @@ function buildConfig(config) {
       'registry.npmjs.org', 'rubygems.org', 'packagist.org', 'nuget.org', 'cdn.nuget.org',
       'gcr.io', 'quay.io', 'k8s.io', 'kubernetes.io', 'hashicorp.com', 'terraform.io', 'vagrantup.com'
     ], 'GitHub')
+  // 支付服务规则补强
   ];
-  // 扩展社交 / 知识社区
   const RULES_SOCIAL_EXTRA = [
     ...ruleSuffix([
       'linkedin.com', 'licdn.com', 'pinterest.com', 'pinimg.com', 'snapchat.com', 'sc-cdn.net',
       'medium.com', 'v2ex.com', 'quora.com', 'quoracdn.net'
     ], '社交信息流'),
     ...ruleSuffix(['wikipedia.org', 'wikimedia.org', 'wikidata.org', 'wiktionary.org', 'wikiquote.org'], '新闻资讯')
+  // 兜底规则：CN直连 → 境外域名走节点 → 未知境外IP走漏网之鱼 → MATCH收尾
   ];
-  // 支付服务规则补强
   const RULES_PAYMENT = [
     ...ruleSuffix([
       'paypal.com', 'stripe.com', 'wise.com', 'revolut.com', 'payoneer.com', 'worldpay.com',
       'skrill.com', 'neteller.com', 'authy.com', 'adyen.com', 'transferwise.com', 'checkout.com',
       'braintreegateway.com', 'braintreepayments.com', 'venmo.com', 'xoom.com', 'airwallex.com'
+  // 规则内容与装配顺序分离
     ], '支付服务')
   ];
-  // 兜底规则：CN直连 → 境外域名走节点 → 未知境外IP走漏网之鱼 → MATCH收尾
   const RULES_DIRECT_AND_FALLBACK = [
     'GEOIP,CN,DIRECT',
     'GEOSITE,geolocation-!cn,节点选择',
     'GEOIP,!CN,漏网之鱼',
     'MATCH,漏网之鱼'
   ];
-  // 规则内容与装配顺序分离
   const RULE_SET_MAP = {
     LAN_PRIVATE: RULES_LAN_PRIVATE,
     YOUTUBE: RULES_YOUTUBE,
@@ -3532,32 +3579,32 @@ APP_PROCESS: RULES_APP_PROCESS,
     DISCORD: RULES_DISCORD,
     SOCIAL_FEED: RULES_SOCIAL_FEED,
     SOCIAL_EXTRA: RULES_SOCIAL_EXTRA,
+  // 局域网 / 私有地址永远最先，避免内网被后续业务或 GEOIP 误伤。
     DECENTRALIZED_SUPPLEMENT: RULES_DECENTRALIZED_SUPPLEMENT,
+  // 登录/支付风控必须先于其父域业务规则，避免 accounts.youtube.com 等子域被提前吞掉。
     TIKTOK: RULES_TIKTOK,
+  // 专项业务优先：视频、翻译与 Google Play 精确链路。
     JP_KR_ECOSYSTEM: RULES_JP_KR_ECOSYSTEM,
     NICONICO: RULES_NICONICO,
     SOCIAL_FEED_SUPPLEMENT: RULES_SOCIAL_FEED_SUPPLEMENT,
+  // 进程兜底必须位于精确域名之后，避免 GMS/下载器吞掉专项流量。
     DIRECT_AND_FALLBACK: RULES_DIRECT_AND_FALLBACK
+  // 广告 / 跟踪 / 隐私 / 支付 / 个人媒体 / 资讯位于登录支付保护之后，降低核心链路误拦截概率。
   };
   const RULE_ASSEMBLY_ORDER = [
-    // 局域网 / 私有地址永远最先，避免内网被后续业务或 GEOIP 误伤。
     'LAN_PRIVATE',
-    // 登录/支付风控必须先于其父域业务规则，避免 accounts.youtube.com 等子域被提前吞掉。
     'RISK_SECURITY',
-    // 专项业务优先：视频、翻译与 Google Play 精确链路。
     'YOUTUBE',
     'TRANSLATION',
+  // 补丁型专项规则
     'RISK_CONTROL',
-    // 进程兜底必须位于精确域名之后，避免 GMS/下载器吞掉专项流量。
     'APP_PROCESS',
-// 广告 / 跟踪 / 隐私 / 支付 / 个人媒体 / 资讯位于登录支付保护之后，降低核心链路误拦截概率。
      'ADBLOCK',
      'TRACKER',
     'PRIVACY',
     'PAYMENT',
     'PERSONAL_MEDIA',
     'NEWS',
-    // 补丁型专项规则
     'AI_TIKTOK_EXTRA',
     'DOMESTIC',
     'APPLE_MEDIA',
@@ -3581,6 +3628,7 @@ APP_PROCESS: RULES_APP_PROCESS,
     'TWITTER',
     'DISCORD',
     'SOCIAL_FEED',
+  // 规则装配
     'SOCIAL_EXTRA',
     'DECENTRALIZED_SUPPLEMENT',
     'TIKTOK',
@@ -3589,45 +3637,45 @@ APP_PROCESS: RULES_APP_PROCESS,
     'SOCIAL_FEED_SUPPLEMENT',
     'DIRECT_AND_FALLBACK'
   ];
-  // 规则装配
+  // 规则健康检查：确保存在最终兜底规则
   const RULE_SET_DEFS = RULE_ASSEMBLY_ORDER.map(name => ({
     name,
     rules: RULE_SET_MAP[name]
+  // Emoji 重命名：在规则装配后、目标校验前，把规则中的旧组名替换为带 emoji 的新组名。
   }));
   perfStart('rules_assemble');
   const assembledRules = collectRuleSets(RULE_SET_DEFS, RULE_ASSEMBLY_ORDER);
   config.rules = mergeRuleSets(assembledRules);
+  // MATCH 规则只有 2 段（MATCH,target），直接替换最后一段
   perfEnd('rules_assemble');
-  // 规则健康检查：确保存在最终兜底规则
   if (!config.rules.length || !config.rules.some(rule => typeof rule === 'string' && /^MATCH\s*,/i.test(rule))) {
     throw new Error('rules health check failed: missing fallback MATCH rule');
   }
-  // Emoji 重命名：在规则装配后、目标校验前，把规则中的旧组名替换为带 emoji 的新组名。
   config.rules = config.rules.map(rule => {
     if (typeof rule !== 'string') return rule;
     const parts = rule.split(',');
     if (parts.length < 2) return rule;
-    // MATCH 规则只有 2 段（MATCH,target），直接替换最后一段
     if (parts.length === 2) {
       parts[1] = applyEmojiRename(parts[1].trim());
       return parts.join(',');
     }
     for (let i = parts.length - 1; i >= 2; i--) {
+  // 规则目标校验：确保所有目标都指向有效策略组
       const value = parts[i].trim();
       if (value && !RULE_TRAILING_FLAGS.has(value.toUpperCase())) {
         parts[i] = applyEmojiRename(value);
         break;
       }
+  // 跳过有效目标和已记录的缺失目标
     }
     return parts.join(',');
   });
-  // 规则目标校验：确保所有目标都指向有效策略组
   const missingRuleTargets = [];
   const seenMissingRuleTargets = new Set();
   for (let i = 0; i < config.rules.length; i++) {
     const rule = config.rules[i];
     const target = extractRulePolicyTarget(rule);
-    // 跳过有效目标和已记录的缺失目标
+  // DNS / 分组 / 规则联动校验：只校验声明表中的业务，不猜测未注册策略组。
     if (!target || availableRuleTargets.has(target)) continue;
     if (seenMissingRuleTargets.has(target)) continue;
     seenMissingRuleTargets.add(target);
@@ -3636,7 +3684,6 @@ APP_PROCESS: RULES_APP_PROCESS,
   if (missingRuleTargets.length) {
     throw new Error('rules health check failed: missing policy target(s): ' + missingRuleTargets.join(', '));
   }
-  // DNS / 分组 / 规则联动校验：只校验声明表中的业务，不猜测未注册策略组。
   const dnsBindingErrors = [];
   const fallbackDomainSet = new Set(asArray(config.dns['fallback-filter'] && config.dns['fallback-filter'].domain));
   for (let i = 0; i < DNS_SERVICE_BINDINGS.length; i++) {
@@ -3658,22 +3705,22 @@ APP_PROCESS: RULES_APP_PROCESS,
     const fallbackDomains = asArray(binding.fallbackDomains);
     for (let j = 0; j < fallbackDomains.length; j++) {
       if (!fallbackDomainSet.has(fallbackDomains[j])) {
+  // 规则诊断：可选的深度分析（开发调试用）
         dnsBindingErrors.push(binding.key + ': fallback domain not applied for ' + fallbackDomains[j]);
         break;
+  // 风险关键词规则
       }
     }
   }
+  // 注：同 match value 多 target 现在按"后定义覆盖前定义"处理，只记录诊断，不再阻断
   if (dnsBindingErrors.length) {
     throw new Error('DNS service binding check failed: ' + dnsBindingErrors.join(' | '));
   }
-  // 规则诊断：可选的深度分析（开发调试用）
   if (RULE_DIAGNOSTICS_ENABLED) {
     const ruleDiagnostics = buildRuleDiagnostics(RULE_SET_DEFS, config.rules);
-    // 风险关键词规则
     if (ruleDiagnostics.riskyShortKeywords.length && typeof console !== 'undefined' && typeof console.warn === 'function') {
       console.warn('rules health check warning: risky short DOMAIN-KEYWORD rule(s): ' + ruleDiagnostics.riskyShortKeywords.join(', '));
     }
-    // 注：同 match value 多 target 现在按"后定义覆盖前定义"处理，只记录诊断，不再阻断
     emitRuleDiagnostics(ruleDiagnostics);
   }
   if (!config['rule-providers'] || typeof config['rule-providers'] !== 'object') {
@@ -3708,22 +3755,23 @@ APP_PROCESS: RULES_APP_PROCESS,
   config.dns.enable = true;
   config.dns['enhanced-mode'] = 'fake-ip';
   config.dns['respect-rules'] = true;
+  // 完成：性能统计与配置返回
   config.dns['use-system-hosts'] = false;
   config.dns['use-hosts'] = true;
   if (config.tun && typeof config.tun === 'object' && config.tun.enable) {
+  // 辅助工具
     config.tun['dns-hijack'] = buildChoiceList(config.tun['dns-hijack'], ['any:53', 'tcp://any:53']);
+    if (config.tun['auto-detect-interface'] === undefined) config.tun['auto-detect-interface'] = true;
   }
+  // 克隆核心配置字段
   if (Array.isArray(config['proxy-groups'])) {
   }
-  // 完成：性能统计与配置返回
   perfFlush();
   return config;
 }
-// 辅助工具
 function clonePlainConfig(value) {
   if (!value || typeof value !== 'object') return {};
   const config = Object.assign({}, value);
-  // 克隆核心配置字段
   config.proxies = Array.isArray(value.proxies)
     ? value.proxies.map(proxy => (proxy && typeof proxy === 'object' ? Object.assign({}, proxy) : proxy))
     : [];
