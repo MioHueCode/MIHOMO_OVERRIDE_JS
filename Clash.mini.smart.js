@@ -6,7 +6,14 @@
  * Normal 版：使用 url-test/fallback 传统组合，适合偏好手动切换场景。
  *
  * 开源仓库：https://github.com/MioHueCode/MIHOMO_OVERRIDE_JS
- * @version 3.13.0 @date 2026-07-28 @license MIT
+ * @version 3.13.1 @date 2026-08-25 @license MIT
+ *
+ * ⚠️ Windows 用户注意事项：
+ * 在 Windows 系统上开启 fake-ip 模式时，系统「智能多宿主 DNS 解析」功能会干扰 fake-ip
+ * 映射表，导致 Edge/Chrome 等浏览器出现雪崩式重复请求（日志中可见大量 "dial DIRECT error"）。
+ * 解决方法（二选一）：
+ *   ① 关闭系统 DNS 加密：设置 → 网络 → DNS 设置 → 关闭「加密 DNS」
+ *   ② 在 Clash 客户端中开启「严格路由」或 equivalent 选项
  */
 function buildConfig(config) {
   if (!config || !Array.isArray(config.proxies)) return config;
@@ -103,7 +110,7 @@ function buildConfig(config) {
   }
   // 域名生成器：压缩重复模式
   const d = (...domains) => domains.map(x => x.startsWith('+.') || x.startsWith('*.') ? x : '+.' + x);
-  const googleDomains = () => d('google.com','googleapis.com','googleapis.cn','services.googleapis.cn','gstatic.com','googleusercontent.com','gvt1.com','gvt2.com','gvt3.com','recaptcha.net','recaptcha-cn.net','youtube.com','ytimg.com','googlevideo.com','youtubei.googleapis.com','youtube.googleapis.com','translate.googleapis.com','translation.googleapis.com','translate-pa.googleapis.com','twitter.com','x.com','twimg.com','t.co');
+  const googleDomains = () => d('google.com','googleapis.com','googleapis.cn','services.googleapis.cn','gstatic.com','googleusercontent.com','gvt1.com','gvt2.com','gvt3.com','recaptcha.net','recaptcha-cn.net','youtube.com','ytimg.com','googlevideo.com','youtubei.googleapis.com','youtube.googleapis.com','translate.googleapis.com','translation.googleapis.com','translate-pa.googleapis.com');
   const playStoreDomains = () => [
     'play.google.com','market.android.com','play.googleapis.com','play-fe.googleapis.com','play-pa.googleapis.com','playatoms-pa.googleapis.com','play-apps-fe-pa.googleapis.com','play-apps-download-frontend.googleapis.com','android.googleapis.com','android.clients.google.com','android.clients.google.com.cn','play-lh.googleusercontent.com','play-games.googleusercontent.com','dl.google.com','dl.l.google.com',
     '+.gvt1.com','+.gvt2.com','+.gvt3.com','+.xn--ngstr-lra8j.com','+.xn--ngstr-cn-8za9o.com','+.services.googleapis.cn','+.googleapis.cn'
@@ -135,9 +142,9 @@ function buildConfig(config) {
   const discordDomains = () => d('discord.com','discord.gg','discord.gift','discord.new','discordapp.com','discordapp.net','discordcdn.com','discord.media','discordsays.com','dis.gd');
   const telegramDomains = () => d('telegram.org','t.me','telegra.ph','telegram.me','telegram.dog','telegram-cdn.org','telegram.space','tg.dev','tdesktop.com','telesco.pe','usercontent.dev','graph.org');
   const collaborationDomains = () => d(
-    'zoom.us','zoom.com','zoomgov.com','slack.com','slack-edge.com','slack-msgs.com','notion.so','notion.site','notion.com',
-    'dropbox.com','dropboxapi.com','dropboxusercontent.com','box.com','boxcloud.com','figma.com','figma-gov.com','canva.com',
-    'atlassian.com','atlassian.net','jira.com','trello.com','asana.com','monday.com','miro.com','airtable.com','linear.app','clickup.com'
+    'zoom.us','zoom.com','zoomgov.com','zoomcdn.com','zoomapp.com','slack.com','slack-edge.com','slack-msgs.com','notion.so','notion.site','notion.com',
+    'dropbox.com','dropboxapi.com','dropboxusercontent.com','box.com','boxcloud.com','figma.com','figma-gov.com','canva.com','miro.com','mirocdn.com',
+    'atlassian.com','atlassian.net','jira.com','trello.com','asana.com','monday.com','airtable.com','linear.app','linearassets.com','clickup.com'
   );
   const developerDomains = () => d(
     'stackoverflow.com','stackexchange.com','serverfault.com','superuser.com','askubuntu.com',
@@ -145,11 +152,12 @@ function buildConfig(config) {
     'crates.io','static.crates.io','static.rust-lang.org','golang.org','proxy.golang.org','pkg.go.dev','sum.golang.org',
     'maven.org','repo1.maven.org','repo.maven.apache.org','gradle.org','services.gradle.org',
     'registry.npmjs.org','npmjs.com','npmjs.org','yarnpkg.com','rubygems.org','packagist.org','nuget.org','cdn.nuget.org',
-    'gcr.io','ghcr.io','quay.io','k8s.io','kubernetes.io','hashicorp.com','terraform.io','vagrantup.com'
+    'gcr.io','ghcr.io','quay.io','k8s.io','kubernetes.io','hashicorp.com','terraform.io','vagrantup.com',
+    'github.com','githubusercontent.com','githubassets.com','github.io','github.dev','ghcr.io','githubstatus.com'
   );
   const socialExtraDomains = () => d(
     'linkedin.com','licdn.com','pinterest.com','pinimg.com','snapchat.com','sc-cdn.net','signal.org','signal.art','signal.tube',
-    'medium.com','wikipedia.org','wikimedia.org','wikidata.org','v2ex.com','quora.com','quoracdn.net'
+    'medium.com','wikipedia.org','wikimedia.org','wikidata.org','wiktionary.org','wikiquote.org','v2ex.com','quora.com','quoracdn.net'
   );
   const tiktokDomains = () => d(
     'tiktok.com','tiktokv.com','byteoversea.com','ibytedtos.com','tiktokcdn.com','tiktokcdn-us.com','tiktokcdn-eu.com','tiktokrow-cdn.com','tiktokv.us',
@@ -160,7 +168,8 @@ function buildConfig(config) {
     'openai.com','chatgpt.com','oaistatic.com','oaiusercontent.com','claude.ai','anthropic.com','anthropiccdn.com','claudeusercontent.com',
     'perplexity.ai','perplexity.com','pplx.ai','poe.com','poecdn.net','midjourney.com','character.ai','c.ai','groq.com','mistral.ai','lechat.ai',
     'x.ai','grok.com','cohere.com','huggingface.co','replicate.com','cursor.sh','cursor.com','gemini.google.com','generativeai.google',
-    'notebooklm.google.com','copilot.microsoft.com','stability.ai'
+    'notebooklm.google.com','copilot.microsoft.com','stability.ai','ai.com','sora.com','elevenlabs.io','suno.com','suno.ai',
+    'lmsys.org','pomona.ai','optimizerai.app','qwen.ai','deepmind.google','glean.com','you.com','phind.com','kagihub.com'
   );
   const metaDomains = () => d(
     'facebook.com','facebook.net','fb.com','fbcdn.net','fbsbx.com','tfbnw.net','messenger.com','m.me',
@@ -192,11 +201,11 @@ function buildConfig(config) {
   // 以下域名集为三位一体补全新增：这些业务此前有独立分组与规则，但缺少 DNS binding，
   // 导致 nameserver-policy / fallback-filter 未显式覆盖，只能落到主 nameserver 默认路径。
   // 补齐后可保证「规则命中的业务」与「DNS 解析路径」「fallback 抗污染白名单」三层一致。
-  const twitterDomains = () => d('x.com','twitter.com','twimg.com','t.co','pscp.tv','periscope.tv','twttr.com');
+  const twitterDomains = () => d('x.com','twitter.com','twimg.com','t.co','pscp.tv','periscope.tv','twttr.com','x.dev','twtrdns.net','twttr.net');
   const appleServiceDomains = () => d('apple.com','icloud.com','icloud-content.com','itunes.apple.com','apps.apple.com','mzstatic.com','apple-dns.net','apple-mapkit.com','cdn-apple.com','apple.news','applemusic.com','appstore.com');
   const twitchDomains = () => d('twitch.tv','twitchcdn.net','ttvnw.net','jtvnw.net','live-video.net');
   const socialFeedDomains = () => d('reddit.com','redditinc.com','redditmedia.com','redditstatic.com','redditspace.com','redd.it','linkedin.com','licdn.com','pinterest.com','pinimg.com','snapchat.com','sc-cdn.net','medium.com','quora.com','quoracdn.net');
-  const jpKrEcosystemDomains = () => d('line.me','line-apps.com','line-scdn.net','naver.com','naver.net','naver.jp','linecorp.com','band.us','weverse.io','ameba.jp','note.com','pixiv.net','pximg.net','kakao.com','kakaocdn.net','daum.net');
+  const jpKrEcosystemDomains = () => d('line.me','line-apps.com','line-scdn.net','naver.com','naver.net','naver.jp','linecorp.com','band.us','weverse.io','weverseapi.io','weverseassets.io','ameba.jp','note.com','tapple.me','pixiv.net','pximg.net','kakao.com','kakaocdn.net','daum.net');
   const niconicoDomains = () => d('nicovideo.jp','nimg.jp','nicofarre.com','smilevideo.jp','dmc.nico');
   const taiwanMediaDomains = () => d('hami.video','litv.tv','4gtv.tv','myvideo.net.tw','ofiii.com','catchplay.com','catchplay.com.tw','friday.tw','kktv.com.tw','linetv.tw','bahamut.com.tw','gamer.com.tw','ptsplus.tv','pts.org.tw','kkbox.com');
   const infraDomains = () => d('dns.google','dns.google.com','cloudflare-dns.com','api2.branch.io','cdn.branch.io');
@@ -256,7 +265,10 @@ function buildConfig(config) {
   const domesticAiDomains = () => d(
     'doubao.com', 'volces.com', 'qianfan.baidu.com', 'erniebot.com', 'yiyan.baidu.com',
     'deepseek.com', 'deepseek.cn', 'moonshot.cn', 'kimi.com', 'minimaxi.com',
-    'xinghuo.xfyun.cn', 'sensenova.cn'
+    'xinghuo.xfyun.cn', 'sensenova.cn', 'chatglm.cn', 'chatglm.ai', 'bigmodel.cn',
+    'yiyan.baidu.com', 'spark.cli.cn', 'tongyi.aliyun.com', 'hunyuan.tencent.com',
+    'yuanbao.tencent.com', 'baichuan-ai.com', 'stepfun.com', 'stepship.cn',
+    'zhipuai.cn', 'zhipu.ai', 'moonshot.cn', 'api.moonshot.cn'
   );
   // 惰性单例：国内服务域名集（主站+CDN+AI），避免重复构建
   let _domesticServiceDomainsCache = null;
@@ -327,6 +339,7 @@ function buildConfig(config) {
     ...streamingDomains(),
     ...aiDomains()
   ]);
+  // 注：此处已使用 uniqList 去重，确保嗅探列表无冗余
   config.sniffer['skip-domain'] = sanitizeCompatDomainList(uniqList([
     ...asArray(config.sniffer['skip-domain']),
   // DoH 域名：解析器自身不参与嗅探，避免请求链路互相干扰。
@@ -413,17 +426,13 @@ function buildConfig(config) {
   const PLAY_STORE_TEST_URL = TEST_URL;
   const PLAY_STORE_SPECIAL_GROUP_NAMES = ['谷歌商店专用'];
   const HEALTH_CHECK_LAZY = true;
+  // Smart 版核心常量
   const ENABLE_SMART_GROUPS = true;
   const SMART_STRATEGY = 'sticky-sessions';
   const SMART_USE_LIGHTGBM = true;
-  // Smart 版核心：开启运行数据采集，让 LightGBM 模型基于真实链路表现持续训练、自我进化，
-  // 配合 lgbm-auto-update 形成「越用越准」的智能选路闭环（Normal 版保持关闭）。
   const SMART_COLLECT_DATA = true;
   const SMART_SAMPLE_RATE = '0.3';
   const SMART_PREFER_ASN = true;
-  // expected-rtt：Smart 组的期望 RTT 基准。原值 150 对当前订阅偏激进——
-  // 实测 Cloudflare anycast 节点普遍在 100~460ms，低于基准的节点几乎只有个别几个，
-  // 会让模型过度集中到少数节点、其余节点长期被压低权重。放宽到 250 更贴合真实分布。
   const SMART_EXPECTED_RTT = 250;
   // Cloudflare / Anycast 类节点识别：这类节点走 CDN 边缘入口，
   // IPv6 边缘在移动网络下经常绕路或被限速，且 AAAA 探测失败会拖长首连时间。
@@ -482,7 +491,7 @@ function buildConfig(config) {
     privacyAndCaptivePortal: privacyDomains(),
     googlePlayIntegrity: googlePlayIntegrityDomains(),
     domestic: domesticServiceDomains(),
-  // 以下从 DNS_POLICY_DOMAIN_SETS 复用（已计算，不再重复调用）
+  // 以下从 DNS_POLICY_DOMAIN_SETS 复用
     meta: DNS_POLICY_DOMAIN_SETS.meta,
     discord: DNS_POLICY_DOMAIN_SETS.discord,
     telegram: DNS_POLICY_DOMAIN_SETS.telegram,
@@ -603,6 +612,7 @@ function buildConfig(config) {
   const safeFallbackDns = fallbackDns.length ? fallbackDns : ['https://dns.quad9.net/dns-query'];
   const safeFastDomesticDns = fastDomesticDns.length ? fastDomesticDns : safeLocalDns;
   const safeAdguardDns = adguardDns.length ? adguardDns : ['https://dns.adguard-dns.com/dns-query'];
+  const safeProxyBootstrapDns = proxyBootstrapDns.length ? proxyBootstrapDns : ['223.5.5.5', '1.1.1.1'];
   config.dns = Object.assign({}, config.dns || {}, {
     enable: true,
     listen: '0.0.0.0:1053',
@@ -658,7 +668,7 @@ function buildConfig(config) {
   // 节点服务器域名必须直连解析；不再追加本地 DNS 回退，优先使用可直连的中立公共解析器完成自举。
     'direct-nameserver': safeFastDomesticDns,
     'proxy-server-nameserver': uniqList([
-      ...proxyBootstrapDns,
+      ...safeProxyBootstrapDns,
       ...asArray(config.dns && config.dns['proxy-server-nameserver']).filter(item => !safeCnDns.includes(item) && !safeLocalDns.includes(item))
     ])
   // Google Play 下载链路应保留 fake-ip 以便 TUN/规则持续接管；主动清理上游遗留的真实解析例外。
@@ -676,7 +686,6 @@ function buildConfig(config) {
     ...discordDomains()
   // DNS 分流策略：按私有网络 / 国内 / 境外 / 广告 / 特殊业务域名分别指定解析器。
   // nameserver-policy 维护提示：键必须保持 Mihomo 可识别的 geosite / 域名模式，值必须是一维 DNS 列表。
-  // 若把值误改成对象或二维数组，常见后果是导入失败或策略静默失效。
   ]));
   const nameserverPolicy = Object.assign({}, config.dns['nameserver-policy'] || {}, {
     'geosite:private': safeFastDomesticDns,
@@ -880,9 +889,9 @@ function buildConfig(config) {
     /\bbandwidth\b/i,
     /\bboost\b/i,
     /\bturbo\b/i,
-    /\b\d+(?:\.\d+)?\s*x\b/i,
+    /(?<![a-z])\d+(?:\.\d+)?\s*x\b/i,
   // 倍率排序提取
-    /\bx\s*\d+(?:\.\d+)?\b/i,
+    /\bx\s*\d+(?:\.\d+)?(?![a-z])/i,
     /\d+(?:\.\d+)?\s*倍/
   ];
   const multiplierSortInfoCache = new Map();
@@ -891,25 +900,40 @@ function buildConfig(config) {
     if (multiplierSortInfoCache.has(cacheKey)) return multiplierSortInfoCache.get(cacheKey);
     const normalized = cacheKey
       .toLowerCase()
-      .replace(/[（【［]/g, '(')
-      .replace(/[）】］]/g, ')')
+      .replace(/[（【［(]/g, '(')
+      .replace(/[）】］)]/g, ')')
       .replace(/[，、｜|_]/g, ' ')
-      .replace(/倍率/g, ' x ')
-      .replace(/倍/g, ' x ')
+      .replace(/倍率/g, 'x')
+      .replace(/倍/g, 'x')
+      .replace(/加速倍率|速率倍率/g, 'x')
       .replace(/\s+/g, ' ')
       .trim();
     const candidates = [];
-    const numberRegex = /\d+(?:\.\d+)?/g;
-    let match;
-    while ((match = numberRegex.exec(normalized)) !== null) {
-      const value = Number(match[0]);
-      if (!Number.isFinite(value)) continue;
-      const start = match.index;
-      const end = start + match[0].length;
-      const before = normalized.slice(Math.max(0, start - 6), start);
-      const after = normalized.slice(end, Math.min(normalized.length, end + 6));
-      const nearMultiplierMark = before.includes('x') || after.includes('x');
-      if (nearMultiplierMark) candidates.push({ value, index: start });
+    // 策略1：正则匹配 Nx / xN 模式（如 0.1x, x2）
+    const multRe = /(?<![a-z])(\d+(?:\.\d+)?)\s*x\b/gi;
+    const multRe2 = /\bx\s*(\d+(?:\.\d+)?)(?![a-z])/gi;
+    let m;
+    while ((m = multRe.exec(normalized)) !== null) {
+      const value = Number(m[1]);
+      if (Number.isFinite(value) && value > 0 && value <= 100) {
+        candidates.push({ value, index: m.index });
+      }
+    }
+    while ((m = multRe2.exec(normalized)) !== null) {
+      const value = Number(m[1]);
+      if (Number.isFinite(value) && value > 0 && value <= 100) {
+        candidates.push({ value, index: m.index });
+      }
+    }
+    // 策略2：关键词标记的兜底（无 x 但有倍率关键词，直接取最接近的数字）
+    const hasMultiplierKeyword = /x|bandwidth|boost|turbo|加速|倍率/.test(normalized);
+    if (!candidates.length && hasMultiplierKeyword) {
+      const numMatches = normalized.match(/\d+(?:\.\d+)?/g) || [];
+      for (const numStr of numMatches) {
+        const value = Number(numStr);
+        if (!Number.isFinite(value) || value <= 0 || value > 100) continue;
+        candidates.push({ value, index: normalized.indexOf(numStr) });
+      }
     }
     if (candidates.length) {
       candidates.sort((a, b) => a.value - b.value || a.index - b.index);
@@ -922,7 +946,7 @@ function buildConfig(config) {
     return result;
   }
   function isMultiplierProxyName(name) {
-  // 流媒体识别
+  // 倍率识别
     const text = String(name || '');
     if (multiplierNamePatterns.some(re => re.test(text))) return true;
     return getMultiplierSortInfo(text).recognized;
@@ -1426,6 +1450,28 @@ function buildConfig(config) {
     const merged = mergeUniqueChoicesWithFallback(list, extraDefaults, ['DIRECT']);
     return merged.length ? merged : ['DIRECT'];
   }
+  function normalizeHealthOptions(options = {}, defaults = {}) {
+    return {
+      url: options.url || defaults.url || testUrl,
+      interval: typeof options.interval === 'number' ? options.interval : (typeof defaults.interval === 'number' ? defaults.interval : testInterval),
+      tolerance: typeof options.tolerance === 'number' ? options.tolerance : (typeof defaults.tolerance === 'number' ? defaults.tolerance : testTolerance),
+      timeout: typeof options.timeout === 'number' ? options.timeout : (typeof defaults.timeout === 'number' ? defaults.timeout : testTimeout),
+      maxFailedTimes: typeof options.maxFailedTimes === 'number' ? options.maxFailedTimes : (typeof defaults.maxFailedTimes === 'number' ? defaults.maxFailedTimes : testMaxFailedTimes),
+      lazy: typeof options.lazy === 'boolean' ? options.lazy : (typeof defaults.lazy === 'boolean' ? defaults.lazy : healthCheckLazy),
+      strategy: options.strategy || defaults.strategy || 'consistent-hashing'
+    };
+  }
+  function makeUrlTestGroup(name, icon, nodes, interval, tolerance, options = {}) {
+    const proxies = ensureGroupList(nodes, []);
+    if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
+    const health = normalizeHealthOptions(options, { interval, tolerance });
+    return {
+      name, type: 'url-test', icon,
+      url: health.url, interval: health.interval, tolerance: health.tolerance,
+      timeout: health.timeout, 'max-failed-times': health.maxFailedTimes, lazy: health.lazy,
+      proxies
+    };
+  }
   function makeSmartGroup(name, icon, nodes, interval, tolerance, options = {}) {
     const sampleRate = options.sampleRate !== undefined ? options.sampleRate : 0.3;
     const residentialPriority = options.residentialPriority !== undefined ? options.residentialPriority : false;
@@ -1445,29 +1491,6 @@ function buildConfig(config) {
       proxies
     };
   }
-  function normalizeHealthOptions(options = {}, defaults = {}) {
-    return {
-      url: options.url || defaults.url || testUrl,
-      interval: typeof options.interval === 'number' ? options.interval : (typeof defaults.interval === 'number' ? defaults.interval : testInterval),
-      tolerance: typeof options.tolerance === 'number' ? options.tolerance : (typeof defaults.tolerance === 'number' ? defaults.tolerance : testTolerance),
-      timeout: typeof options.timeout === 'number' ? options.timeout : (typeof defaults.timeout === 'number' ? defaults.timeout : testTimeout),
-      maxFailedTimes: typeof options.maxFailedTimes === 'number' ? options.maxFailedTimes : (typeof defaults.maxFailedTimes === 'number' ? defaults.maxFailedTimes : testMaxFailedTimes),
-      lazy: typeof options.lazy === 'boolean' ? options.lazy : (typeof defaults.lazy === 'boolean' ? defaults.lazy : healthCheckLazy),
-      strategy: options.strategy || defaults.strategy || 'consistent-hashing'
-    };
-  }
-  function makeUrlTestGroup(name, icon, nodes, interval, tolerance, options = {}) {
-    const proxies = ensureGroupList(nodes, []);
-    if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
-    const health = normalizeHealthOptions(options, { interval, tolerance });
-    return {
-      name, type: 'url-test', icon,
-      url: health.url, interval: health.interval, tolerance: health.tolerance,
-  // Select 组
-      timeout: health.timeout, 'max-failed-times': health.maxFailedTimes, lazy: health.lazy,
-      proxies
-    };
-  }
   function makeSelectGroup(name, icon, list, extraDefaults = ['智能选择'], scope = null) {
     return {
       name,
@@ -1479,6 +1502,7 @@ function buildConfig(config) {
   }
   function makeFallbackGroup(name, icon, list, extraDefaults = ['智能选择'], options = {}) {
     const proxies = ensureGroupList(list, extraDefaults);
+    if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
     const health = normalizeHealthOptions(options, {
       interval: fallbackInterval, tolerance: fallbackTolerance,
       timeout: fallbackTimeout, maxFailedTimes: fallbackMaxFailedTimes
@@ -1596,6 +1620,8 @@ function buildConfig(config) {
     fallback: qIcon('Available'), fallbackFinal: 'https://api.iconify.design/tabler:parachute.svg?color=%233b82f6',
     flare: 'https://api.iconify.design/tabler:flame-filled.svg?color=%2300d1b2',
     lowMultiplier: 'https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b',
+    highMultiplier: 'https://api.iconify.design/tabler:gauge-filled.svg?color=%23ef4444',
+    normalMultiplier: 'https://api.iconify.design/tabler:gauge-filled.svg?color=%2310b981',
     multiplier: qIcon('Filter'), home: 'https://api.iconify.design/tabler:home-filled.svg',
     youtube: qIcon('YouTube'), youtubeFallback: qIcon('Streaming'), tiktok: qIcon('TikTok'),
     meta: 'https://api.iconify.design/simple-icons:meta.svg?color=%231877F2',
@@ -1626,22 +1652,22 @@ function buildConfig(config) {
       manual: label + '节点',
   // 地区目录与测速顺序
       homeAuto: label + '家宽智能',
-  // 地区目录构建（地区智能组 + 地区家宽智能组 hidden + 地区节点组 visible）
-  // 智能组和家宽智能组使用 include-all + filter 动态匹配，订阅更新时新增节点自动归组
+  // 地区目录构建（地区自动组 + 地区家宽智能组 hidden + 地区节点组 visible）
+  // 自动组和家宽智能组使用 include-all + filter 动态匹配，订阅更新时新增节点自动归组
       homeManual: '🏠' + label + '家宽手动',
     };
   }
   const regionAutoOrder = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '加拿大', '俄罗斯', '东南亚', '拉美地区', '非洲', '其它地区'];
   const MIN_REGION_HOME_AUTO_NODES = 2;
   const regionCatalog = regionAutoOrder.reduce((acc, regionName) => {
-  // 地区智能组：改为静态节点列表 Smart（而非 include-all + filter 动态匹配），
-  // 保证智能组测速的候选节点与地区节点组（脚本精确分类结果）完全一致，避免正则误匹配导致两者节点集合不同、延迟展示对不上。
+  // 地区自动组：改为静态节点列表 url-test（而非 include-all + filter 动态匹配），
+  // 保证自动组测速的候选节点与地区节点组（脚本精确分类结果）完全一致，避免正则误匹配导致两者节点集合不同、延迟展示对不上。
     const regionNodes = unique(regionGroups[regionName] || []);
     if (!regionNodes.length) return acc;
     const names = makeFusionRegionGroupNames(regionName);
     const residentialNodes = unique(regionNodes.filter(name => isResidentialProxyName(name)));
     const autoGroup = makeSmartGroup(names.auto, regionIconMap[regionName], regionNodes, regionUrlTestInterval, regionUrlTestTolerance, {
-  // 地区家宽智能组：至少达到最小家宽节点数才生成，避免单节点智能组污染 UI。
+  // 地区家宽智能组：至少达到最小家宽节点数才生成，避免单节点测速组污染 UI。
       timeout: regionUrlTestTimeout,
       maxFailedTimes: regionUrlTestMaxFailedTimes
     });
@@ -1658,7 +1684,7 @@ function buildConfig(config) {
     const homeManualChoices = buildChoiceList(
       homeAutoGroup ? [names.homeAuto] : [],
       residentialNodes
-  // 地区节点 select 组：智能组名 + 地区所有真实节点（含家宽）
+  // 地区节点 select 组：自动组名 + 地区所有真实节点（含家宽）
     );
     const homeManualGroup = homeManualChoices.length
     ? { name: '🏠' + regionName + '家宽节点', type: 'select', icon: homeRegionIconMap[regionName], proxies: homeManualChoices }
@@ -1892,7 +1918,7 @@ function buildConfig(config) {
   // 全局兜底地区顺序：用于智能兜底组，优先尝试更常用出口地区。
   }
   const globalHomeNodes = residentialProxyNames.slice();
-  // 区域智能选择定义
+  // 区域故障转移定义
   const globalDedicatedNodes = dedicatedProxyNames.slice();
   const fusionVisibleRegions = unique(regionHomeManualNames.concat(regionManualNames));
   const AUTO_FALLBACK_REGION_ORDER = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '欧盟', '加拿大', '俄罗斯', '东南亚', '拉美地区', '非洲', '其它地区'];
@@ -2041,7 +2067,6 @@ function buildConfig(config) {
     })),
     ...SPECIAL_FALLBACK_DEFS.map(def => def.name === 'YouTube无广节点优先组'
       ? makeFallbackGroup(def.name, def.icon, def.nodes, def.extraDefaults, def.options)
-  // 负载均衡与特征聚合
       : makeSmartGroup(def.name, def.icon, def.nodes, 300, 180, { timeout: FALLBACK_TIMEOUT, maxFailedTimes: FALLBACK_MAX_FAILED_TIMES, lazy: true }))
   ]);
   const fallbackGroups = fallbackGroupArtifacts.groups;
@@ -2091,7 +2116,9 @@ function buildConfig(config) {
     if (a.info.recognized !== b.info.recognized) return a.info.recognized ? -1 : 1;
     return String(a.name).localeCompare(String(b.name), 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
   });
-  const globalMultiplierNodes = multiplierProxyEntries.map(item => item.name);
+  const highMultiplierNodes = multiplierProxyEntries
+    .filter(item => item.info.recognized && item.info.value > 1)
+    .map(item => item.name);
   const lowMultiplierNodes = multiplierProxyEntries
     .filter(item => item.info.recognized && item.info.value <= 1)
     .map(item => item.name);
@@ -2115,18 +2142,18 @@ function buildConfig(config) {
   const globalDedicatedGroup = globalDedicatedAuto && globalDedicatedNodes.length
     ? { name: '全球专线', type: 'select', icon: iconMap.dedicated, proxies: buildChoiceList(['全球专线智能'], globalDedicatedNodes) }
     : null;
-  const globalMultiplierAuto = globalMultiplierNodes.length
-    ? makeSmartGroup('全球倍率智能', iconMap.multiplier, globalMultiplierNodes, regionUrlTestInterval, regionUrlTestTolerance)
+  const highMultiplierAuto = highMultiplierNodes.length
+    ? makeSmartGroup('高倍率节点智能', iconMap.highMultiplier, highMultiplierNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
-  if (globalMultiplierAuto) globalMultiplierAuto.hidden = true;
-  const globalMultiplierGroup = globalMultiplierAuto && globalMultiplierNodes.length
-    ? { name: '全球倍率', type: 'select', icon: iconMap.multiplier, proxies: buildChoiceList(['全球倍率智能'], globalMultiplierNodes) }
+  if (highMultiplierAuto) highMultiplierAuto.hidden = true;
+  const highMultiplierGroup = highMultiplierAuto && highMultiplierNodes.length
+    ? { name: '高倍率节点', type: 'select', icon: iconMap.highMultiplier, proxies: buildChoiceList(['高倍率节点智能'], highMultiplierNodes) }
     : null;
   const lowMultiplierAuto = lowMultiplierNodes.length
     ? makeSmartGroup('低倍率节点智能', iconMap.lowMultiplier, lowMultiplierNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
   if (lowMultiplierAuto) lowMultiplierAuto.hidden = true;
-  const lowMultiplierGroup = lowMultiplierAuto && lowMultiplierNodes.length
+  const lowMultiplierGroup = lowMultiplierAuto
     ? { name: '低倍率节点', type: 'select', icon: iconMap.lowMultiplier, proxies: buildChoiceList(['低倍率节点智能'], lowMultiplierNodes) }
     : null;
   const globalStreamingAuto = globalStreamingNodes.length
@@ -2144,10 +2171,10 @@ function buildConfig(config) {
   // 排除谷歌商店专属组
   // 下载散列组 / 下载轮询组也一并排除：它们是「下载专用组」的内部编排单元（隐藏组），
   // 不应作为通用候选出现在其它业务组的选项里，否则每个业务组都会冒出这两个下载组。
-    globalMultiplierGroup ? ['全球倍率'] : [],
+    highMultiplierGroup ? ['高倍率节点'] : [],
     globalStreamingGroup ? ['全球流媒体'] : []
   );
-  const globalFeatureAutoGroups = [globalHomeAuto, globalDedicatedAuto, globalMultiplierAuto, lowMultiplierAuto, globalStreamingAuto].filter(Boolean);
+  const globalFeatureAutoGroups = [globalHomeAuto, globalDedicatedAuto, highMultiplierAuto, lowMultiplierAuto, globalStreamingAuto].filter(Boolean);
   const playStoreExclusiveSet = new Set(['谷歌商店专用', '下载散列组', '下载轮询组']);
   const commonLoadBalanceNames = loadBalanceNames.filter(name => !playStoreExclusiveSet.has(name));
   const regionFallbackNames = ['港台智能选择', '日韩智能选择', '欧美智能选择'];
@@ -2289,14 +2316,16 @@ function buildConfig(config) {
     usableChoiceDef('streaming', globalStreamingGroup ? ['全球流媒体', '节点选择', '智能选择'] : ['节点选择', '智能选择'], commonBaseChoices),
     usableChoiceDef('taiwanMedia', unique(['港台智能选择', taiwanManualName, '节点选择', '智能选择'].filter(Boolean)), commonBaseChoices),
   // 地区家宽节点组紧跟全球家宽
-    usableChoiceDef('riskControl', [
+usableChoiceDef('riskControl', [
       '家宽智能选择',
       globalHomeGroup ? '🏡全球家宽' : null,
+      highMultiplierGroup ? '高倍率节点' : null,
       globalDedicatedGroup ? '全球专线' : null,
+      lowMultiplierGroup ? '低倍率节点' : null,
       ...regionHomeManualNames.filter(name => name && name !== '🏡全球家宽'),
-      '全球手动',
+      '智能选择',
       '节点选择',
-      '智能选择'
+      '全球手动'
     ].filter(Boolean), [
       '港台智能选择', '日韩智能选择', '欧美智能选择',
       ...regionManualNames.filter(name => name && !String(name).includes('家宽')),
@@ -2454,8 +2483,9 @@ function buildConfig(config) {
   if (globalHomeGroup) specialFeatureGroups.push(globalHomeGroup);
   // 服务分流组
   if (globalDedicatedGroup) specialFeatureGroups.push(globalDedicatedGroup);
+  if (highMultiplierGroup) specialFeatureGroups.push(highMultiplierGroup);
+  // standardMultiplierGroup removed
   if (lowMultiplierGroup) specialFeatureGroups.push(lowMultiplierGroup);
-  if (globalMultiplierGroup) specialFeatureGroups.push(globalMultiplierGroup);
   if (globalStreamingGroup) specialFeatureGroups.push(globalStreamingGroup);
   const RISK_CONTROL_SERVICE_GROUP = makeSelectGroupDef(
     '风控安全',
@@ -2556,15 +2586,15 @@ function buildConfig(config) {
     HOME_TEST_TOLERANCE,
     {
       timeout: HOME_TEST_TIMEOUT,
-  // 链式双组：中转(隐藏 fallback，自动选跳板) + 出口(可见 select，手动选落地)
-  // 风控只看「出口」的落地 IP（dialer-proxy 使路径为 客户端→中转→出口→目标，出口 IP 才是目标可见的最终出口）。
-  // 因此：出口优先干净的家宽/住宅 IP；中转对目标不可见，只需快、稳、低成本。
-  // 中转候选顺序：专线(骨干最稳) → 低倍率(链式流量翻倍，省成本) → 智能选择 → 智能兜底 → 地区智能组/地区节点组
-  // 中转刻意排除家宽：家宽带宽有限且珍贵，应全部留给出口落地，不消耗在中转跳板上。
       maxFailedTimes: HOME_TEST_MAX_FAILED_TIMES,
       lazy: true
     }
   );
+  // 链式双组：中转(隐藏 fallback，自动选跳板) + 出口(可见 select，手动选落地)
+  // 风控只看「出口」的落地 IP（dialer-proxy 使路径为 客户端→中转→出口→目标，出口 IP 才是目标可见的最终出口）。
+  // 因此：出口优先干净的家宽/住宅 IP；中转对目标不可见，只需快、稳、低成本。
+  // 中转候选顺序：专线(骨干最稳) → 低倍率(链式流量翻倍，省成本) → 智能选择 → 智能兜底 → 地区自动组/地区节点组
+  // 中转刻意排除家宽：家宽带宽有限且珍贵，应全部留给出口落地，不消耗在中转跳板上。
   const chainTransitChoices = sanitizeUiChoiceList(
     [
       globalDedicatedGroup ? '全球专线' : null,
@@ -2588,8 +2618,8 @@ function buildConfig(config) {
     [
       globalStreamingGroup ? '全球流媒体' : null,
       globalDedicatedGroup ? '全球专线' : null,
-      lowMultiplierGroup ? '低倍率节点' : null,
-      globalMultiplierGroup ? '全球倍率' : null
+      highMultiplierGroup ? '高倍率节点' : null,
+      lowMultiplierGroup ? '低倍率节点' : null
     ].filter(Boolean),
     allProxyNames
   );
@@ -2875,13 +2905,13 @@ function buildConfig(config) {
     'Cloudflare': '☁️Cloudflare',
     '下载专用组': '📥下载专用组',
     '广告拦截': '🚫广告拦截',
-    '跟踪分析': '📊跟踪分析',
+    '跟踪分析': '🕵️跟踪分析',
     '隐私保护': '🔒隐私保护',
     '漏网之鱼': '🐟漏网之鱼',
     '🏡全球家宽': '🏡全球家宽',
     '全球专线': '🚄全球专线',
     '低倍率节点': '🐢低倍率节点',
-    '全球倍率': '🔄全球倍率',
+    '高倍率节点': '🐎高倍率节点',
     '全球流媒体': '🎞️全球流媒体',
     'YouTube': '▶️YouTube',
     'TikTok': '🎵TikTok',
@@ -2917,7 +2947,7 @@ function buildConfig(config) {
   };
   GROUP_EMOJI_MAP['🏡全球家宽智能'] = '🏡全球家宽智能';
   GROUP_EMOJI_MAP['全球专线智能'] = '🚄全球专线智能';
-  GROUP_EMOJI_MAP['全球倍率智能'] = '🔄全球倍率智能';
+  GROUP_EMOJI_MAP['高倍率节点智能'] = '🐎高倍率节点智能';
   GROUP_EMOJI_MAP['低倍率节点智能'] = '🐢低倍率节点智能';
   GROUP_EMOJI_MAP['全球流媒体智能'] = '🎞️全球流媒体智能';
   // 地区家宽智能组：地区家宽智能 → 🇭🇰香港家宽智能
