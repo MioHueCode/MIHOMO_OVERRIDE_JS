@@ -2160,7 +2160,7 @@ function buildConfig(config) {
   // 下载散列组 / 下载轮询组也一并排除：它们是「下载专用组」的内部编排单元（隐藏组），
   // 不应作为通用候选出现在其它业务组的选项里，否则每个业务组都会冒出这两个下载组。
     highMultiplierGroup ? ['高倍率节点'] : [],
-    globalStreamingGroup ? ['🎞️全球流媒体'] : []
+    globalStreamingGroup ? ['全球流媒体'] : []
   );
   const globalFeatureAutoGroups = [globalHomeAuto, globalDedicatedAuto, highMultiplierAuto, lowMultiplierAuto, globalStreamingAuto].filter(Boolean);
   const playStoreExclusiveSet = new Set(['谷歌商店专用', '下载散列组', '下载轮询组']);
@@ -2901,7 +2901,7 @@ function buildConfig(config) {
     '全球专线': '🚄全球专线',
     '低倍率节点': '🐢低倍率节点',
     '高倍率节点': '🐎高倍率节点',
-    '🎞️全球流媒体': '🎞️全球流媒体',
+    '全球流媒体': '🎞️全球流媒体',
     'YouTube': '▶️YouTube',
     'TikTok': '🎵TikTok',
     'Meta': '💬Meta',
