@@ -232,35 +232,53 @@ function buildConfig(config) {
     'hunyuan.tencent.com', 'yuanbao.tencent.com',
     'taobao.com', 'tmall.com', 'alipay.com', 'tongyi.com', 'tongyi.aliyun.com',
     'jd.com', 'pinduoduo.com', 'smzdm.com', 'meituan.com', 'dianping.com', 'ctrip.com', '12306.cn',
-    'bilibili.com', 'iqiyi.com', 'mgtv.com', 'douyin.com', 'snssdk.com', 'amemv.com', 'kuaishou.com', 'zhihu.com', 'weibo.com',
-    'xiaohongshu.com', 'baidu.com', '163.com', '126.com', '126.net', 'sina.com.cn', 'sohu.com'
+  // 视频平台主站
+    'bilibili.com', 'bilibili.cn', 'b23.tv', 'im9.com',
+    'iqiyi.com', 'qiyi.com', 'pps.tv', 'ppstream.com',
+    'mgtv.com', 'hunantv.com', 'sohu.com', 'tv.sohu.com',
+    'youku.com', 'youku.cn', 'tudou.com', 'soku.com',
+    'douyin.com', 'iesdouyin.com', 'amemv.com', 'snssdk.com',
+    'kuaishou.com', 'kuaishou.cn', 'Nebula.app',
+    'weibo.com', 'weibo.cn', 'sina.com.cn', 'sinacdn.com',
+  // 其他平台
+    'zhihu.com', 'zhihu.org', 'xiaohongshu.com', 'redocn.com',
+    'baidu.com', 'baidu.cn', 'bdstatic.com',
+    '163.com', '126.com', '126.net', 'yeah.net',
+    'sina.com.cn', 'sohu.com', 'people.com.cn',
+  // 字节系
+    'bytedance.com', 'byted.org', 'douyin.com', 'toutiao.com', 'toutiao.io', 'feiliao.com'
   );
   const domesticCdnDomains = () => d(
-  // 腾讯系
+  // 腾讯系 CDN
     'gtimg.com', 'gtimg.cn', 'qpic.cn', 'qqvideo.tc.qq.com', 'qlogo.cn', 'idqqimg.com', 'myqcloud.com',
-  // 阿里系
+    'weiyun.com', 'cdn-go.cn', 'wetranstv.com',
+  // 阿里系 CDN
     'alicdn.com', 'aliyuncs.com', 'alipayobjects.com', 'aliimg.com', 'alikunlun.com', 'alikunlun.net', 'cdngslb.com',
-  // 优酷 / 京东
-    'youkuimg.com', 'jdstatic.com', '360buyimg.com',
-  // B站
-    'biliapi.com', 'biliimg.com', 'bilivideo.com', 'bilivideo.cn', 'hdslb.com',
-  // 爱奇艺 / 芒果
-    'iqiyipic.com', 'ppsvod.com',
-  // 字节 / 抖音
-    'douyincdn.com', 'bytecdn.cn', 'byteimg.com', 'byted.org', 'iesdouyin.com', 'zjcdn.com', 'douyinstatic.com', 'douyinvod.com', 'pstatp.com', 'douyinpic.com', 'bytegoofy.com', 'bytednsdoc.com',
-  // 快手
-    'ksapisrv.com', 'kspkg.com', 'ksyuncdn.com', 'ks-cdn.com',
-  // 知乎 / 微博 / 小红书
-    'zhimg.com', 'weibocdn.com', 'sinaimg.cn', 'sinajs.cn', 'xhscdn.com', 'xhsglobal.com',
-  // 百度
-    'bdimg.com', 'bdstatic.com', 'bcebos.com', 'baidubce.com', 'bdydstatic.com',
-  // 网易
+    'alibabausercontent.com', 'aliyundrive.com',
+  // 优酷 / 京东 / 淘宝 CDN
+    'youkuimg.com', 'jdstatic.com', '360buyimg.com', 'taobaocdn.com',
+  // B站 CDN
+    'biliapi.com', 'biliimg.com', 'bilivideo.com', 'bilivideo.cn', 'hdslb.com', 'b23.tv', 'bilibili.co',
+  // 爱奇艺 / 芒果 CDN
+    'iqiyipic.com', 'ppsvod.com', 'pps.tv', 'ppstream.com',
+    'mgtv.com', 'hunantv.com', 'cmvideo.cn',
+  // 字节 / 抖音 CDN
+    'douyincdn.com', 'bytecdn.cn', 'byteimg.com', 'iesdouyin.com', 'zjcdn.com', 
+    'douyinstatic.com', 'douyinvod.com', 'pstatp.com', 'douyinpic.com', 'bytegoofy.com', 'bytednsdoc.com',
+    'toutiao.com', 'toutiao.cn', 'ixigua.com', 'jinritemai.com',
+  // 快手 CDN
+    'ksapisrv.com', 'kspkg.com', 'ksyuncdn.com', 'ks-cdn.com', 'kuaishoupay.com',
+  // 知乎 / 微博 / 小红书 CDN
+    'zhimg.com', 'weibocdn.com', 'sinaimg.cn', 'sinajs.cn', 'xhscdn.com', 'xhsglobal.com', 'sinacdn.com',
+  // 百度 CDN
+    'bdimg.com', 'bdstatic.com', 'bcebos.com', 'baidubce.com', 'bdydstatic.com', 'baidutv.com',
+  // 网易 CDN
     'nos.netease.com', 'ydstatic.com',
-  // 360 / 小米 / 美团 / 搜狐
-    'qhimg.com', 'qhres.com', 'qhres2.com', 'qhmsg.com',
-    'mi-img.com', 'mifile.cn',
+  // 360 / 小米 / 美团 / 搜狐 CDN
+    'qhimg.com', 'qhres.com', 'qhres2.com', 'qhmsg.com', '360.cn', '360safe.com',
+    'mi-img.com', 'mifile.cn', 'xiaomicdn.com',
     'meituan.net', 'dpfile.com',
-    'sohucs.com', 'itc.cn'
+    'sohucs.com', 'itc.cn', 'ctcdn.cn', 'v-56.com'
   );
   const domesticAiDomains = () => d(
     'doubao.com', 'volces.com', 'qianfan.baidu.com', 'erniebot.com', 'yiyan.baidu.com',
@@ -714,12 +732,12 @@ function buildConfig(config) {
   }
   const DNS_SERVICE_BINDINGS = [
     { key: '广告拦截', policyDomains: DNS_POLICY_DOMAIN_SETS.adguard, dns: safeAdguardDns },
+    // CDN 域名走 DIRECT，由 direct-nameserver 统一提供国内 DNS，不在 nameserver-policy 中重复绑定
+    // 注：domestic (domesticServiceDomains) 包含 CDN，故不使用；仅用 domesticMain + domesticAi
     { key: '国内服务', policyDomains: uniqList([].concat(
       DNS_POLICY_DOMAIN_SETS.domesticMain,
-      DNS_POLICY_DOMAIN_SETS.domesticCdn,
-      DNS_POLICY_DOMAIN_SETS.domesticAi,
-      DNS_POLICY_DOMAIN_SETS.domestic
-    )), fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.domestic, dns: safeFastDomesticDns },
+      DNS_POLICY_DOMAIN_SETS.domesticAi
+    )), fallbackDomains: DNS_POLICY_DOMAIN_SETS.domesticMain, dns: safeFastDomesticDns },
     { key: 'TikTok', policyDomains: DNS_POLICY_DOMAIN_SETS.tiktok, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok, dns: safeTrustDns },
     { key: 'AdGuard服务', policyDomains: DNS_POLICY_DOMAIN_SETS.adguardService, dns: safeTrustDns, auxiliary: true },
     { key: '风控安全', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.browserRisk, DNS_POLICY_DOMAIN_SETS.finance, DNS_POLICY_DOMAIN_SETS.crypto)), fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: safeTrustDns },
@@ -3344,12 +3362,13 @@ usableChoiceDef('riskControl', [
   ];
   // Apple 生态规则（DOMAIN-SUFFIX 已覆盖子域名）
   const RULES_DOMESTIC = [
-    ...ruleSuffix(domesticMainDomains(), '国内服务'),
-    ...ruleSuffix(domesticCdnDomains(), 'DIRECT'),
-  // 全球 AI 规则
-    ...ruleSuffix(domesticAiDomains(), '国内服务'),
-    'GEOSITE,CN,国内服务',
-    'GEOIP,CN,国内服务,no-resolve'
+  // === 精确匹配 ===
+    ...ruleSuffix(domesticMainDomains(), '国内服务'),    // 主站域名 → 国内服务组（直连）
+    ...ruleSuffix(domesticCdnDomains(), 'DIRECT'),      // CDN域名 → 直连（不走代理，避免延迟）
+    ...ruleSuffix(domesticAiDomains(), '国内服务'),      // 国内AI域名 → 国内服务组（直连）
+  // === 兜底匹配 ===
+    'GEOSITE,CN,国内服务',                             // cn域名兜底 → 国内服务组
+    'GEOIP,CN,DIRECT,no-resolve'                       // 中国IP兜底 → 直连
   ];
   const RULES_APPLE_MEDIA = ruleSuffix(['tv.apple.com', 'video.apple.com'], '流媒体');
   const RULES_APPLE = [
@@ -3599,11 +3618,12 @@ usableChoiceDef('riskControl', [
   // 规则内容与装配顺序分离
     ], '支付服务')
   ];
+  // 兜底规则：非中国域名走节点选择 → 海外IP兜底 → 最终兜底
+  // 注意：国内IP已由 RULES_DOMESTIC 中的 GEOIP,CN,国内服务 兜底，此处不再重复
   const RULES_DIRECT_AND_FALLBACK = [
-    'GEOIP,CN,DIRECT',
-    'GEOSITE,geolocation-!cn,节点选择',
-    'GEOIP,!CN,漏网之鱼',
-    'MATCH,漏网之鱼'
+    'GEOSITE,geolocation-!cn,节点选择,no-resolve', // 非中国域名走节点选择
+    'GEOIP,!CN,漏网之鱼,no-resolve',                // 非中国IP走漏网之鱼
+    'MATCH,漏网之鱼'                                // 最终兜底
   ];
   const RULE_SET_MAP = {
     LAN_PRIVATE: RULES_LAN_PRIVATE,
@@ -3652,7 +3672,6 @@ APP_PROCESS: RULES_APP_PROCESS,
     SOCIAL_FEED_SUPPLEMENT: RULES_SOCIAL_FEED_SUPPLEMENT,
   // 进程兜底必须位于精确域名之后，避免 GMS/下载器吞掉专项流量。
     DIRECT_AND_FALLBACK: RULES_DIRECT_AND_FALLBACK
-  // 广告 / 跟踪 / 隐私 / 支付 / 个人媒体 / 资讯位于登录支付保护之后，降低核心链路误拦截概率。
   };
   const RULE_ASSEMBLY_ORDER = [
     'LAN_PRIVATE',
