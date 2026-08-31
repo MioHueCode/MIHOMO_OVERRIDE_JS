@@ -3298,8 +3298,10 @@ usableChoiceDef('riskControl', [
      'PROCESS-NAME,TikTok.Mod.Jaggu,TikTok',
      'PROCESS-NAME-REGEX,(?i)^TikTok\.Mod\.Jaggu(?::.*)?$,TikTok',
      'GEOSITE,category-ads-all,广告拦截',
-     ...ruleKeyword(['adserver','adnetwork','adtech','adsdk','adapi','adtrack','adclick','adcount','adstat','adload','adsystem','impression','conversion','atdmt','adform','taboola','popunder','clickhubs','adriver'], '广告拦截'),
-  // 风控与系统规则：覆盖 FCM、Play Store、Google AI、下载与高敏感登录链路。
+      'RULE-SET,anti-ad,广告拦截',
+      'RULE-SET,adrules,广告拦截',
+      ...ruleKeyword(['adserver','adnetwork','adtech','adsdk','adapi','adtrack','adclick','adcount','adstat','adload','adsystem','impression','conversion','atdmt','adform','taboola','popunder','clickhubs','adriver'], '广告拦截'),
+   // 风控与系统规则：覆盖 FCM、Play Store、Google AI、下载与高敏感登录链路。
      ...ruleSuffix(adguardDomains(), '广告拦截')
    ];
   const RULES_RISK_SECURITY = ruleSuffix(['accounts.google.com', 'myaccount.google.com', 'ogs.google.com', 'androidauth.googleapis.com', 'oauthaccountmanager.googleapis.com', 'oauth2.googleapis.com', 'securetoken.googleapis.com', 'identitytoolkit.googleapis.com', 'firebaseauth.googleapis.com', 'accounts.youtube.com', 'families.google.com', 'accounts.google.cn', 'workspace.google.com', 'admin.google.com', 'passwords.google.com', 'notifications.google.com', 'recaptcha.net', 'recaptcha-enterprise.google.com', 'hcaptcha.com', 'newassets.hcaptcha.com', 'account.amazon.com', 'payments.amazon.com', 'paypal.com', 'paypal.com.hk', 'paypal.com.sg', 'paypal.me', 'paypal.hk', 'paypal.jp', 'paypal.us', 'paypalservice.com', 'paypalcredit.com', 'braintreegateway.com', 'braintreepayments.com', 'card.io', 'paypalhere.com', 'venmo.com', 'xoom.com', 'stripe.com', 'stripe.network', 'stripe-terminal-local-reader.net', 'checkout.com', 'checkoutcdn.com', 'checkoutshopper.com', 'payoneer.com', 'airwallex.com', 'worldpay.com', 'skrill.com', 'neteller.com', 'wise.com', 'transferwise.com', 'hsbc.com', 'interactivebrokers.com', 'adyen.com', 'visa.com', 'mastercard.com', 'amex.com', 'revolut.com', 'ibkr.com', 'schwab.com', 'binance.com', 'binance.us', 'bnbstatic.com', 'binanceapi.com', 'coinbase.com', 'okx.com', 'oklink.com', 'okx-dns.com', 'okx-dns1.com', 'okx-dns2.com', 'bybit.com', 'bytick.com', 'byapis.com', 'bycsi.com', 'bybit-global.com', 'bybitglobal.com', 'gate.io', 'gateimg.com', 'gatedata.org', 'kucoin.com', 'kucoin.plus', 'kraken.com', 'bitget.com', 'mexc.com', 'huobi.com', 'htx.com', 'trustwallet.com', 'walletconnect.com', 'walletconnect.org', 'ethereum.org', 'etherscan.io', 'opensea.io', 'uniswap.org', 'safepal.com', 'isafepal.com', 'trezor.io', 'ledger.com', 'hyperliquid.xyz', 'polymarket.com', 'dydx.exchange', 'bitfinex.com', 'bitstamp.net', 'deribit.com', 'bitflyer.com', 'onekey.so', 'onekeycn.com', 'redotpay.com', 'login.live.com', 'login.microsoftonline.com', 'account.live.com', 'account.microsoft.com', 'signup.live.com', 'appleid.apple.com', 'appleaccount.apple.com', 'idmsa.apple.com', 'idms-apple.com', 'iforgot.apple.com', 'signin.aws.amazon.com', 'dash.cloudflare.com', 'challenges.cloudflare.com', 'turnstile.cloudflare.com', 'assets.cloudflare.com', 'authy.com'], '风控安全');
@@ -3414,9 +3416,9 @@ usableChoiceDef('riskControl', [
       'xboxservices.com', 'supercell.com', 'supercell.net'
     ], '国外游戏')
   ];
-  const RULES_GITHUB = [
-    ...ruleSuffix(['github.com','github.io','githubusercontent.com','githubassets.com','githubstatus.com','ghcr.io','npmjs.com','npmjs.org','yarnpkg.com','github.dev','raw.githubusercontent.com'], 'GitHub')
-  ];
+const RULES_GITHUB = [
+     ...ruleSuffix(['github.com','github.io','githubusercontent.com','githubassets.com','githubstatus.com','ghcr.io','npmjs.com','npmjs.org','yarnpkg.com','github.dev','raw.githubusercontent.com'], 'GitHub')
+   ];
   // 微软 Bing 专用规则
   const RULES_MICROSOFT = [
     ...ruleSuffix([
@@ -3808,13 +3810,42 @@ APP_PROCESS: RULES_APP_PROCESS,
   if (!config['rule-providers'] || typeof config['rule-providers'] !== 'object') {
     config['rule-providers'] = {};
   }
-  if (!config['rule-providers']['prevent_dns_leak'] || typeof config['rule-providers']['prevent_dns_leak'] !== 'object') {
-    config['rule-providers']['prevent_dns_leak'] = {
+  if (!config['rule-providers']['dns-leak-guard'] || typeof config['rule-providers']['dns-leak-guard'] !== 'object') {
+    config['rule-providers']['dns-leak-guard'] = {
       type: 'http',
       interval: 86400,
       behavior: 'domain',
       format: 'text',
-      url: 'https://raw.githubusercontent.com/xishang0128/rules/main/clash%20or%20stash/prevent_dns_leak/prevent_dns_leak_domain.list'
+      url: 'https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/tld-not-cn.txt'
+    };
+  }
+  // Telegram IP 段规则订阅
+  if (!config['rule-providers']['telegramcidr']) {
+    config['rule-providers']['telegramcidr'] = {
+      type: 'http',
+      interval: 86400,
+      behavior: 'ipcidr',
+      format: 'text',
+      url: 'https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/telegramcidr.txt'
+    };
+  }
+  // 远程广告拦截规则订阅
+  if (!config['rule-providers']['anti-ad']) {
+    config['rule-providers']['anti-ad'] = {
+      type: 'http',
+      behavior: 'classical',
+      interval: 86400,
+      format: 'yaml',
+      url: 'https://cdn.jsdelivr.net/gh/privacy-protection-tools/anti-AD@master/anti-ad-clash.yaml'
+    };
+  }
+  if (!config['rule-providers']['adrules']) {
+    config['rule-providers']['adrules'] = {
+      type: 'http',
+      behavior: 'classical',
+      interval: 86400,
+      format: 'yaml',
+      url: 'https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/reject.txt'
     };
   }
   if (!Array.isArray(config.rules)) {
@@ -3825,11 +3856,22 @@ APP_PROCESS: RULES_APP_PROCESS,
   const preventDnsLeakMatchOutbound = preventDnsLeakMatchRule
     ? preventDnsLeakMatchRule.split(',').slice(1).join(',').trim()
     : '';
-  const preventDnsLeakRulePrefix = 'RULE-SET,prevent_dns_leak,';
-  const hasPreventDnsLeakRule = config.rules.some(rule => typeof rule === 'string' && /^RULE-SET\s*,prevent_dns_leak\s*,/i.test(rule));
-  if (preventDnsLeakMatchOutbound && !hasPreventDnsLeakRule) {
+  const dnsLeakGuardRulePrefix = 'RULE-SET,dns-leak-guard,';
+  const hasDnsLeakGuardRule = config.rules.some(rule => typeof rule === 'string' && /^RULE-SET\s*,dns-leak-guard\s*,/i.test(rule));
+  if (preventDnsLeakMatchOutbound && !hasDnsLeakGuardRule) {
     const insertIndex = preventDnsLeakMatchIndex >= 0 ? preventDnsLeakMatchIndex : config.rules.length;
-    config.rules.splice(insertIndex, 0, preventDnsLeakRulePrefix + preventDnsLeakMatchOutbound);
+    config.rules.splice(insertIndex, 0, dnsLeakGuardRulePrefix + preventDnsLeakMatchOutbound);
+  }
+  // Telegram IP 段规则插入
+  const telegramcidrRulePrefix = 'RULE-SET,telegramcidr,';
+  const hasTelegramcidrRule = config.rules.some(rule => typeof rule === 'string' && /^RULE-SET\s*,telegramcidr\s*,/i.test(rule));
+  if (!hasTelegramcidrRule) {
+    const insertIdx = config.rules.findIndex(rule => typeof rule === 'string' && /^RULE-SET\s*,dns-leak-guard\s*,/i.test(rule));
+    if (insertIdx >= 0) {
+      config.rules.splice(insertIdx + 1, 0, telegramcidrRulePrefix + preventDnsLeakMatchOutbound);
+    } else {
+      config.rules.push(telegramcidrRulePrefix + preventDnsLeakMatchOutbound);
+    }
   }
   if (!config.dns || typeof config.dns !== 'object') {
     config.dns = {};
@@ -3917,11 +3959,11 @@ function validateOutputConfig(config) {
   if (!Array.isArray(config.dns.nameserver) || !config.dns.nameserver.length) {
     throw new Error('output dns nameserver is empty');
   }
-  if (!config['rule-providers'] || !config['rule-providers']['prevent_dns_leak']) {
-    throw new Error('output missing prevent_dns_leak rule-provider');
+  if (!config['rule-providers'] || !config['rule-providers']['dns-leak-guard']) {
+    throw new Error('output missing dns-leak-guard rule-provider');
   }
-  if (!config.rules.some(rule => typeof rule === 'string' && /^RULE-SET\s*,prevent_dns_leak\s*,/i.test(rule))) {
-    throw new Error('output rules missing prevent_dns_leak guard');
+  if (!config.rules.some(rule => typeof rule === 'string' && /^RULE-SET\s*,dns-leak-guard\s*,/i.test(rule))) {
+    throw new Error('output rules missing dns-leak-guard guard');
   }
   return config;
 }
