@@ -3268,9 +3268,8 @@ function buildConfig(config) {
      'DOMAIN-REGEX,^(log|mon)[0-9A-Za-z.-]*\.tiktokv\.com$,REJECT',
      'PROCESS-NAME,TikTok.Mod.Jaggu,TikTok',
      'PROCESS-NAME-REGEX,(?i)^TikTok\.Mod\.Jaggu(?::.*)?$,TikTok',
-'GEOSITE,category-ads-all,广告拦截',
-      'RULE-SET,anti-ad,广告拦截',
-      'RULE-SET,adrules,广告拦截',
+      'GEOSITE,category-ads-all,广告拦截',
+       'RULE-SET,adrules,广告拦截',
       ...ruleKeyword(['adserver','adnetwork','adtech','adsdk','adapi','adtrack','adclick','adcount','adstat','adload','adsystem','impression','conversion','atdmt','adform','taboola','popunder','clickhubs','adriver'], '广告拦截'),
    // 风控与系统规则：覆盖 FCM、Play Store、Google AI、下载与高敏感登录链路。
      ...ruleSuffix(adguardDomains(), '广告拦截')
@@ -3800,23 +3799,14 @@ APP_PROCESS: RULES_APP_PROCESS,
       url: 'https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/telegramcidr.txt'
     };
   }
-  // 远程广告拦截规则订阅
-  if (!config['rule-providers']['anti-ad']) {
-    config['rule-providers']['anti-ad'] = {
-      type: 'http',
-      behavior: 'classical',
-      interval: 86400,
-      format: 'yaml',
-      url: 'https://cdn.jsdelivr.net/gh/privacy-protection-tools/anti-AD@master/anti-ad-clash.yaml'
-    };
-  }
+  // 远程广告拦截规则订阅（已移除 anti-ad，只保留 adrules）
   if (!config['rule-providers']['adrules']) {
     config['rule-providers']['adrules'] = {
       type: 'http',
       behavior: 'classical',
       interval: 86400,
       format: 'yaml',
-      url: 'https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/reject.txt'
+      url: 'https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt'
     };
   }
   if (!Array.isArray(config.rules)) {
