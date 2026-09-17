@@ -16,6 +16,26 @@
  *   ② 在 Clash 客户端中开启「严格路由」或 equivalent 选项
  */
 function buildConfig(config) {
+  // ---------- 统一日志 & 调试 ----------
+  var log = (typeof console !== 'undefined' && console.log) ? console.log.bind(console) : function(){};
+  // ---------- 正则缓存 ----------
+  const _regexCache = new Map();
+  function _getWordBoundaryRegex(keyword, caseSensitive){
+    const key = (caseSensitive ? 'S:' : 'I:') + keyword;
+    if(_regexCache.has(key)) return _regexCache.get(key);
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
+    const flags = caseSensitive ? '' : 'i';
+    const re = new RegExp('(^|[^a-zA-Z])' + escaped + '([^a-zA-Z]|$)', flags);
+    _regexCache.set(key, re);
+    return re;
+  }
+  // ---------- 统一去重 ----------
+  function unique(arr){
+    return Array.from(new Set((arr||[]).filter(Boolean)));
+  }
+  // 若无代理节点直接返回，避免后续遍历耗时
+  if (!Array.isArray(config.proxies) || config.proxies.length === 0) return config;
+
   if (!config || !Array.isArray(config.proxies)) return config;
   // 运行上下文：保留旧分组选项顺序
   const existingGroups = Array.isArray(config['proxy-groups']) ? config['proxy-groups'] : [];
@@ -29,11 +49,8 @@ function buildConfig(config) {
   const RULE_DIAGNOSTICS_ENABLED = false;
   const perfMarks = Object.create(null);
   const perfNow = () => Date.now();
-  const debugLog = (...args) => {
-    if (typeof console !== 'undefined' && typeof console.log === 'function') {
-      console.log(...args);
-    }
-  };
+  const DEBUG_LOG_ENABLED = false;
+  function debugLog(){/*no-op*/}
   function isHostname(value) {
     const s = String(value || '').trim().toLowerCase();
     return !!s && !/^\d+\.\d+\.\d+\.\d+$/.test(s) && !s.includes(':') && /^[a-z0-9.-]+$/.test(s) && s.includes('.');
@@ -83,7 +100,7 @@ function buildConfig(config) {
     return Array.from(new Set(asArray(arr).filter(Boolean)));
   }
   // 通用去重别名（保持向后兼容）
-  const unique = uniqList;
+  // unique 已在上方统一定义
   // 规则工厂：统一 DOMAIN / DOMAIN-SUFFIX / PROCESS / KEYWORD 生成
   function stripDomainPrefix(domain) {
     return String(domain || '').replace(/^\+\./, '').replace(/^\*\./, '').trim();
@@ -305,7 +322,8 @@ function buildConfig(config) {
   config.profile = {
     ...(config.profile || {}),
     'store-selected': true,
-    'store-fake-ip': true
+    'store-fake-ip': true,
+    'tracing': true
   };
   // 网络与端口配置：优先保留上游已有端口（避免覆盖用户自定义端口）
   config['mixed-port'] = config['mixed-port'] || 7890;
@@ -317,7 +335,7 @@ function buildConfig(config) {
   // TCP 优化
   config['tcp-concurrent'] = true;
   config['keep-alive-interval'] = 15;
-  config['keep-alive-idle'] = 600;
+  config['keep-alive-idle'] = 30;
   config['disable-keep-alive'] = false;
   // 其他特性
   config['etag-support'] = true;
@@ -1010,7 +1028,7 @@ function buildConfig(config) {
     if (dedicatedNamePatterns.some(re => re.test(text))) return true;
     return dedicatedContextPatterns.some(re => re.test(text));
   }
-  perfStart('proxy_classify');
+  // perfStart('proxy_classify') removed for speed
   const cleanProxies = [];
   const allProxyNames = [];
   const residentialProxyNames = [];
@@ -1089,7 +1107,7 @@ function buildConfig(config) {
   if (!config.proxies.length) {
     config.proxies.push({ name: 'DIRECT', type: 'direct' });
   }
-  perfEnd('proxy_classify');
+  if (PERF_ENABLED) perfEnd('proxy_classify');
   const wholeWordPatternCache = new Map();
   function hasWholeWord(text, word) {
     const key = String(word || '').toLowerCase();
@@ -1380,7 +1398,7 @@ function buildConfig(config) {
     return result;
   }
   // 三个直连伪节点专属于国内服务组，不参与地区分类，避免被回收进「其它地区」
-  perfStart('region_classify');
+  // perfStart('region_classify') removed for speed
   const directProxyNameSet = new Set(directProxyNames);
   for (let i = 0; i < cleanProxies.length; i++) {
     const proxy = cleanProxies[i];
@@ -1392,8 +1410,8 @@ function buildConfig(config) {
   const otherRegionNodes = unique(regionGroups['其它地区']);
   const hasNamedPrimaryRegion = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '加拿大', '欧盟', '东南亚', '拉美地区', '非洲']
     .some(regionName => regionGroups[regionName].length > 0);
-  perfEnd('region_classify');
-  if (PERF_ENABLED) {
+if (PERF_ENABLED) perfEnd('region_classify');
+   if (PERF_ENABLED) {
     const regionDebugOrder = ['香港', '台湾', '日本', '新加坡', '美国', '韩国', '俄罗斯', '加拿大', '欧盟', '东南亚', '拉美地区', '非洲', '其它地区'];
     const regionDebugSummary = regionDebugOrder.map(regionName => `${regionName}:${(regionGroups[regionName] || []).length}`).join(' | ');
   // 运行期参数镜像：后续建组函数统一读取这些局部常量；如需调参，优先修改上方常量定义。
@@ -3726,11 +3744,11 @@ APP_PROCESS: RULES_APP_PROCESS,
     rules: RULE_SET_MAP[name]
   // Emoji 重命名：在规则装配后、目标校验前，把规则中的旧组名替换为带 emoji 的新组名。
   }));
-  perfStart('rules_assemble');
+  if (PERF_ENABLED) perfStart('rules_assemble');
   const assembledRules = collectRuleSets(RULE_SET_DEFS, RULE_ASSEMBLY_ORDER);
   config.rules = mergeRuleSets(assembledRules);
   // MATCH 规则只有 2 段（MATCH,target），直接替换最后一段
-  perfEnd('rules_assemble');
+  if (PERF_ENABLED) perfEnd('rules_assemble');
   if (!config.rules.length || !config.rules.some(rule => typeof rule === 'string' && /^MATCH\s*,/i.test(rule))) {
     throw new Error('rules health check failed: missing fallback MATCH rule');
   }
@@ -3806,26 +3824,30 @@ APP_PROCESS: RULES_APP_PROCESS,
     }
     emitRuleDiagnostics(ruleDiagnostics);
   }
+  // ---- V系列启动优化：rule-provider interval 错峰 + CDN 混合 ----
+  // 随机抖动 0~59s 打破整齐步长的周期性并发浪峰，避免启动 EOF 风暴
+  let _rpIdx = 0;
+  const _nextRpInterval = () => 85500 + ((_rpIdx++) * 15) + Math.floor(Math.random() * 60);
   if (!config['rule-providers'] || typeof config['rule-providers'] !== 'object') {
     config['rule-providers'] = {};
   }
   if (!config['rule-providers']['dns-leak-guard'] || typeof config['rule-providers']['dns-leak-guard'] !== 'object') {
     config['rule-providers']['dns-leak-guard'] = {
       type: 'http',
-      interval: 86400,
+      interval: _nextRpInterval(),
       behavior: 'domain',
       format: 'text',
-      url: 'https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/tld-not-cn.txt'
+      url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/tld-not-cn.txt'
     };
   }
   // Telegram IP 段规则订阅
   if (!config['rule-providers']['telegramcidr']) {
     config['rule-providers']['telegramcidr'] = {
       type: 'http',
-      interval: 86400,
+      interval: _nextRpInterval(),
       behavior: 'ipcidr',
       format: 'text',
-      url: 'https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/telegramcidr.txt'
+      url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/telegramcidr.txt'
     };
   }
   // 远程广告拦截规则订阅（已移除 anti-ad，只保留 adrules）
@@ -3833,7 +3855,7 @@ APP_PROCESS: RULES_APP_PROCESS,
     config['rule-providers']['adrules'] = {
       type: 'http',
       behavior: 'classical',
-      interval: 86400,
+      interval: _nextRpInterval(),
       format: 'yaml',
       url: 'https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt'
     };
