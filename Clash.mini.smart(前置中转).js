@@ -909,12 +909,16 @@ function buildConfig(config) {
     /\bdedicated\b/i,
     /\bpremium(?:\s|-|_)*(?:line|route|link)?\b/i
   ];
+  // 优化：预编译合并正则，避免每次 .some(re => re.test())
+  const _residentialNegCombined = new RegExp(residentialNegativePatterns.map(re => re.source).join('|'), 'i');
+  const _residentialPosCombined = new RegExp(residentialNamePatterns.map(re => re.source).join('|'), 'i');
+  const _residentialOverride = /家宽|住宅|resi|home\s*ip|native\s*ip/i;
   function isResidentialProxyName(name) {
     const text = String(name || '');
   // 倍率识别
     if (!text) return false;
-    if (residentialNegativePatterns.some(re => re.test(text)) && !/家宽|住宅|resi|home\s*ip|native\s*ip/i.test(text)) return false;
-    return residentialNamePatterns.some(re => re.test(text));
+    if (_residentialNegCombined.test(text) && !_residentialOverride.test(text)) return false;
+    return _residentialPosCombined.test(text);
   }
   const multiplierNamePatterns = [
     /倍率/,
@@ -993,8 +997,10 @@ function buildConfig(config) {
     /\bunlock\b/i
   // 专线识别：与家宽同级特征池，供全球专线聚合
   ];
+  // 优化：合并为单一正则
+  const _streamingCombined = new RegExp(streamingNamePatterns.map(re => re.source).join('|'), 'i');
   function isStreamingProxyName(name) {
-    return streamingNamePatterns.some(re => re.test(String(name || '')));
+    return _streamingCombined.test(String(name || ''));
   }
   const dedicatedNamePatterns = [
     /专线|精品专线|国际专线|跨境专线|直连专线|专线节点|专线线路|专线优化|企业专线|游戏专线|加速专线|高速专线|隧道专线|独享专线|独享线路|静态专线|内网专线|跨区专线|跨洋专线/,
@@ -1018,13 +1024,17 @@ function buildConfig(config) {
     /(?:专线|线路|通道|隧道).{0,6}(?:优化|高速|低延迟|低延时|直达|直连)/,
     /(?:iplc|iepl|cn2|gia|bgp).{0,8}(?:专线|线路|直连|直达)/i
   ];
+  // 优化：合并为单一正则
+  const _dedicatedNameCombined = new RegExp(dedicatedNamePatterns.map(re => re.source).join('|'));
+  const _dedicatedContextCombined = new RegExp(dedicatedContextPatterns.map(re => re.source).join('|'), 'i');
   function isDedicatedProxyName(name) {
     const text = String(name || '');
     if (!text) return false;
   // 节点清洗
-    if (dedicatedNamePatterns.some(re => re.test(text))) return true;
-    return dedicatedContextPatterns.some(re => re.test(text));
+    if (_dedicatedNameCombined.test(text)) return true;
+    return _dedicatedContextCombined.test(text);
   }
+
   perfStart('proxy_classify');
   const cleanProxies = [];
   const allProxyNames = [];
@@ -1582,12 +1592,30 @@ cleanProxies.push(proxy);
     const merged = [];
     const seenRuleIndexes = new Map();
     let hasNullHole = false;
+    // 优化：内联 identity key 计算，避免 parseRuleParts/extractRuleMatchValue/extractRulePolicyTarget 三重调用
     for (let i = 0; i < ruleSets.length; i++) {
       const ruleSet = asArray(ruleSets[i]);
       for (let j = 0; j < ruleSet.length; j++) {
         const rule = ruleSet[j];
         if (!rule) continue;
-        const identityKey = getRuleIdentityKey(rule) || `RAW@@${rule}`;
+        let identityKey;
+        if (typeof rule === 'string') {
+          const parts = rule.split(',');
+          if (parts.length >= 2) {
+            const ruleType = parts[0].trim().toUpperCase();
+            const ruleValue = parts[1].trim();
+            if (ruleType && ruleValue) {
+              const extraParts = parts.length > 3 ? parts.slice(3).join(',') : '';
+              identityKey = ruleType + '@@' + ruleValue + '@@' + extraParts;
+            } else {
+              identityKey = 'RAW@@' + rule;
+            }
+          } else {
+            identityKey = 'RAW@@' + rule;
+          }
+        } else {
+          identityKey = getRuleIdentityKey(rule) || ('RAW@@' + rule);
+        }
         if (seenRuleIndexes.has(identityKey)) {
           const prevIndex = seenRuleIndexes.get(identityKey);
           if (typeof prevIndex === 'number' && prevIndex >= 0 && prevIndex < merged.length) {
@@ -1955,18 +1983,24 @@ cleanProxies.push(proxy);
     return set;
   }
   function filterAvailableChoiceNames(list, availableChoiceNameSet, selfName) {
-    const filtered = [];
     const source = asArray(list);
+    let dropped = false;
+    const filtered = [];
     for (let i = 0; i < source.length; i++) {
       const item = source[i];
-      if (!item || item === selfName) continue;
+      if (!item || item === selfName) { dropped = true; continue; }
   // 全局家宽池：从全部节点中抽出住宅线路，供风控 / 支付 / 登录等敏感业务优先选择。
-      if (BUILTIN_CHOICE_NAMES.has(item) || availableChoiceNameSet.has(item)) filtered.push(item);
+      if (BUILTIN_CHOICE_NAMES.has(item) || availableChoiceNameSet.has(item)) {
+        filtered.push(item);
+      } else {
+        dropped = true;
+      }
   // 全球专线：与全球家宽同级，聚合所有识别为专线的节点
     }
   // 可见地区链：地区家宽节点组 + 地区节点组（不含自动组）
-    return filtered;
-  // 全局兜底地区顺序：用于智能兜底组，优先尝试更常用出口地区。
+  // 优化：无过滤时返回原引用，让调用方跳过 finalizeGroupChoices
+    return dropped ? filtered : source;
+  // 全局兜底地区顺序：用于自动兜底组，优先尝试更常用出口地区。
   }
   const globalHomeNodes = residentialProxyNames.slice();
   // 区域故障转移定义
@@ -2915,24 +2949,24 @@ for (let i = 0; i < config.proxies.length; i++) {
     return false;
   }
   function getAllScopedChoiceNames() {
-    const merged = [];
+    const set = new Set();
     for (let i = 0; i < finalizedProxyGroups.length; i++) {
       const group = finalizedProxyGroups[i];
-      if (group && group.name) merged.push(group.name);
-      for (const item of asArray(group && group.proxies)) {
-        if (item) merged.push(item);
-      }
-      for (const item of asArray(group && group.extra)) {
-        if (item) merged.push(item);
-      }
+      if (group && group.name) set.add(group.name);
+      const proxies = group && group.proxies;
+      if (Array.isArray(proxies)) for (let j = 0; j < proxies.length; j++) { if (proxies[j]) set.add(proxies[j]); }
+      const extra = group && group.extra;
+      if (Array.isArray(extra)) for (let j = 0; j < extra.length; j++) { if (extra[j]) set.add(extra[j]); }
     }
-    return unique(merged.filter(Boolean));
+    return set;
   }
   function buildRealChoiceCandidateSet() {
-    return makeNameSet(allProxyNames.concat(
-      getAllScopedChoiceNames(),
-      ['谷歌商店专用']
-    ));
+    const set = new Set(allProxyNames);
+    const scoped = getAllScopedChoiceNames();
+    if (scoped instanceof Set) { for (const name of scoped) set.add(name); }
+    else { const arr = asArray(scoped); for (let i = 0; i < arr.length; i++) { if (arr[i]) set.add(arr[i]); } }
+    set.add('谷歌商店专用');
+    return set;
   }
   function assertChoiceNamesRegistered(list, label) {
   // 最终清洗可见名集合：除真实节点与组名外，还要包含脚本注入的内置直连名。
@@ -2946,13 +2980,17 @@ for (let i = 0; i < config.proxies.length; i++) {
     }
   }
   function buildAvailableChoiceNameSetFromGroups(groups) {
-    const names = buildRealChoiceCandidateSet();
+  // 优化：直接从当前 groups 构建，不再间接调用 buildRealChoiceCandidateSet
+  // buildRealChoiceCandidateSet 底层遍历 finalizedProxyGroups（稳定化前快照），这里需要当前轮的快照
+    const names = new Set(allProxyNames);
     const list = asArray(groups);
-  // 第一步：过滤无效候选并最终化选项
     for (let i = 0; i < list.length; i++) {
       const group = list[i];
       if (group && group.name) names.add(group.name);
+      const px = group && group.proxies;
+      if (Array.isArray(px)) for (let j = 0; j < px.length; j++) { if (px[j]) names.add(px[j]); }
     }
+    names.add('谷歌商店专用');
     for (const name of BUILTIN_CHOICE_NAMES) names.add(name);
     return names;
   }
@@ -2963,14 +3001,20 @@ for (let i = 0; i < config.proxies.length; i++) {
         if (!group || !Array.isArray(group.proxies) || !group.name) return group;
         const filteredProxies = filterAvailableChoiceNames(group.proxies, availableChoiceNameSet, group.name);
   // 第二步：切除自引用和互环引用
+  // 优化：filteredProxies 与原 proxies 引用相同时跳过 finalizeGroupChoices
+        if (filteredProxies === group.proxies) return group;
         return Object.assign({}, group, { proxies: finalizeGroupChoices(group, filteredProxies) });
       })
       .filter(group => !shouldDropEmptyGroup(group));
     const groupMap = Object.create(null);
+  // 优化：预构建 proxyName -> Set 的映射，避免 O(n) includes
+    const groupProxySets = Object.create(null);
     for (let i = 0; i < cleanedGroups.length; i++) {
       const group = cleanedGroups[i];
-      if (group && group.name) groupMap[group.name] = group;
-  // 不是组引用，直接保留
+      if (group && group.name) {
+        groupMap[group.name] = group;
+        if (Array.isArray(group.proxies)) groupProxySets[group.name] = new Set(group.proxies);
+      }
     }
     return cleanedGroups
       .map(group => {
@@ -2978,6 +3022,7 @@ for (let i = 0; i < config.proxies.length; i++) {
   // 自引用 A -> A：丢弃
         const nextProxies = [];
   // 互环引用 A -> B && B -> A：丢弃
+        const selfSet = groupProxySets[group.name];
         for (let i = 0; i < group.proxies.length; i++) {
           const proxyName = group.proxies[i];
           const targetGroup = groupMap[proxyName];
@@ -2986,7 +3031,8 @@ for (let i = 0; i < config.proxies.length; i++) {
             continue;
           }
           if (targetGroup.name === group.name) continue;
-          if (targetGroup.proxies.includes(group.name)) continue;
+          const targetSet = groupProxySets[targetGroup.name];
+          if (targetSet && targetSet.has(group.name)) continue;
           nextProxies.push(proxyName);
         }
         return Object.assign({}, group, { proxies: finalizeGroupChoices(group, nextProxies) });
@@ -2994,21 +3040,23 @@ for (let i = 0; i < config.proxies.length; i++) {
       .filter(group => !shouldDropEmptyGroup(group));
   }
   function getProxyGroupSignature(groups) {
-    return JSON.stringify(asArray(groups).map(group => {
-  // 稳定化清洗：反复执行“删失效引用 -> 切环 -> 删空自动组”，直到分组关系不再变化。
-  // 这样即使存在 A 引用 B、B 删除后又影响 C 的级联场景，也不会残留 not found。
-      if (!group || !group.name) return null;
-      return {
-        name: group.name,
-        type: group.type || '',
-        proxies: Array.isArray(group.proxies) ? group.proxies.slice() : null
-      };
-    }));
+    const list = asArray(groups);
+    let sig = '';
+    for (let i = 0; i < list.length; i++) {
+      const group = list[i];
+      if (!group || !group.name) continue;
+      sig += group.name + '|' + (group.type || '') + '|';
+      const px = group.proxies;
+      if (Array.isArray(px)) { for (let j = 0; j < px.length; j++) sig += px[j] + ','; }
+      sig += ';';
+    }
+    return sig;
   }
   let stabilizedProxyGroups = finalizedProxyGroups.slice();
   let previousSignature = '';
+  let _cachedChoiceSet = null;
   for (let round = 0; round < 8; round++) {
-    const availableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(stabilizedProxyGroups);
+    const availableChoiceNameSet = _cachedChoiceSet || buildAvailableChoiceNameSetFromGroups(stabilizedProxyGroups);
 // === 最终落盘与一致性校验 ===
   // 组名 Emoji 前缀：在最终落盘前统一添加，避免散落在各处的字符串引用需要逐一修改。
   // 同时把规则目标中的旧组名同步替换为新组名。
@@ -3018,6 +3066,7 @@ for (let i = 0; i < config.proxies.length; i++) {
     const signature = getProxyGroupSignature(stabilizedProxyGroups);
     if (signature === previousSignature) break;
     previousSignature = signature;
+    _cachedChoiceSet = nextAvailableChoiceNameSet;
   }
   config['proxy-groups'] = stabilizedProxyGroups;
   const GROUP_EMOJI_MAP = {
@@ -3130,7 +3179,8 @@ for (let i = 0; i < config.proxies.length; i++) {
   // 从后往前找第一个非标志位的值作为目标
   function parseRuleParts(rule) {
     if (typeof rule !== 'string') return null;
-    const parts = rule.split(',').map(p => String(p || '').trim());
+  // 优化：split 不做 map+trim，延迟到使用时再 trim
+    const parts = rule.split(',');
     return parts.length ? parts : null;
   }
   function extractRulePolicyTarget(ruleOrParts) {
@@ -3866,19 +3916,26 @@ APP_PROCESS: RULES_APP_PROCESS,
   if (!config.rules.length || !config.rules.some(rule => typeof rule === 'string' && /^MATCH\s*,/i.test(rule))) {
     throw new Error('rules health check failed: missing fallback MATCH rule');
   }
+  const _emojiRenameCache = new Map();
+  function cachedEmojiRename(name) {
+    if (!name) return name;
+    let cached = _emojiRenameCache.get(name);
+    if (cached === undefined) { cached = applyEmojiRename(name); _emojiRenameCache.set(name, cached); }
+    return cached;
+  }
   config.rules = config.rules.map(rule => {
     if (typeof rule !== 'string') return rule;
     const parts = rule.split(',');
     if (parts.length < 2) return rule;
     if (parts.length === 2) {
-      parts[1] = applyEmojiRename(parts[1].trim());
+      parts[1] = cachedEmojiRename(parts[1].trim());
       return parts.join(',');
     }
     for (let i = parts.length - 1; i >= 2; i--) {
   // 规则目标校验：确保所有目标都指向有效策略组
       const value = parts[i].trim();
       if (value && !RULE_TRAILING_FLAGS.has(value.toUpperCase())) {
-        parts[i] = applyEmojiRename(value);
+        parts[i] = cachedEmojiRename(value);
         break;
       }
   // 跳过有效目标和已记录的缺失目标
