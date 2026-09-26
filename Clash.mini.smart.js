@@ -182,11 +182,11 @@ function buildConfig(config) {
     'bytegecko-i18n.com','byteintlapi.com','isnssdk.com'
   );
   const aiDomains = () => d(
-    'openai.com','chatgpt.com','oaistatic.com','oaiusercontent.com','claude.ai','anthropic.com','anthropiccdn.com','claudeusercontent.com',
+    'openai.com','chatgpt.com','oaistatic.com','oaiusercontent.com','openaiusercontent.com','claude.ai','anthropic.com','anthropiccdn.com','claudeusercontent.com',
     'perplexity.ai','perplexity.com','pplx.ai','poe.com','poecdn.net','midjourney.com','character.ai','c.ai','groq.com','mistral.ai','lechat.ai',
     'x.ai','grok.com','cohere.com','huggingface.co','replicate.com','cursor.sh','cursor.com','gemini.google.com','generativeai.google',
-    'notebooklm.google.com','copilot.microsoft.com','stability.ai','ai.com','sora.com','elevenlabs.io','suno.com','suno.ai',
-    'lmsys.org','pomona.ai','optimizerai.app','qwen.ai','deepmind.google','glean.com','you.com','phind.com','kagihub.com'
+    'generativelanguage.googleapis.com','proactivebackend-pa.googleapis.com','notebooklm.google.com','stability.ai','ai.com','sora.com','elevenlabs.io',
+    'suno.com','suno.ai','lmsys.org','pomona.ai','optimizerai.app','qwen.ai','deepmind.google','glean.com','you.com','phind.com','kagihub.com'
   );
   const metaDomains = () => d(
     'facebook.com','facebook.net','fb.com','fbcdn.net','fbsbx.com','tfbnw.net','messenger.com','m.me',
@@ -205,7 +205,6 @@ function buildConfig(config) {
   const browserRiskDomains = () => [...d('addons.mozilla.org','addons.cdn.mozilla.net','online-metrix.net'), 'api.ipify.org','fpjs.checkout.com','fpjscache.checkout.com','risk.checkout.com','challenges.cloudflare.com','turnstile.cloudflare.com','assets.cloudflare.com','hcaptcha.com','newassets.hcaptcha.com','volatile-pa.googleapis.com','settings-win.data.microsoft.com','accounts.google.com','myaccount.google.com','login.live.com','login.microsoftonline.com','appleid.apple.com'];
   const adguardServiceDomains = () => d('adtidy.org','adguard.com','adguard.org','adguard-dns.io','dns.adguard-dns.com');
   const openaiRealtimeDomains = () => d('auth0.openai.com','oaistatic.com','oaiusercontent.com','files.oaiusercontent.com','cdn.openai.com','livekit.cloud','statsigapi.net','chatgpt.livekit.cloud','openaiapi-site.azureedge.net');
-  const aiFinanceRiskDomains = () => [...aiDomains(), ...d('metamask.io','neverless.com','noones.com','okx.com','okx.ac','okx.cab','xlayer.tech','ifastgb.com','fundsupermart.com','giffgaff.com','binance.com','coinbase.com','trustwallet.com'), 'noonessupport.zendesk.com', 'stest.zimperium.com', 'cdn-eu.dynamicyield.com', 'privacyportal-uk.onetrust.com', 'mobile-data.onetrust.io'];
   const mainstreamOverseasDomains = () => uniqList([
     ...streamingDomains(),
     ...telegramDomains(),
@@ -493,7 +492,7 @@ function buildConfig(config) {
     openaiRealtime: openaiRealtimeDomains(),
     google: googleDomains(),
     playStore: playStoreDomains(),
-    aiFinanceRisk: aiFinanceRiskDomains(),
+    ai: aiDomains(),
     mainstreamOverseas: mainstreamOverseasDomains(),
     youtubeMedia: youtubeMediaDomains(),
     translation: translationDomains(),
@@ -759,7 +758,7 @@ function buildConfig(config) {
     { key: 'TikTok', policyDomains: DNS_POLICY_DOMAIN_SETS.tiktok, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok, dns: safeTrustDns },
     { key: 'AdGuard服务', policyDomains: DNS_POLICY_DOMAIN_SETS.adguardService, dns: safeTrustDns, auxiliary: true },
     { key: '风控安全', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.browserRisk, DNS_POLICY_DOMAIN_SETS.finance, DNS_POLICY_DOMAIN_SETS.crypto)), fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: safeTrustDns },
-    { key: 'AI', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.openaiRealtime, DNS_POLICY_DOMAIN_SETS.aiFinanceRisk)), fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.ai, dns: safeTrustDns },
+    { key: '国外AI', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.openaiRealtime, DNS_POLICY_DOMAIN_SETS.ai)), fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.ai, dns: safeTrustDns },
     { key: 'Google', policyDomains: DNS_POLICY_DOMAIN_SETS.google, dns: safeTrustDns },
     { key: '谷歌商店', policyDomains: DNS_POLICY_DOMAIN_SETS.playStore, fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.playStore, DNS_FALLBACK_FILTER_DOMAIN_SETS.googlePlayIntegrity)), dns: safeTrustDns },
     { key: 'YouTube', policyDomains: DNS_POLICY_DOMAIN_SETS.youtubeMedia, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.youtubeMedia, dns: safeTrustDns },
@@ -1665,7 +1664,7 @@ if (PERF_ENABLED) perfEnd('region_classify');
     telegram: qIcon('Telegram'), translate: 'https://api.iconify.design/simple-icons:googletranslate.svg?color=%234285F4', google: qIcon('Google_Search'),
     playstore: 'https://api.iconify.design/logos:google-play-icon.svg',
     microsoft: qIcon('Microsoft'), bing: 'https://api.iconify.design/simple-icons:microsoftbing.svg?color=%2300837D', apple: qIcon('Apple'), cloudflare: qIcon('Cloudflare'),
-    github: qIcon('GitHub'), ai: qIcon('ChatGPT'), aiFallback: qIcon('Bot'),
+    github: qIcon('GitHub'), ai: qIcon('AI'), claude: 'https://api.iconify.design/simple-icons:claude.svg?color=%23D97757', gemini: 'https://api.iconify.design/logos:google-gemini.svg',
     fcm: 'https://fastly.jsdelivr.net/gh/MiToverG422/Qure@master/IconSet/Color/fcm.png',
     streaming: qIcon('Netflix'), streamingGlobal: qIcon('Media'), netflix: qIcon('Netflix'),
     spotify: qIcon('Spotify'), twitch: qIcon('Twitch'), discord: qIcon('Discord'),
@@ -2015,9 +2014,6 @@ if (PERF_ENABLED) perfEnd('region_classify');
     regionGroups['美国']
   // Cloudflare 候选：优先自动组与欧美出口，并允许显式 Cloudflare / WARP 节点参与。
   );
-  const aiFallbackNodes = sanitizeUiChoiceList(
-    regionManualNames.filter(name => !String(name).includes('家宽'))
-  );
   const cloudflareGroupChoices = sanitizeUiChoiceList(
   // 下载分区定义
     ['智能选择', '欧美智能选择', '全球手动'],
@@ -2083,12 +2079,11 @@ if (PERF_ENABLED) perfEnd('region_classify');
     () => ({ interval: LOAD_BALANCE_HEALTH.interval, timeout: LOAD_BALANCE_HEALTH.timeout, maxFailedTimes: LOAD_BALANCE_HEALTH.maxFailedTimes, strategy: 'consistent-hashing' })
   );
   const downloadRegionGroups = downloadRegionGroupArtifacts.groups;
-  const downloadGroupChoices = sanitizeUiChoiceList(['下载散列组', '下载轮询组', '负载均衡', '智能选择'], downloadRegionGroupArtifacts.names);
-  const excludedFallbackChoices = ['YouTube无广节点优先组', '国外AI智能选择'];
+  const downloadGroupChoices = sanitizeUiChoiceList(['负载均衡', '下载散列组', '下载轮询组', '智能选择'], downloadRegionGroupArtifacts.names);
+  const excludedFallbackChoices = ['YouTube无广节点优先组'];
   // fallback 组总装
   const SPECIAL_FALLBACK_DEFS = [
     { name: 'YouTube无广节点优先组', icon: iconMap.youtubeFallback, nodes: youtubeFallbackNodes, extraDefaults: ['智能兜底'], options: { interval: 300, tolerance: 180, lazy: true } },
-    { name: '国外AI智能选择', icon: iconMap.aiFallback, nodes: aiFallbackNodes, extraDefaults: ['智能兜底'], options: { interval: 300, tolerance: 180, lazy: true } }
   ];
   const fallbackGroupArtifacts = collectNamedGroups([
     makeSmartGroup('智能兜底', iconMap.fallbackFinal, autoFallbackNodes, FALLBACK_INTERVAL, FALLBACK_TOLERANCE, {
@@ -2319,8 +2314,8 @@ if (PERF_ENABLED) perfEnd('region_classify');
   // 候选构造器（first 强优先）
   const baseChoices = usableChoices(['节点选择', '智能选择', '负载均衡', '全球手动'], orderedFallbackNames, commonLoadBalanceNames, globalFeatureChoices, fusionVisibleRegions, allProxyNames);
   const commonBaseChoices = baseChoices.filter(name => !excludedFallbackChoiceSet.has(name));
-  const youtubeOnlyBaseChoices = baseChoices.filter(name => name !== '国外AI智能选择');
-  const aiOnlyBaseChoices = baseChoices.filter(name => name !== 'YouTube无广节点优先组' && name !== '国外AI智能选择');
+  const youtubeOnlyBaseChoices = baseChoices;
+  const aiOnlyBaseChoices = baseChoices.filter(name => name !== 'YouTube无广节点优先组');
   function makeOrderedChoices(first, pool, scope = GLOBAL_CHOICE_SCOPE) {
     const merged = [];
     const seen = new Set();
@@ -2347,7 +2342,7 @@ if (PERF_ENABLED) perfEnd('region_classify');
   const CHOICE_POOL_DEFS = [
     usableChoiceDef('common', ['节点选择'], commonBaseChoices),
     usableChoiceDef('youtubeOnly', ['节点选择', 'YouTube无广节点优先组'], youtubeOnlyBaseChoices),
-    usableChoiceDef('aiOnly', ['节点选择', '国外AI智能选择'], aiOnlyBaseChoices),
+    usableChoiceDef('aiOnly', ['节点选择'], aiOnlyBaseChoices),
     usableChoiceDef('playStore', playStoreServiceChoices, commonBaseChoices),
     usableChoiceDef('streaming', globalStreamingGroup ? ['全球流媒体', '节点选择', '智能选择'] : ['节点选择', '智能选择'], commonBaseChoices),
     usableChoiceDef('taiwanMedia', unique(['港台智能选择', taiwanManualName, '节点选择', '智能选择'].filter(Boolean)), commonBaseChoices),
@@ -2384,7 +2379,7 @@ usableChoiceDef('riskControl', [
     { key: 'Spotify', first: ['港台智能选择'], poolKey: 'common' },
     {
       key: 'Google',
-      first: ['港台智能选择', '🌐链式出口', '节点选择', '智能选择'],
+      first: ['节点选择', '港台智能选择', '🌐链式出口', '智能选择'],
       poolKey: 'common'
     },
     { key: 'TikTok', first: ['港台智能选择', '🌐链式出口'], poolKey: 'common' },
@@ -2398,8 +2393,8 @@ usableChoiceDef('riskControl', [
     { key: '微软Bing', first: ['DIRECT', '节点选择', '智能选择'], poolKey: 'common' },
     { key: '谷歌商店', first: playStoreServiceChoices, poolKey: 'playStore' },
     {
-      key: 'AI',
-      first: ['国外AI智能选择', '🌐链式出口', '节点选择'],
+      key: '国外AI',
+      first: ['节点选择', '🌐链式出口'],
       poolKey: 'aiOnly'
     },
     {
@@ -2438,7 +2433,6 @@ usableChoiceDef('riskControl', [
     ['支付服务', iconMap.payment],
     ['Twitch', iconMap.twitch],
     ['GitHub', iconMap.github],
-    ['AI', iconMap.ai],
     ['国外游戏', iconMap.game],
     ['社交信息流', iconMap.social],
     ['去中心化平台', iconMap.decentralized],
@@ -2454,6 +2448,11 @@ usableChoiceDef('riskControl', [
       icon: entry[1],
       choices: businessChoiceMap[entry[0]]
     }))
+  );
+  const AI_SERVICE_GROUP = makeSelectGroupDef(
+    '国外AI',
+    iconMap.ai,
+    businessChoiceMap['国外AI'] || []
   );
   const CHOICE_GROUPS = {
     streaming: usableChoices(CHOICE_POOLS.streaming),
@@ -2497,7 +2496,7 @@ usableChoiceDef('riskControl', [
     ),
     usableChoiceDef(
       'finalFallback',
-      ['节点选择', '智能选择', '全球手动'],
+      ['节点选择', '智能选择', '智能兜底', '全球手动', globalHomeGroup ? '🏡全球家宽' : null].filter(Boolean),
       fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name) && !regionFallbackNames.includes(name) && name !== '家宽智能选择'),
   // 附加显示组
       fusionVisibleRegions
@@ -2568,6 +2567,7 @@ usableChoiceDef('riskControl', [
   ]);
   const serviceGroupDefs = makeSelectGroupDefList([
     RISK_CONTROL_SERVICE_GROUP,
+    AI_SERVICE_GROUP,
     ...businessServiceGroupDefs.slice(0, BUSINESS_SERVICE_HEAD.length),
   // 工具组
     DOMESTIC_SERVICE_GROUP,
@@ -2931,7 +2931,6 @@ usableChoiceDef('riskControl', [
     '日韩智能选择': '❤️日韩智能选择',
     '欧美智能选择': '✨欧美智能选择',
     'YouTube无广节点优先组': '🎯YouTube无广节点优先组',
-    '国外AI智能选择': '🤖国外AI智能选择',
     '风控安全': '🔐风控安全',
     '国内服务': '🇨🇳国内服务',
     '流媒体': '🎬流媒体',
@@ -2966,7 +2965,7 @@ usableChoiceDef('riskControl', [
     'Twitch': '🕹️Twitch',
     'GitHub': '🐙GitHub',
   // 地区自动组 / 节点组 / 下载组：按地区名加 emoji 前缀
-    'AI': '🧠AI',
+    '国外AI': '🧠国外AI',
     '国外游戏': '🎮国外游戏',
     '社交信息流': '📰社交信息流',
     '去中心化平台': '⛓️去中心化平台',
@@ -3211,15 +3210,13 @@ usableChoiceDef('riskControl', [
   // 音乐 / 流媒体
   ];
   const RULES_APP_PROCESS = [
+    ...ruleProcess(['com.anthropic.claude', 'com.google.android.apps.bard', 'com.google.android.apps.gemini'], '国外AI'),
     ...ruleProcess([
-      'ai.perplexity.app.android', 'com.google.android.apps.bard', 'com.google.android.apps.gemini',
-      'com.openai.chatgpt', 'com.openai.chat', 'com.anthropic.claude', 'ai.x.grok',
+      'ai.perplexity.app.android',
+      'com.openai.chatgpt', 'com.openai.chat', 'ai.x.grok',
       'ai.cici.android', 'com.ciciai.app', 'com.coze.android', 'ai.coze.app',
       'com.microsoft.copilot', 'com.deepseek.chat', 'com.moonshot.kimichat'
-  // 社交 / 通讯
-  // 注意：微信未加 PROCESS-NAME 规则，因其语音/视频信令常走纯 IP(N/A) + 腾讯云海外节点突破 GEOIP,CN，
-  // 导致漏到「漏网之鱼」。若需修复，加一行：...ruleProcess(['com.tencent.mm'], '国内服务') 或 DIRECT
-    ], 'AI'),
+    ], '国外AI'),
     ...ruleProcess(['com.spotify.music', 'com.spotify.lite', 'com.aspiro.tidal'], 'Spotify'),
     ...ruleProcess([
       'com.netflix.mediaclient', 'com.disney.disneyplus', 'com.amazon.avod.thirdpartyclient',
@@ -3338,20 +3335,21 @@ usableChoiceDef('riskControl', [
     ...ruleSuffix(['play.google.com', 'play.googleapis.com', 'play-fe.googleapis.com', 'play-pa.googleapis.com', 'playatoms-pa.googleapis.com', 'play-apps-fe-pa.googleapis.com', 'play-apps-download-frontend.googleapis.com', 'play-lh.googleusercontent.com', 'play-games.googleusercontent.com', 'market.android.com', 'dl.google.com', 'dl.l.google.com', 'gvt1.com', 'gvt2.com', 'gvt3.com', 'xn--ngstr-lra8j.com', 'xn--ngstr-cn-8za9o.com'], '谷歌商店')
   ];
   const RULES_RISK_CONTROL_YOUTUBE_EXTRA = ruleSuffix(['youtube-nocookie.com', 'yt.be', 'yt3.ggpht.com', 'youtubekids.com', 'sponsor.ajay.app', 'returnyoutubedislikeapi.com'], 'YouTube');
-  const RULES_RISK_CONTROL_GOOGLE_AI = ruleSuffix(['gemini.google.com', 'generativeai.google', 'generativelanguage.googleapis.com', 'proactivebackend-pa.googleapis.com', 'notebooklm.google.com'], 'AI');
   const RULES_RISK_CONTROL_DOWNLOAD = ruleSuffix(['dl.googleusercontent.com', 'redirector.gvt1.com', 'update.googleapis.com'], '下载专用组');
   const RULES_RISK_CONTROL = [
     ...RULES_RISK_CONTROL_FCM,
     ...RULES_RISK_CONTROL_PLAY_STORE,
     ...RULES_RISK_CONTROL_YOUTUBE_EXTRA,
-    ...RULES_RISK_CONTROL_GOOGLE_AI,
     ...RULES_RISK_CONTROL_DOWNLOAD,
   ];
   const RULES_AI_EXTRA = [
-    ...ruleProcess(['ai.x.grok', 'ai.cici.android', 'com.ciciai.app', 'com.coze.android', 'ai.coze.app', 'com.openai.chatgpt', 'com.openai.chat'], 'AI'),
-    ...ruleSuffix(['api.openai.com', 'auth0.openai.com', 'cdn.openai.com', 'chat.openai.com', 'chatgpt.com', 'files.oaiusercontent.com', 'livekit.cloud', 'openai.com', 'anthropic.com', 'statsigapi.net'], 'AI'),
-    'PROCESS-NAME-REGEX,(?i).*(ciciai|cici|coze).*,AI',
-    'PROCESS-NAME-REGEX,(?i).*(openai|chatgpt).*,AI'
+    ...ruleSuffix(['anthropic.com'], '国外AI'),
+    ...ruleSuffix(['gemini.google.com', 'generativeai.google', 'generativelanguage.googleapis.com', 'proactivebackend-pa.googleapis.com', 'notebooklm.google.com'], '国外AI'),
+    ...ruleProcess(['com.openai.chatgpt', 'com.openai.chat'], '国外AI'),
+    ...ruleSuffix(['api.openai.com', 'auth0.openai.com', 'cdn.openai.com', 'chat.openai.com', 'chatgpt.com', 'files.oaiusercontent.com', 'livekit.cloud', 'openai.com', 'statsigapi.net'], '国外AI'),
+    ...ruleProcess(['ai.x.grok', 'ai.cici.android', 'com.ciciai.app', 'com.coze.android', 'ai.coze.app'], '国外AI'),
+    'PROCESS-NAME-REGEX,(?i).*(ciciai|cici|coze).*,国外AI',
+    'PROCESS-NAME-REGEX,(?i).*(openai|chatgpt).*,国外AI'
   ];
   const RULES_TIKTOK_EXTRA = [
     ...ruleDomain(['frontier.tiktokv.com', 'p16-tiktokcdn-com.akamaized.net', 'rezvorck.github.io', 'update.9mod.com', 'vcs.zijieapi.com'], 'TikTok'),
@@ -3396,11 +3394,23 @@ usableChoiceDef('riskControl', [
   // 去中心化与 Cloudflare 规则
   const RULES_AI_GLOBAL = [
     ...ruleSuffix([
-      'oaistatic.com', 'oaiusercontent.com', 'openaiusercontent.com', 'chatgpt.livekit.cloud', 'openaiapi-site.azureedge.net',
-      'ai.com', 'claude.ai', 'claudeusercontent.com', 'anthropiccdn.com', 'perplexity.ai', 'perplexity.com', 'pplx.ai',
+      'claude.ai', 'claudeusercontent.com', 'anthropiccdn.com'
+    ], '国外AI'),
+    ...ruleSuffix([
+      'ai.com'
+    ], '国外AI'), // ai.com 目前指向 Claude
+    ...ruleSuffix([
+      'perplexity.ai', 'perplexity.com', 'pplx.ai',
       'groq.com', 'grok.com', 'x.ai', 'api.x.ai', 'mistral.ai', 'lechat.ai', 'poe.com', 'poecdn.net', 'stability.ai',
       'character.ai', 'c.ai', 'midjourney.com', 'cursor.sh', 'cursor.com', 'huggingface.co', 'replicate.com', 'cohere.com'
-    ], 'AI')
+    ], '国外AI'),
+    ...ruleSuffix([
+      'oaistatic.com', 'oaiusercontent.com', 'openaiusercontent.com', 'chatgpt.livekit.cloud', 'openaiapi-site.azureedge.net'
+    ], '国外AI'),
+    ...ruleSuffix([
+      'sora.com', 'elevenlabs.io', 'suno.com', 'suno.ai', 'lmsys.org', 'pomona.ai', 'optimizerai.app',
+      'qwen.ai', 'deepmind.google', 'glean.com', 'you.com', 'phind.com', 'kagihub.com'
+    ], '国外AI')
   // 下载规则
   ];
   const RULES_DECENTRALIZED_AND_CLOUDFLARE = [
