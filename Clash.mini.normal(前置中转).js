@@ -2100,7 +2100,7 @@ cleanProxies.push(proxy);
     () => ({ interval: LOAD_BALANCE_HEALTH.interval, timeout: LOAD_BALANCE_HEALTH.timeout, maxFailedTimes: LOAD_BALANCE_HEALTH.maxFailedTimes, strategy: 'consistent-hashing' })
   );
   const downloadRegionGroups = downloadRegionGroupArtifacts.groups;
-  const downloadGroupChoices = sanitizeUiChoiceList(['负载均衡', '下载散列组', '下载轮询组', '自动选择'], downloadRegionGroupArtifacts.names);
+  const downloadGroupChoices = sanitizeUiChoiceList(['节点选择', '自动选择', '负载均衡', '下载散列组', '下载轮询组'], downloadRegionGroupArtifacts.names);
   const excludedFallbackChoices = ['YouTube无广节点优先组'];
   // fallback 组总装
   const SPECIAL_FALLBACK_DEFS = [
@@ -2496,8 +2496,8 @@ cleanProxies.push(proxy);
   const MAIN_CHOICE_POOL_DEFS = [
     usableChoiceDef(
       'nodeSelection',
-      ['节点选择', '自动选择', '负载均衡', '全球手动'],
-      fallbackNames,
+      ['节点选择', '自动选择', '🌐链式出口', '负载均衡', '全球手动'],
+      fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name)),
       globalFeatureChoices,
       fusionVisibleRegions
     ),
