@@ -11,31 +11,41 @@
 //   Sub-Store 脚本操作器（Script Operator），全局变量 `proxies` 由 Sub-Store 注入。
 //
 // 【后续改动指引】
-//   ┌─ 改入口点文本      → 修改 ACCESS_POINT_NODES_TEXT（L20）
-//   ├─ 改入口点排列顺序  → 修改 ACCESS_POINT_ORDER（L28）
-//   ├─ 改区域别名        → 修改 REGION_ALIASES（L35）
-//   ├─ 改区域→入口组映射  → 修改 REGION_ACCESS_GROUP（L62）
-//   ├─ 改入口组定义      → 修改 ACCESS_POINTS_ASIA / ACCESS_POINTS_JP（L46/L52）
-//   ├─ 改区域排列顺序    → 修改 REGION_ORDER（L68）
-//   ├─ 改排序模式        → 修改 SORT_MODE（L73）
-//   └─ 改 CF 节点跳过    → 修改 SKIP_CF（L74）
+//   ┌─ 改入口点文本      → 修改 ACCESS_POINT_NODES_TEXT（L35）
+//   ├─ 改入口点排列顺序  → 修改 ACCESS_POINT_ORDER（L61）
+//   ├─ 改区域别名        → 修改 REGION_ALIASES（L72）
+//   ├─ 改区域→入口组映射  → 修改 REGION_ACCESS_GROUP（L102）
+//   ├─ 改入口组定义      → 修改 ACCESS_POINTS_ASIA / JP / EU（L86/L92/L98）
+//   ├─ 改区域排列顺序    → 修改 REGION_ORDER（L108）
+//   ├─ 改排序模式        → 修改 SORT_MODE（L115）
+//   └─ 改 CF 节点跳过    → 修改 SKIP_CF（L116）
 //
 // ============================================================
 
 
 // ── 配置区 ─────────────────────────────────────────────────
 
-// 入口点定义文本：每行 "节点名:入口点名"
+// 节点→入口点映射文本：每行 "节点名:入口点名"
+// 用途：识别哪些节点是"入口源节点"，并收集其 server 地址作为该入口点的中转地址
 // 节点名格式：区域 + 空格 + 编号（如"香港 01"），编号需 padStart 为 2 位
+// 多个节点映射到同一入口点时，首次出现的 server 生效（不覆盖）
 // 改法：新增/删除行，确保节点名与订阅中实际节点名匹配
+//
+// 特殊值（不收集 server，节点不参与中转生成）：
+//   仅原始线路 / 暂无可选接入点
+//
 const ACCESS_POINT_NODES_TEXT = `
 香港 01:Sakura HK
-香港 02:GCP SG
-香港 03:AWS SG
+香港 02:AWS SG
+香港 03:Stealth (Special)
 
 台湾 01:HiNet TW
 台湾 02:Stealth (Special)
-台湾 03:Zouter JP V6
+台湾 03:(IPv6) Zouter JP
+
+新加坡 01:Sakura HK
+新加坡 02:AWS SG
+新加坡 03:GCP SG + AWS SG + HiNet TW + (IPv6) Zouter JP
 
 日本 01:Zouter JP
 日本 02:GCP JP 01
@@ -43,16 +53,26 @@ const ACCESS_POINT_NODES_TEXT = `
 
 美国 01:AWS JP
 美国 02:BBTEC JP
+
+德国 01:Frankfurt Eons
+意大利 01:Frankfurt Eons
+澳大利亚 01:Zouter JP
+印度 01:Zouter JP
+泰国 01:Zouter JP
+巴西 01:Zouter JP
+墨西哥 01:Zouter JP
 `;
 
 // 入口点排列顺序：决定生成节点中入口点的先后
 // 改法：调整数组顺序，或新增/删除入口点名
 // 注意：此处的名字必须与 ACCESS_POINT_NODES_TEXT 中冒号右侧一致
 const ACCESS_POINT_ORDER = [
-  "Zouter JP V6", "Zouter JP", "GCP JP 01", "GCP JP 02",
-  "AWS JP", "BBTEC JP",
-  "Sakura HK", "GCP SG", "AWS SG",
-  "HiNet TW", "Stealth (Special)"
+  "Sakura HK", "AWS SG",
+  "GCP SG + AWS SG + HiNet TW + (IPv6) Zouter JP",
+  "HiNet TW", "Stealth (Special)", "(IPv6) Zouter JP",
+  "Zouter JP",
+  "GCP JP 01", "GCP JP 02", "AWS JP", "BBTEC JP",
+  "Frankfurt Eons"
 ];
 
 // 区域别名表：用于从节点名中匹配区域
@@ -65,35 +85,48 @@ const REGION_ALIASES = {
   "新加坡": ["新加坡"],
   "日本": ["日本"],
   "美国": ["美国"],
+  "德国": ["德国"],
+  "意大利": ["意大利"],
   "泰国": ["泰国"],
   "澳大利亚": ["澳大利亚", "澳大", "澳洲"],
   "印度": ["印度"],
-  "巴西": ["巴西"]
+  "巴西": ["巴西"],
+  "墨西哥": ["墨西哥"]
 };
 
-// 入口组定义：每个组包含一组入口点
+// 入口组定义：每个组包含一组入口点，交叉组合时遍历这些入口点
+// ASIA 组：亚洲区域可用入口点（香港/台湾/新加坡）
+// JP 组：日本及远程区域可用入口点（日本/美国/泰国/澳洲/印度/巴西/墨西哥）
+// EU 组：欧洲区域可用入口点（德国/意大利）
 // 改法：新增组时定义数组并在 ACCESS_POINT_GROUPS 中注册
 // 注意：组名需与 REGION_ACCESS_GROUP 中的值一致
 const ACCESS_POINTS_ASIA = [
-  "Sakura HK", "GCP SG", "AWS SG",
-  "HiNet TW", "Stealth (Special)", "Zouter JP V6"
+  "Sakura HK", "AWS SG",
+  "GCP SG + AWS SG + HiNet TW + (IPv6) Zouter JP",
+  "HiNet TW", "Stealth (Special)", "(IPv6) Zouter JP"
 ];
 const ACCESS_POINTS_JP = [
-  "Zouter JP", "GCP JP 01", "GCP JP 02",
-  "AWS JP", "BBTEC JP", "Zouter JP V6"
+  "Zouter JP", "(IPv6) Zouter JP",
+  "GCP JP 01", "GCP JP 02", "AWS JP", "BBTEC JP"
+];
+const ACCESS_POINTS_EU = [
+  "Frankfurt Eons"
 ];
 const ACCESS_POINT_GROUPS = {
   ASIA: ACCESS_POINTS_ASIA,
-  JP: ACCESS_POINTS_JP
+  JP: ACCESS_POINTS_JP,
+  EU: ACCESS_POINTS_EU
 };
 
-// 区域→入口组映射：决定每个区域使用哪组入口点
+// 区域→入口组映射：决定每个区域使用哪组入口点进行交叉组合
 // 改法：将区域映射到新组名，或新增区域时指定其所属组
 // 注意：区域名需与 REGION_ORDER / REGION_ALIASES 中的 key 一致
 const REGION_ACCESS_GROUP = {
   "香港": "ASIA", "台湾": "ASIA", "新加坡": "ASIA",
   "日本": "JP", "美国": "JP", "泰国": "JP",
-  "澳大利亚": "JP", "印度": "JP", "巴西": "JP"
+  "澳大利亚": "JP", "印度": "JP", "巴西": "JP",
+  "墨西哥": "JP",
+  "德国": "EU", "意大利": "EU"
 };
 
 // 区域排列顺序：决定生成节点的排序（先按此顺序排区域，再按编号排）
@@ -101,7 +134,8 @@ const REGION_ACCESS_GROUP = {
 // 注意：需要与 REGION_ALIASES / REGION_ACCESS_GROUP 中的 key 保持一致
 const REGION_ORDER = [
   "香港", "台湾", "新加坡", "日本", "美国",
-  "泰国", "澳大利亚", "印度", "巴西"
+  "德国", "意大利",
+  "泰国", "澳大利亚", "印度", "巴西", "墨西哥"
 ];
 
 // 排序模式：1 = 按节点优先（先遍历节点，每个节点铺开所有入口点）
@@ -112,6 +146,12 @@ const SORT_MODE = 1;
 // 是否跳过 Cloudflare 节点：true = server 含 "cf" 的节点不参与入口点收集和生成
 // 改法：改为 false 则不跳过
 const SKIP_CF = true;
+
+// "跳过"标记：在 ACCESS_POINT_NODES_TEXT 中使用这些值的节点不收集 server、不参与生成
+const SKIP_MARKERS = new Set([
+  "仅原始线路",
+  "暂无可选接入点"
+]);
 
 
 // ── 工具函数 ──────────────────────────────────────────────
@@ -186,11 +226,18 @@ function isCF(proxy) {
     String(proxy.server).toLowerCase().includes("cf");
 }
 
+// 收集所有入口点名（从 ACCESS_POINT_NODES_TEXT 自动提取，排除跳过标记）
+// 用于预构建 getBaseName 的后缀清理表
+const ALL_ACCESS_POINTS = [
+  ...new Set(Object.values(parseAccessPointNodes(ACCESS_POINT_NODES_TEXT)))
+].filter(ap => !SKIP_MARKERS.has(ap));
+
 // 预构建 suffix→length 表，避免 getBaseName 循环内重复拼接字符串
-const AP_SUFFIXES = ACCESS_POINT_ORDER.map(ap => ({
-  suffix: ` - ${ap}`,
-  len: ap.length + 3  // " - ".length === 3
-}));
+// 按长度降序排列，确保最长的后缀先被匹配
+// （如先匹配" - GCP SG + AWS SG + HiNet TW + (IPv6) Zouter JP"再匹配" - GCP SG"）
+const AP_SUFFIXES = ALL_ACCESS_POINTS
+  .map(ap => ({ suffix: ` - ${ap}`, len: ap.length + 3 }))
+  .sort((a, b) => b.suffix.length - a.suffix.length);
 
 // 去除节点名末尾的入口点后缀（如"香港 01 - Sakura HK" → "香港 01"）
 // 循环处理以应对多次拼接的情况
@@ -251,6 +298,7 @@ for (const proxy of proxies) {
   if (!nodeKey) continue;
   const ap = ACCESS_POINT_NODE_MAP[nodeKey];
   if (!ap) continue;
+  if (SKIP_MARKERS.has(ap)) continue;
   if (SKIP_CF && isCF(proxy)) continue;
   if (!proxy.server) continue;
   if (!ACCESS_POINT_SERVERS[ap]) {
@@ -259,7 +307,7 @@ for (const proxy of proxies) {
 }
 
 // 第二遍遍历：分类目标节点与保留原节点
-// 有区域归属且有入口组映射且未被 CF 跳过的节点 → targetNodes（参与生成）
+// 有区域归属且有入口组映射且未被 CF 跳过的节点 → targetNodes（参与交叉组合）
 // 其余节点 → untouchedNodes（原样保留追加到结果末尾）
 const targetNodes = [];
 const untouchedNodes = [];
@@ -284,7 +332,7 @@ targetNodes.sort((a, b) =>
   a.number - b.number
 );
 
-// 生成新节点
+// 生成新节点（交叉组合）
 const generatedNodes = [];
 
 if (SORT_MODE !== 1 && SORT_MODE !== 2) {
@@ -328,5 +376,5 @@ if (SORT_MODE === 1) {
   for (const ap of ACCESS_POINT_ORDER) generateForAccessPoint(ap);
 }
 
-// 最终输出：生成的新节点在前，未处理的节点在后
+// 最终输出：生成的中转节点在前，未处理的节点在后
 return [...generatedNodes, ...untouchedNodes];
