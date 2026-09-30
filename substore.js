@@ -11,14 +11,14 @@
 //   Sub-Store 脚本操作器（Script Operator），全局变量 `proxies` 由 Sub-Store 注入。
 //
 // 【后续改动指引】
-//   ┌─ 改入口点文本      → 修改 ACCESS_POINT_NODES_TEXT（L35）
-//   ├─ 改入口点排列顺序  → 修改 ACCESS_POINT_ORDER（L61）
-//   ├─ 改区域别名        → 修改 REGION_ALIASES（L72）
-//   ├─ 改区域→入口组映射  → 修改 REGION_ACCESS_GROUP（L133）
-//   ├─ 改入口组定义      → 修改 ACCESS_POINTS_HK_TW / SG / JP / EU（L107/L111/L117/L119）
-//   ├─ 改区域排列顺序    → 修改 REGION_ORDER（L108）
-//   ├─ 改排序模式        → 修改 SORT_MODE（L115）
-//   └─ 改 CF 节点跳过    → 修改 SKIP_CF（L116）
+//   ┌─ 改入口点文本      → 修改 ACCESS_POINT_NODES_TEXT
+//   ├─ 改入口点排列顺序  → 修改 ACCESS_POINT_ORDER
+//   ├─ 改区域别名        → 修改 REGION_ALIASES
+//   ├─ 改区域→入口组映射  → 修改 REGION_ACCESS_GROUP
+//   ├─ 改入口组定义      → 修改 ACCESS_POINTS_HK_TW_SG / ZJ
+//   ├─ 改区域排列顺序    → 修改 REGION_ORDER
+//   ├─ 改排序模式        → 修改 SORT_MODE
+//   └─ 改 CF 节点跳过    → 修改 SKIP_CF
 //
 // ============================================================
 
@@ -34,18 +34,24 @@
 // 特殊值（不收集 server，节点不参与中转生成）：
 //   仅原始线路 / 暂无可选接入点
 //
+// 【本版机场主最新变化】
+//   - 入口点简化为两大组：
+//       HK_TW_SG 组：Sakura HK / GCP SG / AWS SG / HiNet TW / Stealth (Special) / (IPv6) Zouter JP
+//       ZJ 组      ：Zouter JP / GCP JP 01 / GCP JP 02 / AWS JP / BBTEC JP
+//   - 移除了：德国、意大利、Frankfurt Eons、组合入口"GCP SG + AWS SG + HiNet TW + Stealth + (IPv6) Zouter JP"
+//
 const ACCESS_POINT_NODES_TEXT = `
-香港 01:Sakura HK
-香港 02:GCP SG
-香港 03:AWS SG
+香港 01:AWS SG
+香港 02:HiNet TW
+香港 03:Stealth (Special)
 
-台湾 01:HiNet TW
-台湾 02:Stealth (Special)
-台湾 03:(IPv6) Zouter JP
+台湾 01:(IPv6) Zouter JP
+台湾 02:Sakura HK
+台湾 03:Sakura HK
 
 新加坡 01:Sakura HK
 新加坡 02:Sakura HK
-新加坡 03:GCP SG + AWS SG + HiNet TW + Stealth (Special) + (IPv6) Zouter JP
+新加坡 03:Sakura HK
 
 日本 01:GCP JP 02
 日本 02:AWS JP
@@ -55,14 +61,15 @@ const ACCESS_POINT_NODES_TEXT = `
 美国 02:Zouter JP
 美国 03:Zouter JP
 
-德国 01:Frankfurt Eons
-意大利 01:Frankfurt Eons
-澳大利亚 01:Zouter JP
 印度 01:Zouter JP
 泰国 01:Zouter JP
-巴西 01:Zouter JP
+澳大利亚 01:Zouter JP
 墨西哥 01:Zouter JP
+巴西 01:Zouter JP
 
+实验 香港:Sakura HK
+实验 新加坡:GCP SG
+实验 日本:Zouter JP
 实验 美国:GCP JP 01
 `;
 
@@ -70,12 +77,12 @@ const ACCESS_POINT_NODES_TEXT = `
 // 改法：调整数组顺序，或新增/删除入口点名
 // 注意：此处的名字必须与 ACCESS_POINT_NODES_TEXT 中冒号右侧一致
 const ACCESS_POINT_ORDER = [
+  // HK_TW_SG 组
   "Sakura HK", "GCP SG", "AWS SG", "HiNet TW",
   "Stealth (Special)", "(IPv6) Zouter JP",
-  "GCP SG + AWS SG + HiNet TW + Stealth (Special) + (IPv6) Zouter JP",
+  // ZJ 组
   "Zouter JP",
-  "GCP JP 01", "GCP JP 02", "AWS JP", "BBTEC JP",
-  "Frankfurt Eons"
+  "GCP JP 01", "GCP JP 02", "AWS JP", "BBTEC JP"
 ];
 
 // 区域别名表：用于从节点名中匹配区域
@@ -88,76 +95,56 @@ const REGION_ALIASES = {
   "新加坡": ["新加坡"],
   "日本": ["日本"],
   "美国": ["美国"],
-  "德国": ["德国"],
-  "意大利": ["意大利"],
+  "印度": ["印度"],
   "泰国": ["泰国"],
   "澳大利亚": ["澳大利亚", "澳大", "澳洲"],
-  "印度": ["印度"],
   "巴西": ["巴西"],
   "墨西哥": ["墨西哥"],
   "实验 香港": ["[实验] 香港", "[实验]香港", "实验 香港", "实验.香港", "实验-香港"],
   "实验 新加坡": ["[实验] 新加坡", "[实验]新加坡", "实验 新加坡", "实验.新加坡", "实验-新加坡"],
-  "实验 美国": ["[实验] 美国", "[实验]美国", "实验 美国", "实验.美国", "实验-美国"],
-  "实验 日本": ["[实验] 日本", "[实验]日本", "实验 日本", "实验.日本", "实验-日本"]
+  "实验 日本": ["[实验] 日本", "[实验]日本", "实验 日本", "实验.日本", "实验-日本"],
+  "实验 美国": ["[实验] 美国", "[实验]美国", "实验 美国", "实验.美国", "实验-美国"]
 };
 
 // 无编号区域：这些区域的节点名不含编号，匹配时不要求 \d+
-const NO_NUMBER_REGIONS = new Set(["实验 香港", "实验 新加坡", "实验 美国", "实验 日本"]);
+const NO_NUMBER_REGIONS = new Set(["实验 香港", "实验 新加坡", "实验 日本", "实验 美国"]);
 
 // 实验区域→基础区域名映射（用于模糊匹配：名字含"实验"+区域名即命中）
 const EXP_REGION_BASE = {
   "实验 香港": "香港",
   "实验 新加坡": "新加坡",
-  "实验 美国": "美国",
-  "实验 日本": "日本"
+  "实验 日本": "日本",
+  "实验 美国": "美国"
 };
 
 // 入口组定义：每个组包含一组入口点，交叉组合时遍历这些入口点
-// HK_TW 组：香港/台湾可用入口点（含独立 Stealth (Special)）
-// SG 组：新加坡可用入口点（组合入口含 Stealth，无独立 Stealth）
-// JP 组：日本/美国/远程区域可用入口点
-// EU 组：欧洲区域可用入口点（德国/意大利）
+// HK_TW_SG 组：香港/台湾/新加坡可用入口点（亚洲组）
+// ZJ 组：日本/美国/远程区域可用入口点（Zouter JP 组）
 // 改法：新增组时定义数组并在 ACCESS_POINT_GROUPS 中注册
 // 注意：组名需与 REGION_ACCESS_GROUP 中的值一致
-const ACCESS_POINTS_HK_TW = [
+const ACCESS_POINTS_HK_TW_SG = [
   "Sakura HK", "GCP SG", "AWS SG", "HiNet TW",
   "Stealth (Special)", "(IPv6) Zouter JP"
 ];
-const ACCESS_POINTS_SG = [
-  "Sakura HK", "GCP SG", "AWS SG", "HiNet TW",
-  "(IPv6) Zouter JP",
-  "GCP SG + AWS SG + HiNet TW + Stealth (Special) + (IPv6) Zouter JP"
-];
-const ACCESS_POINTS_JP = [
+const ACCESS_POINTS_ZJ = [
   "Zouter JP", "(IPv6) Zouter JP",
   "GCP JP 01", "GCP JP 02", "AWS JP", "BBTEC JP"
 ];
-const ACCESS_POINTS_EU = [
-  "Frankfurt Eons"
-];
-const ACCESS_POINTS_EXP_ASIA = [
-  "Sakura HK", "GCP SG", "AWS SG", "HiNet TW", "(IPv6) Zouter JP"
-];
 const ACCESS_POINT_GROUPS = {
-  HK_TW: ACCESS_POINTS_HK_TW,
-  SG: ACCESS_POINTS_SG,
-  JP: ACCESS_POINTS_JP,
-  EU: ACCESS_POINTS_EU,
-  EXP_ASIA: ACCESS_POINTS_EXP_ASIA
+  HK_TW_SG: ACCESS_POINTS_HK_TW_SG,
+  ZJ: ACCESS_POINTS_ZJ
 };
 
 // 区域→入口组映射：决定每个区域使用哪组入口点进行交叉组合
 // 改法：将区域映射到新组名，或新增区域时指定其所属组
 // 注意：区域名需与 REGION_ORDER / REGION_ALIASES 中的 key 一致
 const REGION_ACCESS_GROUP = {
-  "香港": "HK_TW", "台湾": "HK_TW",
-  "新加坡": "SG",
-  "日本": "JP", "美国": "JP", "泰国": "JP",
-  "澳大利亚": "JP", "印度": "JP", "巴西": "JP",
-  "墨西哥": "JP",
-  "德国": "EU", "意大利": "EU",
-  "实验 香港": "EXP_ASIA", "实验 新加坡": "EXP_ASIA",
-  "实验 美国": "JP", "实验 日本": "JP"
+  "香港": "HK_TW_SG", "台湾": "HK_TW_SG", "新加坡": "HK_TW_SG",
+  "日本": "ZJ", "美国": "ZJ",
+  "印度": "ZJ", "泰国": "ZJ",
+  "澳大利亚": "ZJ", "巴西": "ZJ", "墨西哥": "ZJ",
+  "实验 香港": "HK_TW_SG", "实验 新加坡": "HK_TW_SG",
+  "实验 日本": "ZJ", "实验 美国": "ZJ"
 };
 
 // 区域排列顺序：决定生成节点的排序（先按此顺序排区域，再按编号排）
@@ -165,9 +152,8 @@ const REGION_ACCESS_GROUP = {
 // 注意：需要与 REGION_ALIASES / REGION_ACCESS_GROUP 中的 key 保持一致
 const REGION_ORDER = [
   "香港", "台湾", "新加坡", "日本", "美国",
-  "德国", "意大利",
-  "泰国", "澳大利亚", "印度", "巴西", "墨西哥",
-  "实验 香港", "实验 新加坡", "实验 美国", "实验 日本"
+  "印度", "泰国", "澳大利亚", "墨西哥", "巴西",
+  "实验 香港", "实验 新加坡", "实验 日本", "实验 美国"
 ];
 
 // 排序模式：1 = 按节点优先（先遍历节点，每个节点铺开所有入口点）
@@ -292,12 +278,11 @@ const ALL_ACCESS_POINTS = [
 
 // 预构建 suffix→length 表，避免 getBaseName 循环内重复拼接字符串
 // 按长度降序排列，确保最长的后缀先被匹配
-// （如先匹配" - GCP SG + AWS SG + HiNet TW + (IPv6) Zouter JP"再匹配" - GCP SG"）
 const AP_SUFFIXES = ALL_ACCESS_POINTS
   .map(ap => ({ suffix: ` - ${ap}`, len: ap.length + 3 }))
   .sort((a, b) => b.suffix.length - a.suffix.length);
 
-// 去除节点名末尾的入口点后缀（如"香港 01 - Sakura HK" → "香港 01"）
+// 去除节点名末尾的入口点后缀（如"香港 01 - AWS SG" → "香港 01"）
 // 循环处理以应对多次拼接的情况
 function getBaseName(name) {
   if (!name) return "";
