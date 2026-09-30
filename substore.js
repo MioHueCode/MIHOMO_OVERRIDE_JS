@@ -14,8 +14,8 @@
 //   ┌─ 改入口点文本      → 修改 ACCESS_POINT_NODES_TEXT（L35）
 //   ├─ 改入口点排列顺序  → 修改 ACCESS_POINT_ORDER（L61）
 //   ├─ 改区域别名        → 修改 REGION_ALIASES（L72）
-//   ├─ 改区域→入口组映射  → 修改 REGION_ACCESS_GROUP（L102）
-//   ├─ 改入口组定义      → 修改 ACCESS_POINTS_ASIA / JP / EU（L86/L92/L98）
+//   ├─ 改区域→入口组映射  → 修改 REGION_ACCESS_GROUP（L133）
+//   ├─ 改入口组定义      → 修改 ACCESS_POINTS_HK_TW / SG / JP / EU（L107/L111/L117/L119）
 //   ├─ 改区域排列顺序    → 修改 REGION_ORDER（L108）
 //   ├─ 改排序模式        → 修改 SORT_MODE（L115）
 //   └─ 改 CF 节点跳过    → 修改 SKIP_CF（L116）
@@ -36,23 +36,24 @@
 //
 const ACCESS_POINT_NODES_TEXT = `
 香港 01:Sakura HK
-香港 02:AWS SG
-香港 03:Stealth (Special)
+香港 02:GCP SG
+香港 03:AWS SG
 
 台湾 01:HiNet TW
 台湾 02:Stealth (Special)
 台湾 03:(IPv6) Zouter JP
 
 新加坡 01:Sakura HK
-新加坡 02:AWS SG
-新加坡 03:GCP SG + AWS SG + HiNet TW + (IPv6) Zouter JP
+新加坡 02:Sakura HK
+新加坡 03:GCP SG + AWS SG + HiNet TW + Stealth (Special) + (IPv6) Zouter JP
 
-日本 01:Zouter JP
-日本 02:GCP JP 01
-日本 03:GCP JP 02
+日本 01:GCP JP 02
+日本 02:AWS JP
+日本 03:BBTEC JP
 
-美国 01:AWS JP
-美国 02:BBTEC JP
+美国 01:(IPv6) Zouter JP
+美国 02:Zouter JP
+美国 03:Zouter JP
 
 德国 01:Frankfurt Eons
 意大利 01:Frankfurt Eons
@@ -61,15 +62,17 @@ const ACCESS_POINT_NODES_TEXT = `
 泰国 01:Zouter JP
 巴西 01:Zouter JP
 墨西哥 01:Zouter JP
+
+实验 美国:GCP JP 01
 `;
 
 // 入口点排列顺序：决定生成节点中入口点的先后
 // 改法：调整数组顺序，或新增/删除入口点名
 // 注意：此处的名字必须与 ACCESS_POINT_NODES_TEXT 中冒号右侧一致
 const ACCESS_POINT_ORDER = [
-  "Sakura HK", "AWS SG",
-  "GCP SG + AWS SG + HiNet TW + (IPv6) Zouter JP",
-  "HiNet TW", "Stealth (Special)", "(IPv6) Zouter JP",
+  "Sakura HK", "GCP SG", "AWS SG", "HiNet TW",
+  "Stealth (Special)", "(IPv6) Zouter JP",
+  "GCP SG + AWS SG + HiNet TW + Stealth (Special) + (IPv6) Zouter JP",
   "Zouter JP",
   "GCP JP 01", "GCP JP 02", "AWS JP", "BBTEC JP",
   "Frankfurt Eons"
@@ -95,15 +98,20 @@ const REGION_ALIASES = {
 };
 
 // 入口组定义：每个组包含一组入口点，交叉组合时遍历这些入口点
-// ASIA 组：亚洲区域可用入口点（香港/台湾/新加坡）
-// JP 组：日本及远程区域可用入口点（日本/美国/泰国/澳洲/印度/巴西/墨西哥）
+// HK_TW 组：香港/台湾可用入口点（含独立 Stealth (Special)）
+// SG 组：新加坡可用入口点（组合入口含 Stealth，无独立 Stealth）
+// JP 组：日本/美国/远程区域可用入口点
 // EU 组：欧洲区域可用入口点（德国/意大利）
 // 改法：新增组时定义数组并在 ACCESS_POINT_GROUPS 中注册
 // 注意：组名需与 REGION_ACCESS_GROUP 中的值一致
-const ACCESS_POINTS_ASIA = [
-  "Sakura HK", "AWS SG",
-  "GCP SG + AWS SG + HiNet TW + (IPv6) Zouter JP",
-  "HiNet TW", "Stealth (Special)", "(IPv6) Zouter JP"
+const ACCESS_POINTS_HK_TW = [
+  "Sakura HK", "GCP SG", "AWS SG", "HiNet TW",
+  "Stealth (Special)", "(IPv6) Zouter JP"
+];
+const ACCESS_POINTS_SG = [
+  "Sakura HK", "GCP SG", "AWS SG", "HiNet TW",
+  "(IPv6) Zouter JP",
+  "GCP SG + AWS SG + HiNet TW + Stealth (Special) + (IPv6) Zouter JP"
 ];
 const ACCESS_POINTS_JP = [
   "Zouter JP", "(IPv6) Zouter JP",
@@ -113,7 +121,8 @@ const ACCESS_POINTS_EU = [
   "Frankfurt Eons"
 ];
 const ACCESS_POINT_GROUPS = {
-  ASIA: ACCESS_POINTS_ASIA,
+  HK_TW: ACCESS_POINTS_HK_TW,
+  SG: ACCESS_POINTS_SG,
   JP: ACCESS_POINTS_JP,
   EU: ACCESS_POINTS_EU
 };
@@ -122,7 +131,8 @@ const ACCESS_POINT_GROUPS = {
 // 改法：将区域映射到新组名，或新增区域时指定其所属组
 // 注意：区域名需与 REGION_ORDER / REGION_ALIASES 中的 key 一致
 const REGION_ACCESS_GROUP = {
-  "香港": "ASIA", "台湾": "ASIA", "新加坡": "ASIA",
+  "香港": "HK_TW", "台湾": "HK_TW",
+  "新加坡": "SG",
   "日本": "JP", "美国": "JP", "泰国": "JP",
   "澳大利亚": "JP", "印度": "JP", "巴西": "JP",
   "墨西哥": "JP",
@@ -291,11 +301,15 @@ const ACCESS_POINT_NODE_MAP = parseAccessPointNodes(ACCESS_POINT_NODES_TEXT);
 // 第一遍遍历：收集各入口点的 server 地址
 // 遍历所有节点，通过节点名匹配 ACCESS_POINT_NODE_MAP 找到入口点名，
 // 记录每个入口点对应的 server 地址（首次出现即固定，不覆盖）
+// 匹配优先级：1) getNodeKey（区域+编号格式） 2) 去后缀后直接名称匹配（如"实验 美国"）
 const ACCESS_POINT_SERVERS = {};
 for (const proxy of proxies) {
   if (!proxy?.name) continue;
-  const nodeKey = getNodeKey(proxy.name);
-  if (!nodeKey) continue;
+  const baseName = getBaseName(proxy.name);
+  // 优先用 getNodeKey 匹配（区域+编号）
+  let nodeKey = getNodeKey(baseName);
+  // 回退：直接用名称匹配（用于无编号的特殊节点，如"实验 美国"）
+  if (!nodeKey) nodeKey = baseName;
   const ap = ACCESS_POINT_NODE_MAP[nodeKey];
   if (!ap) continue;
   if (SKIP_MARKERS.has(ap)) continue;
