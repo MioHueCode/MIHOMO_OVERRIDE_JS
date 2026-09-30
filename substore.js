@@ -104,6 +104,14 @@ const REGION_ALIASES = {
 // 无编号区域：这些区域的节点名不含编号，匹配时不要求 \d+
 const NO_NUMBER_REGIONS = new Set(["实验 香港", "实验 新加坡", "实验 美国", "实验 日本"]);
 
+// 实验区域→基础区域名映射（用于模糊匹配：名字含"实验"+区域名即命中）
+const EXP_REGION_BASE = {
+  "实验 香港": "香港",
+  "实验 新加坡": "新加坡",
+  "实验 美国": "美国",
+  "实验 日本": "日本"
+};
+
 // 入口组定义：每个组包含一组入口点，交叉组合时遍历这些入口点
 // HK_TW 组：香港/台湾可用入口点（含独立 Stealth (Special)）
 // SG 组：新加坡可用入口点（组合入口含 Stealth，无独立 Stealth）
@@ -224,10 +232,20 @@ const REGION_PATTERNS = REGION_ORDER.map(region => {
 });
 
 // 从节点名中提取区域，匹配不到返回 null
+// 优先检查实验区域（模糊匹配：含"实验"+基础区域名）
+// 再检查常规区域（正则匹配：区域名+编号）
 function getRegionFromName(name) {
   if (!name) return null;
   const text = String(name);
+  // 实验区域模糊匹配：名字含"实验"且含基础区域名
+  if (text.includes("实验")) {
+    for (const [expRegion, baseName] of Object.entries(EXP_REGION_BASE)) {
+      if (text.includes(baseName)) return expRegion;
+    }
+  }
+  // 常规区域正则匹配
   for (const p of REGION_PATTERNS) {
+    if (NO_NUMBER_REGIONS.has(p.region)) continue; // 跳过实验区域（已用模糊匹配处理）
     if (p.testRe.test(text)) return p.region;
   }
   return null;
