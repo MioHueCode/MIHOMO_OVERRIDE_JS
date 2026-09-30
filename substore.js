@@ -1,7 +1,33 @@
 // ============================================================
 // Sub-Store Script Operator
 // ============================================================
+//
+// 【脚本用途】
+//   将订阅中原有的落地节点（如"香港 01"）按其所属区域分组，
+//   与指定的中转入口点（Access Point，如"Sakura HK"）交叉组合，
+//   生成"原节点名 - 入口点名"格式的新节点，实现一跳中转。
+//
+// 【运行环境】
+//   Sub-Store 脚本操作器（Script Operator），全局变量 `proxies` 由 Sub-Store 注入。
+//
+// 【后续改动指引】
+//   ┌─ 改入口点文本      → 修改 ACCESS_POINT_NODES_TEXT（L20）
+//   ├─ 改入口点排列顺序  → 修改 ACCESS_POINT_ORDER（L28）
+//   ├─ 改区域别名        → 修改 REGION_ALIASES（L35）
+//   ├─ 改区域→入口组映射  → 修改 REGION_ACCESS_GROUP（L62）
+//   ├─ 改入口组定义      → 修改 ACCESS_POINTS_ASIA / ACCESS_POINTS_JP（L46/L52）
+//   ├─ 改区域排列顺序    → 修改 REGION_ORDER（L68）
+//   ├─ 改排序模式        → 修改 SORT_MODE（L73）
+//   └─ 改 CF 节点跳过    → 修改 SKIP_CF（L74）
+//
+// ============================================================
 
+
+// ── 配置区 ─────────────────────────────────────────────────
+
+// 入口点定义文本：每行 "节点名:入口点名"
+// 节点名格式：区域 + 空格 + 编号（如"香港 01"），编号需 padStart 为 2 位
+// 改法：新增/删除行，确保节点名与订阅中实际节点名匹配
 const ACCESS_POINT_NODES_TEXT = `
 香港 01:Sakura HK
 香港 02:GCP SG
@@ -19,6 +45,9 @@ const ACCESS_POINT_NODES_TEXT = `
 美国 02:BBTEC JP
 `;
 
+// 入口点排列顺序：决定生成节点中入口点的先后
+// 改法：调整数组顺序，或新增/删除入口点名
+// 注意：此处的名字必须与 ACCESS_POINT_NODES_TEXT 中冒号右侧一致
 const ACCESS_POINT_ORDER = [
   "Zouter JP V6", "Zouter JP", "GCP JP 01", "GCP JP 02",
   "AWS JP", "BBTEC JP",
@@ -26,6 +55,10 @@ const ACCESS_POINT_ORDER = [
   "HiNet TW", "Stealth (Special)"
 ];
 
+// 区域别名表：用于从节点名中匹配区域
+// 一个区域可以有多个别名（如"澳大利亚"匹配"澳大""澳洲"）
+// 改法：新增区域时添加别名数组；增加别名时在数组中追加字符串
+// 注意：别名不应互相包含（如不要同时有"澳大"和"澳大利亚"，否则正则歧义）
 const REGION_ALIASES = {
   "香港": ["香港"],
   "台湾": ["台湾"],
@@ -38,37 +71,52 @@ const REGION_ALIASES = {
   "巴西": ["巴西"]
 };
 
+// 入口组定义：每个组包含一组入口点
+// 改法：新增组时定义数组并在 ACCESS_POINT_GROUPS 中注册
+// 注意：组名需与 REGION_ACCESS_GROUP 中的值一致
 const ACCESS_POINTS_ASIA = [
   "Sakura HK", "GCP SG", "AWS SG",
   "HiNet TW", "Stealth (Special)", "Zouter JP V6"
 ];
-
 const ACCESS_POINTS_JP = [
   "Zouter JP", "GCP JP 01", "GCP JP 02",
   "AWS JP", "BBTEC JP", "Zouter JP V6"
 ];
-
 const ACCESS_POINT_GROUPS = {
   ASIA: ACCESS_POINTS_ASIA,
   JP: ACCESS_POINTS_JP
 };
 
+// 区域→入口组映射：决定每个区域使用哪组入口点
+// 改法：将区域映射到新组名，或新增区域时指定其所属组
+// 注意：区域名需与 REGION_ORDER / REGION_ALIASES 中的 key 一致
 const REGION_ACCESS_GROUP = {
   "香港": "ASIA", "台湾": "ASIA", "新加坡": "ASIA",
   "日本": "JP", "美国": "JP", "泰国": "JP",
   "澳大利亚": "JP", "印度": "JP", "巴西": "JP"
 };
 
+// 区域排列顺序：决定生成节点的排序（先按此顺序排区域，再按编号排）
+// 改法：调整数组顺序或增删区域名
+// 注意：需要与 REGION_ALIASES / REGION_ACCESS_GROUP 中的 key 保持一致
 const REGION_ORDER = [
   "香港", "台湾", "新加坡", "日本", "美国",
   "泰国", "澳大利亚", "印度", "巴西"
 ];
 
+// 排序模式：1 = 按节点优先（先遍历节点，每个节点铺开所有入口点）
+//           2 = 按入口点优先（先遍历入口点，每个入口点铺开所有节点）
+// 改法：改为 1 或 2
 const SORT_MODE = 1;
+
+// 是否跳过 Cloudflare 节点：true = server 含 "cf" 的节点不参与入口点收集和生成
+// 改法：改为 false 则不跳过
 const SKIP_CF = true;
+
 
 // ── 工具函数 ──────────────────────────────────────────────
 
+// 解析入口点定义文本，返回 { "香港 01": "Sakura HK", ... }
 function parseAccessPointNodes(text) {
   const map = {};
   text.split("\n")
@@ -84,11 +132,14 @@ function parseAccessPointNodes(text) {
   return map;
 }
 
+// 转义正则特殊字符，防止别名中含 . ( ) 等导致误匹配
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 // 预编译区域匹配正则，避免每次调用都 new RegExp
+// testRe 用于判断节点名是否属于某区域
+// numRe  用于提取节点名中的区域编号
 const REGION_PATTERNS = REGION_ORDER.map(region => {
   const aliases = (REGION_ALIASES[region] || []).map(escapeRegExp);
   const alt = aliases.join("|");
@@ -99,6 +150,7 @@ const REGION_PATTERNS = REGION_ORDER.map(region => {
   };
 });
 
+// 从节点名中提取区域，匹配不到返回 null
 function getRegionFromName(name) {
   if (!name) return null;
   const text = String(name);
@@ -108,6 +160,7 @@ function getRegionFromName(name) {
   return null;
 }
 
+// 从节点名中提取编号（如"日本 02" → 2），匹配不到返回 null
 function getNodeNumber(name) {
   if (!name) return null;
   const text = String(name);
@@ -118,6 +171,8 @@ function getNodeNumber(name) {
   return null;
 }
 
+// 生成节点唯一键：区域 + 2位编号（如"日本 01"）
+// 用于在 ACCESS_POINT_NODE_MAP 中查找对应入口点
 function getNodeKey(name) {
   const region = getRegionFromName(name);
   const number = getNodeNumber(name);
@@ -125,17 +180,20 @@ function getNodeKey(name) {
   return `${region} ${String(number).padStart(2, "0")}`;
 }
 
+// 判断节点是否为 Cloudflare 节点（server 含 "cf"）
 function isCF(proxy) {
   return !!proxy && !!proxy.server &&
     String(proxy.server).toLowerCase().includes("cf");
 }
 
-// 预构建 suffix→length 表，避免循环内重复拼接字符串
+// 预构建 suffix→length 表，避免 getBaseName 循环内重复拼接字符串
 const AP_SUFFIXES = ACCESS_POINT_ORDER.map(ap => ({
   suffix: ` - ${ap}`,
   len: ap.length + 3  // " - ".length === 3
 }));
 
+// 去除节点名末尾的入口点后缀（如"香港 01 - Sakura HK" → "香港 01"）
+// 循环处理以应对多次拼接的情况
 function getBaseName(name) {
   if (!name) return "";
   let result = String(name);
@@ -152,16 +210,19 @@ function getBaseName(name) {
   return result;
 }
 
+// 获取节点（去除后缀后）的区域，用于判断该节点属于哪个区域
 function getBaseRegion(proxy) {
   return proxy?.name ? getRegionFromName(getBaseName(proxy.name)) : null;
 }
 
+// 获取区域在 REGION_ORDER 中的索引，用于排序
 function getRegionIndex(region) {
   const i = REGION_ORDER.indexOf(region);
   return i === -1 ? 9999 : i;
 }
 
-// 预计算每个区域的可用入口点 Set，避免每次 regionSupportsAccessPoint 都遍历数组
+// 预计算每个区域的可用入口点 Set
+// 将数组转为 Set，后续 regionSupportsAccessPoint 用 has() O(1) 查找
 const REGION_AP_SETS = {};
 for (const region of REGION_ORDER) {
   const group = REGION_ACCESS_GROUP[region];
@@ -169,15 +230,20 @@ for (const region of REGION_ORDER) {
   REGION_AP_SETS[region] = new Set(list);
 }
 
+// 判断某区域是否支持某入口点
 function regionSupportsAccessPoint(region, ap) {
   return REGION_AP_SETS[region]?.has(ap) ?? false;
 }
 
+
 // ── 主逻辑 ────────────────────────────────────────────────
 
+// 解析入口点定义文本 → 映射表
 const ACCESS_POINT_NODE_MAP = parseAccessPointNodes(ACCESS_POINT_NODES_TEXT);
 
-// 第一遍：收集各入口点的 server 地址
+// 第一遍遍历：收集各入口点的 server 地址
+// 遍历所有节点，通过节点名匹配 ACCESS_POINT_NODE_MAP 找到入口点名，
+// 记录每个入口点对应的 server 地址（首次出现即固定，不覆盖）
 const ACCESS_POINT_SERVERS = {};
 for (const proxy of proxies) {
   if (!proxy?.name) continue;
@@ -192,7 +258,9 @@ for (const proxy of proxies) {
   }
 }
 
-// 第二遍：分类目标节点与保留原节点
+// 第二遍遍历：分类目标节点与保留原节点
+// 有区域归属且有入口组映射且未被 CF 跳过的节点 → targetNodes（参与生成）
+// 其余节点 → untouchedNodes（原样保留追加到结果末尾）
 const targetNodes = [];
 const untouchedNodes = [];
 
@@ -210,18 +278,21 @@ for (const proxy of proxies) {
   });
 }
 
+// 排序：先按区域顺序（REGION_ORDER），同区域内再按编号
 targetNodes.sort((a, b) =>
   getRegionIndex(a.region) - getRegionIndex(b.region) ||
   a.number - b.number
 );
 
-// 生成节点
+// 生成新节点
 const generatedNodes = [];
 
 if (SORT_MODE !== 1 && SORT_MODE !== 2) {
   throw new Error(`SORT_MODE 必须是 1 或 2，当前值：${SORT_MODE}`);
 }
 
+// SORT_MODE=1：按节点优先生成
+// 外层遍历排序后的目标节点，内层遍历该区域可用的入口点
 function generateForNode(item) {
   const { proxy, region } = item;
   const baseName = getBaseName(proxy.name);
@@ -236,6 +307,8 @@ function generateForNode(item) {
   }
 }
 
+// SORT_MODE=2：按入口点优先生成
+// 外层遍历入口点，内层遍历排序后的目标节点
 function generateForAccessPoint(ap) {
   const server = ACCESS_POINT_SERVERS[ap];
   if (!server) return;
@@ -255,4 +328,5 @@ if (SORT_MODE === 1) {
   for (const ap of ACCESS_POINT_ORDER) generateForAccessPoint(ap);
 }
 
+// 最终输出：生成的新节点在前，未处理的节点在后
 return [...generatedNodes, ...untouchedNodes];
