@@ -94,8 +94,15 @@ const REGION_ALIASES = {
   "澳大利亚": ["澳大利亚", "澳大", "澳洲"],
   "印度": ["印度"],
   "巴西": ["巴西"],
-  "墨西哥": ["墨西哥"]
+  "墨西哥": ["墨西哥"],
+  "实验 香港": ["[实验] 香港", "[实验]香港", "实验 香港", "实验.香港", "实验-香港"],
+  "实验 新加坡": ["[实验] 新加坡", "[实验]新加坡", "实验 新加坡", "实验.新加坡", "实验-新加坡"],
+  "实验 美国": ["[实验] 美国", "[实验]美国", "实验 美国", "实验.美国", "实验-美国"],
+  "实验 日本": ["[实验] 日本", "[实验]日本", "实验 日本", "实验.日本", "实验-日本"]
 };
+
+// 无编号区域：这些区域的节点名不含编号，匹配时不要求 \d+
+const NO_NUMBER_REGIONS = new Set(["实验 香港", "实验 新加坡", "实验 美国", "实验 日本"]);
 
 // 入口组定义：每个组包含一组入口点，交叉组合时遍历这些入口点
 // HK_TW 组：香港/台湾可用入口点（含独立 Stealth (Special)）
@@ -120,11 +127,15 @@ const ACCESS_POINTS_JP = [
 const ACCESS_POINTS_EU = [
   "Frankfurt Eons"
 ];
+const ACCESS_POINTS_EXP_ASIA = [
+  "Sakura HK", "GCP SG", "AWS SG", "HiNet TW", "(IPv6) Zouter JP"
+];
 const ACCESS_POINT_GROUPS = {
   HK_TW: ACCESS_POINTS_HK_TW,
   SG: ACCESS_POINTS_SG,
   JP: ACCESS_POINTS_JP,
-  EU: ACCESS_POINTS_EU
+  EU: ACCESS_POINTS_EU,
+  EXP_ASIA: ACCESS_POINTS_EXP_ASIA
 };
 
 // 区域→入口组映射：决定每个区域使用哪组入口点进行交叉组合
@@ -136,7 +147,9 @@ const REGION_ACCESS_GROUP = {
   "日本": "JP", "美国": "JP", "泰国": "JP",
   "澳大利亚": "JP", "印度": "JP", "巴西": "JP",
   "墨西哥": "JP",
-  "德国": "EU", "意大利": "EU"
+  "德国": "EU", "意大利": "EU",
+  "实验 香港": "EXP_ASIA", "实验 新加坡": "EXP_ASIA",
+  "实验 美国": "JP", "实验 日本": "JP"
 };
 
 // 区域排列顺序：决定生成节点的排序（先按此顺序排区域，再按编号排）
@@ -145,7 +158,8 @@ const REGION_ACCESS_GROUP = {
 const REGION_ORDER = [
   "香港", "台湾", "新加坡", "日本", "美国",
   "德国", "意大利",
-  "泰国", "澳大利亚", "印度", "巴西", "墨西哥"
+  "泰国", "澳大利亚", "印度", "巴西", "墨西哥",
+  "实验 香港", "实验 新加坡", "实验 美国", "实验 日本"
 ];
 
 // 排序模式：1 = 按节点优先（先遍历节点，每个节点铺开所有入口点）
@@ -190,12 +204,21 @@ function escapeRegExp(s) {
 // 预编译区域匹配正则，避免每次调用都 new RegExp
 // testRe 用于判断节点名是否属于某区域
 // numRe  用于提取节点名中的区域编号
+// 无编号区域（如"实验 香港"）不要求 \d+，直接全词匹配
 const REGION_PATTERNS = REGION_ORDER.map(region => {
   const aliases = (REGION_ALIASES[region] || []).map(escapeRegExp);
   const alt = aliases.join("|");
+  if (NO_NUMBER_REGIONS.has(region)) {
+    // 无编号区域：匹配到字符串末尾或空格
+    return {
+      region,
+      testRe: new RegExp(`(${alt})(?=\\s|$)`),
+      numRe:  null
+    };
+  }
   return {
     region,
-    testRe: new RegExp(`${alt}\\s*\\d+(?=\\s|$)`),
+    testRe: new RegExp(`(${alt})\\s*\\d+(?=\\s|$)`),
     numRe:  new RegExp(`(${alt})\\s*(\\d+)(?=\\s|$)`)
   };
 });
@@ -211,22 +234,29 @@ function getRegionFromName(name) {
 }
 
 // 从节点名中提取编号（如"日本 02" → 2），匹配不到返回 null
+// 无编号区域（如"实验 香港"）返回 0，用于排序
 function getNodeNumber(name) {
   if (!name) return null;
   const text = String(name);
   for (const p of REGION_PATTERNS) {
-    const m = text.match(p.numRe);
-    if (m) return parseInt(m[2], 10);
+    if (p.numRe) {
+      const m = text.match(p.numRe);
+      if (m) return parseInt(m[2], 10);
+    }
   }
   return null;
 }
 
 // 生成节点唯一键：区域 + 2位编号（如"日本 01"）
+// 无编号区域（如"实验 香港"）直接用区域名作为键
 // 用于在 ACCESS_POINT_NODE_MAP 中查找对应入口点
 function getNodeKey(name) {
   const region = getRegionFromName(name);
+  if (!region) return null;
+  // 无编号区域直接用区域名作为键
+  if (NO_NUMBER_REGIONS.has(region)) return region;
   const number = getNodeNumber(name);
-  if (!region || number === null) return null;
+  if (number === null) return null;
   return `${region} ${String(number).padStart(2, "0")}`;
 }
 
@@ -336,7 +366,7 @@ for (const proxy of proxies) {
   }
   targetNodes.push({
     proxy, region,
-    number: getNodeNumber(getBaseName(proxy.name)) ?? 9999
+    number: getNodeNumber(getBaseName(proxy.name)) ?? 0
   });
 }
 
