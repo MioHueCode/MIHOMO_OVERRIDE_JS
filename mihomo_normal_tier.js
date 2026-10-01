@@ -1,6 +1,6 @@
-// mihomo_smart_tier.js
-// 节点不走 proxy-providers，全部写入 proxies，组用显式节点列表引用
-// 结构: main() 增强逻辑 + originalMain() 原版
+// mihomo_normal_tier.js
+// normal 版：故障转移(fallback) + url-test 自动层，不依赖 ML
+// 结构: main() 增强逻辑 + originalMain() 原版（与 smart 版共用 originalMain）
 
 function main(config) {
   var result = originalMain(config);
@@ -32,12 +32,17 @@ function main(config) {
 
   // ── 5. 常量与分类函数 ──
   var ICON = "https://mihomo.echs.top/img/Hand-Painted-icon/";
+  // normal 版：隐藏层用 url-test（非 smart），tolerance 容忍抖动
   function anchor(hidden) {
     return {
-      type: "smart", strategy: "sticky-sessions", uselightgbm: true,
-      collectdata: false, "sample-rate": "1", "prefer-asn": false,
-      "policy-priority": "", "type-priority": "",
-      "include-all-providers": false, "empty-fallback": "REJECT", hidden: hidden
+      type: "url-test",
+      tolerance: 30,
+      url: "https://www.gstatic.com/generate_204",
+      interval: 300,
+      timeout: 5000,
+      "empty-fallback": "REJECT",
+      "include-all-providers": false,
+      hidden: hidden
     };
   }
 
@@ -59,62 +64,57 @@ function main(config) {
   ];
   var REGION_ORDER = ["香港","台湾","日本","韩国","新加坡","美国","欧洲","其它"];
 
-   var ENTRIES = [
-     { label: "Sakura HK", key: ["sakura"] },
-     { label: "GCP SG", key: ["gcp sg","gcpsingapore"] },
-     { label: "AWS SG", key: ["aws sg","awssingapore"] },
-     { label: "HiNet TW", key: ["hinet"] },
-     { label: "Stealth (Special)", key: ["stealth"] },
-     { label: "(IPv6) Zouter JP", key: ["ipv6","zouter"] },
-     { label: "GCP JP 01", key: ["gcp jp 01","gcp jp01"] },
-     { label: "GCP JP 02", key: ["gcp jp 02","gcp jp02"] },
-     { label: "Zouter JP", key: ["zouter"] },
-     { label: "AWS JP", key: ["aws jp","awsjapan"] },
-     { label: "BBTEC JP", key: ["bbtec"] },
-     { label: "Frankfurt", key: ["frankfurt","法兰克福"] }
-   ];
+  var ENTRIES = [
+    { label: "Sakura HK", key: ["sakura"] },
+    { label: "GCP SG", key: ["gcp sg","gcpsingapore"] },
+    { label: "AWS SG", key: ["aws sg","awssingapore"] },
+    { label: "HiNet TW", key: ["hinet"] },
+    { label: "Stealth (Special)", key: ["stealth"] },
+    { label: "(IPv6) Zouter JP", key: ["ipv6","zouter"] },
+    { label: "GCP JP 01", key: ["gcp jp 01","gcp jp01"] },
+    { label: "GCP JP 02", key: ["gcp jp 02","gcp jp02"] },
+    { label: "Zouter JP", key: ["zouter"] },
+    { label: "AWS JP", key: ["aws jp","awsjapan"] },
+    { label: "BBTEC JP", key: ["bbtec"] },
+    { label: "Frankfurt", key: ["frankfurt","法兰克福"] }
+  ];
 
-var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b){ return b.length - a.length; });
-   function strip(name) {
-     var s = String(name || "");
-     // 先去掉所有 emoji（Unicode 范围）
-     s = s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2000-\u3300]|[\uE000-\uF900]/g, '').replace(/\s+/g, ' ').trim();
-     var changed = true;
-     while (changed) {
-       changed = false;
-       for (var k = 0; k < SUF.length; k++) {
-         if (s.slice(-SUF[k].length) === SUF[k]) { s = s.slice(0, -SUF[k].length).trim(); changed = true; }
-       }
-     }
-     return s;
-   }
-   function lc(s) { return String(s || "").toLowerCase(); }
-   function has(sub, keys) { var t = lc(sub); for (var k = 0; k < keys.length; k++) { if (t.indexOf(keys[k]) >= 0) return true; } return false; }
-   function matchTier(name) { for (var t = 0; t < TIERS.length; t++) { if (name.indexOf(TIERS[t].prefix) >= 0) return TIERS[t]; } return null; }
-   function matchRegion(name) { var c = strip(name); for (var r = 0; r < REGIONS.length; r++) { if (REGIONS[r].name === "其它") continue; if (has(c, REGIONS[r].kw)) return REGIONS[r].name; } return "其它"; }
-   function matchEntry(name) { 
-     var t = lc(name); 
-     // 优先查找最长/最精确的match
-     var best = null, bestLen = 0;
-     for (var e2 = 0; e2 < ENTRIES.length; e2++) { 
-       var entry = ENTRIES[e2];
-       // 特殊处理：(IPv6) Zouter JP 需要同时包含 ipv6 和 zouter
-       if (entry.label === "(IPv6) Zouter JP") {
-         if (t.indexOf("ipv6") >= 0 && t.indexOf("zouter") >= 0) {
-           best = entry;
-           bestLen = 999; // 最高优先级
-         }
-       } else {
-         for (var k2 = 0; k2 < entry.key.length; k2++) {
-           if (t.indexOf(entry.key[k2]) >= 0 && entry.key[k2].length > bestLen) {
-             best = entry;
-             bestLen = entry.key[k2].length;
-           }
-         }
-       }
-     }
-     return best;
-   }
+  var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b){ return b.length - a.length; });
+  function strip(name) {
+    var s = String(name || "");
+    s = s.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2000-\u3300]|[\uE000-\uF900]/g, '').replace(/\s+/g, ' ').trim();
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (var k = 0; k < SUF.length; k++) {
+        if (s.slice(-SUF[k].length) === SUF[k]) { s = s.slice(0, -SUF[k].length).trim(); changed = true; }
+      }
+    }
+    return s;
+  }
+  function lc(s) { return String(s || "").toLowerCase(); }
+  function has(sub, keys) { var t = lc(sub); for (var k = 0; k < keys.length; k++) { if (t.indexOf(keys[k]) >= 0) return true; } return false; }
+  function matchTier(name) { for (var t = 0; t < TIERS.length; t++) { if (name.indexOf(TIERS[t].prefix) >= 0) return TIERS[t]; } return null; }
+  function matchRegion(name) { var c = strip(name); for (var r = 0; r < REGIONS.length; r++) { if (REGIONS[r].name === "其它") continue; if (has(c, REGIONS[r].kw)) return REGIONS[r].name; } return "其它"; }
+  function matchEntry(name) {
+    var t = lc(name);
+    var best = null, bestLen = 0;
+    for (var e2 = 0; e2 < ENTRIES.length; e2++) {
+      var entry = ENTRIES[e2];
+      if (entry.label === "(IPv6) Zouter JP") {
+        if (t.indexOf("ipv6") >= 0 && t.indexOf("zouter") >= 0) {
+          best = entry; bestLen = 999;
+        }
+      } else {
+        for (var k2 = 0; k2 < entry.key.length; k2++) {
+          if (t.indexOf(entry.key[k2]) >= 0 && entry.key[k2].length > bestLen) {
+            best = entry; bestLen = entry.key[k2].length;
+          }
+        }
+      }
+    }
+    return best;
+  }
 
   // ── 5.5 倍率 / 家宽 / 运营商优化 识别 ──
  var multiplierNamePatterns = [
@@ -180,7 +180,6 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
     { label: "电信", kw: ["电信", "ctcc", "chinatelecom", "china telecom"] },
     { label: "广电", kw: ["广电", "cbn", "cbnnet", "chinabroadcast", "china broadcast"] }
 ];
-  // 一个节点可能同时匹配多个运营商（如"移联"→ 移动+联通），返回匹配到的所有运营商
   function matchCarriers(name) {
     var c = lc(strip(name));
     var found = [];
@@ -219,12 +218,10 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
       if (mult !== null && mult > 1) multHighProxies.push(nm);
       else multLowProxies.push(nm);
     }
-    // 家宽
     if (matchHome(nm)) {
       homeAllProxies.push(nm);
       (homeRegionProxies[reg] = homeRegionProxies[reg] || []).push(nm);
     }
-    // 运营商优化（一个节点可同时归入多个运营商组）
     var cars = matchCarriers(nm);
     for (var cc = 0; cc < cars.length; cc++) {
       (carrierProxies[cars[cc]] = carrierProxies[cars[cc]] || []).push(nm);
@@ -236,21 +233,23 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
   // ── 7. 构建新增分组 ──
   var newGroups = [], visible = [];
 
-  // 7A 地区组（select 可见：地区智能放最前 + 该地区全部真实节点，如 香港节点 -> [香港智能, 香港节点1, 香港节点2...]）
+  // 7A 地区组（select 可见：地区名放最前 + 该地区全部真实节点，供用户手动选）
   for (var r1 = 0; r1 < REGION_ORDER.length; r1++) {
     var rn = REGION_ORDER[r1];
     if (!regionCount[rn]) continue;
-    var rd = REGION_MAP[rn], sn = rd.flag + rn + "智能", gn = rd.flag + rn + "节点";
+    var rd = REGION_MAP[rn], sn = rd.flag + rn + "自动", gn = rd.flag + rn + "节点";
+    // 隐藏 url-test：自动选该地区最快节点
     newGroups.push(Object.assign(anchor(true), { name: sn, proxies: regionProxies[rn], icon: rd.icon }));
+    // 可见 select：地区名优先 + 全部节点，用户可手动切
     newGroups.push({ name: gn, type: "select", proxies: [sn].concat(regionProxies[rn]), "empty-fallback": "REJECT", icon: rd.icon });
     visible.push(gn);
   }
 
-  // 7B 分级组（总 smart 隐藏 + 地区小 smart 隐藏 + select 可见）
+  // 7B 分级组（总 url-test 隐藏 + 地区小 url-test 隐藏 + select 可见）
   for (var t1 = 0; t1 < TIERS.length; t1++) {
     var t = TIERS[t1], tl = t.label;
     if (!tierCount[tl]) continue;
-    var sn = t.emoji + tl + "智能", ch = [sn];
+    var sn = t.emoji + tl + "自动", ch = [sn];
     newGroups.push(Object.assign(anchor(true), { name: sn, proxies: tierProxies[tl], icon: ICON + "Universal/Auto_Speed.png" }));
     var trp = tierRegionProxies[tl];
     for (var r3 = 0; r3 < REGION_ORDER.length; r3++) {
@@ -264,11 +263,11 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
     visible.push(t.emoji + tl);
   }
 
-  // 7C 入口组（总 smart 隐藏 + 分级小 smart 隐藏 + select 可见，含具体节点）
+  // 7C 入口组（总 url-test 隐藏 + 分级小 url-test 隐藏 + select 可见）
   for (var e1 = 0; e1 < ENTRIES.length; e1++) {
     var es = ENTRIES[e1].label;
     if (!entryCount[es]) continue;
-    var epAll = entryProxies[es], esn = "🚀" + es + "智能", ch2 = [esn];
+    var epAll = entryProxies[es], esn = "🚀" + es + "自动", ch2 = [esn];
     newGroups.push(Object.assign(anchor(true), { name: esn, proxies: epAll, icon: ICON + "Universal/StreamingSE.png" }));
     for (var t2 = 0; t2 < TIERS.length; t2++) {
       var t3 = TIERS[t2];
@@ -282,13 +281,35 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
     visible.push("🚀" + es);
   }
 
-  // 7D 全局智能选择和最低延迟
-  newGroups.push(Object.assign(anchor(false), { name: "智能选择", proxies: nodes.slice(), icon: ICON + "Universal/Final.png" }));
-  newGroups.push({ name: "最低延迟", type: "url-test", tolerance: 30, proxies: nodes.slice(), "empty-fallback": "REJECT", icon: ICON + "Universal/Auto_Speed.png" });
-  visible.push("智能选择", "最低延迟");
+  // 7D 故障转移（normal 版）
+  // fallback 类型：按顺序故障转移，地区节点组优先，最低延迟（全量 url-test）兜底。
+  // 地区组自身是 select（内含该地区 url-test 自动层），故顺序 = HK → TW → JP → SG → US → EU → 其它 → 最低延迟。
+  var regionFallbackChoices = visible.slice(); // 7A 生成的地区可见组名
+  newGroups.push({
+    name: "故障转移",
+    type: "fallback",
+    url: "https://www.gstatic.com/generate_204",
+    interval: 180,
+    timeout: 5000,
+    "lazy": false,
+    "empty-fallback": "REJECT",
+    proxies: regionFallbackChoices.concat(["最低延迟"]),
+    icon: ICON + "Universal/Final.png"
+  });
+  newGroups.push({
+    name: "最低延迟",
+    type: "url-test",
+    tolerance: 30,
+    url: "https://www.gstatic.com/generate_204",
+    interval: 300,
+    timeout: 5000,
+    proxies: nodes.slice(),
+    "empty-fallback": "REJECT",
+    icon: ICON + "Universal/Auto_Speed.png"
+  });
+  visible.push("故障转移", "最低延迟");
 
-  // 7G 家宽组：地区家宽 smart(hidden)+select(visible) / 全球家宽 smart(hidden)+select(visible)
-  // 地区家宽图标：沿用 Clash.mini.smart.js 的 homeRegionIconMap（circle-flags）
+  // 7G 家宽组：url-test(hidden)+select(visible)
   var HOME_REGION_ICON = {
     "香港": "https://api.iconify.design/circle-flags:hk.svg",
     "台湾": "https://api.iconify.design/circle-flags:tw.svg",
@@ -303,30 +324,30 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
     for (var h1 = 0; h1 < REGION_ORDER.length; h1++) {
       var hr = REGION_ORDER[h1];
       if (!homeRegionProxies[hr] || !homeRegionProxies[hr].length) continue;
-      var hrd = REGION_MAP[hr], hgn = hrd.flag + hr + "家宽", hsn = hrd.flag + hr + "家宽智能";
+      var hrd = REGION_MAP[hr], hgn = hrd.flag + hr + "家宽", hsn = hrd.flag + hr + "家宽自动";
       var hIcon = HOME_REGION_ICON[hr] || hrd.icon;
       newGroups.push(Object.assign(anchor(true), { name: hsn, proxies: homeRegionProxies[hr].slice(), icon: hIcon }));
       newGroups.push({ name: hgn, type: "select", proxies: [hsn].concat(homeRegionProxies[hr].slice()), "empty-fallback": "REJECT", icon: hIcon });
       visible.push(hgn);
     }
-    newGroups.push(Object.assign(anchor(true), { name: "🏡全球家宽智能", proxies: homeAllProxies.slice(), icon: "https://api.iconify.design/tabler:home-filled.svg" }));
-    newGroups.push({ name: "🏡全球家宽", type: "select", proxies: ["🏡全球家宽智能"].concat(homeAllProxies.slice()), "empty-fallback": "REJECT", icon: "https://api.iconify.design/tabler:home-filled.svg" });
+    newGroups.push(Object.assign(anchor(true), { name: "🏡全球家宽自动", proxies: homeAllProxies.slice(), icon: "https://api.iconify.design/tabler:home-filled.svg" }));
+    newGroups.push({ name: "🏡全球家宽", type: "select", proxies: ["🏡全球家宽自动"].concat(homeAllProxies.slice()), "empty-fallback": "REJECT", icon: "https://api.iconify.design/tabler:home-filled.svg" });
     visible.push("🏡全球家宽");
   }
 
-  // 7F 倍率组：高倍率（>1x）/ 低倍率（≤1x），smart(hidden)+select(visible) 双层结构
+  // 7F 倍率组：url-test(hidden)+select(visible) 结构
   if (multHighProxies.length) {
-    newGroups.push(Object.assign(anchor(true), { name: "🐎高倍率智能", proxies: multHighProxies.slice(), icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23ef4444" }));
-    newGroups.push({ name: "🐎高倍率", type: "select", proxies: ["🐎高倍率智能"].concat(multHighProxies.slice()), "empty-fallback": "REJECT", icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23ef4444" });
+    newGroups.push(Object.assign(anchor(true), { name: "🐎高倍率自动", proxies: multHighProxies.slice(), icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23ef4444" }));
+    newGroups.push({ name: "🐎高倍率", type: "select", proxies: ["🐎高倍率自动"].concat(multHighProxies.slice()), "empty-fallback": "REJECT", icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23ef4444" });
     visible.push("🐎高倍率");
   }
   if (multLowProxies.length) {
-    newGroups.push(Object.assign(anchor(true), { name: "🐢低倍率智能", proxies: multLowProxies.slice(), icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b" }));
-    newGroups.push({ name: "🐢低倍率", type: "select", proxies: ["🐢低倍率智能"].concat(multLowProxies.slice()), "empty-fallback": "REJECT", icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b" });
+    newGroups.push(Object.assign(anchor(true), { name: "🐢低倍率自动", proxies: multLowProxies.slice(), icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b" }));
+    newGroups.push({ name: "🐢低倍率", type: "select", proxies: ["🐢低倍率自动"].concat(multLowProxies.slice()), "empty-fallback": "REJECT", icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b" });
     visible.push("🐢低倍率");
   }
 
-  // 7H 四大运营商优化组，smart(hidden)+select(visible) 双层结构
+  // 7H 四大运营商优化组：url-test(hidden)+select(visible) 结构
   // 运营商图标：Orz-3/mini Color 集合（10086=移动, 10010=联通, 10000=电信）
   var CARRIER_EMOJI = { "移动": "📱", "联通": "📶", "电信": "☎️", "广电": "📺" };
   var CARRIER_ICON = {
@@ -338,15 +359,14 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
   for (var c1 = 0; c1 < CARRIERS.length; c1++) {
     var cl = CARRIERS[c1].label;
     if (!carrierProxies[cl] || !carrierProxies[cl].length) continue;
-    var cgn = CARRIER_EMOJI[cl] + cl + "优化", csn = CARRIER_EMOJI[cl] + cl + "优化智能";
+    var cgn = CARRIER_EMOJI[cl] + cl + "优化", csn = CARRIER_EMOJI[cl] + cl + "优化自动";
     var cIcon = CARRIER_ICON[cl] || ICON + "Universal/Smartphone.png";
     newGroups.push(Object.assign(anchor(true), { name: csn, proxies: carrierProxies[cl].slice(), icon: cIcon }));
     newGroups.push({ name: cgn, type: "select", proxies: [csn].concat(carrierProxies[cl].slice()), "empty-fallback": "REJECT", icon: cIcon });
     visible.push(cgn);
   }
 
-  // ── 7I 下载专用组：负载均衡 / 下载散列组 / 下载轮询组（抄 Clash.mini.smart.js）──
-  // 下载健康检查：放宽超时到 2500ms，减少 Cloudflare anycast 节点误判
+  // 7I 下载专用组：负载均衡 / 下载散列组 / 下载轮询组
   var LB_HEALTH = { interval: 180, timeout: 2500, maxFailedTimes: 3 };
   function makeLoadBalanceGroup(name, icon, proxies, options) {
     if (!proxies || !proxies.length) return null;
@@ -362,56 +382,54 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
       proxies: proxies
     };
   }
-  // 负载均衡：全量节点 + consistent-hashing（同目标固定节点）
+  // 负载均衡：全量节点 + consistent-hashing
   var lbAll = makeLoadBalanceGroup("负载均衡", ICON + "Universal/Round_Robin.png", nodes.slice(), Object.assign({}, LB_HEALTH, { strategy: "consistent-hashing" }));
   if (lbAll) { lbAll.hidden = true; newGroups.push(lbAll); }
-  // 下载散列组：引用各地区智能组 + consistent-hashing（节点池同下载轮询组）
+  // 下载散列组 / 下载轮询组：引用各地区自动组
   var regionAutoNames = [];
-  for (var r1 = 0; r1 < REGION_ORDER.length; r1++) {
-    var rr = REGION_ORDER[r1];
-    if (!regionProxies[rr] || !regionProxies[rr].length) continue;
-    var rdx = REGION_MAP[rr], rsn = rdx.flag + rr + "智能";
+  for (var r2 = 0; r2 < REGION_ORDER.length; r2++) {
+    var rr2 = REGION_ORDER[r2];
+    if (!regionProxies[rr2] || !regionProxies[rr2].length) continue;
+    var rdx2 = REGION_MAP[rr2], rsn = rdx2.flag + rr2 + "自动";
     regionAutoNames.push(rsn);
   }
   var lbHash = makeLoadBalanceGroup("下载散列组", ICON + "Universal/Round_Robin.png", regionAutoNames.slice(), Object.assign({}, LB_HEALTH, { strategy: "consistent-hashing", lazy: false }));
   if (lbHash) { lbHash.hidden = true; newGroups.push(lbHash); }
-  // 下载轮询组：引用各地区智能组 + round-robin（按连接轮流分配，聚合多地区速度）
   var lbRound = makeLoadBalanceGroup("下载轮询组", ICON + "Universal/Round_Robin.png", regionAutoNames.slice(), Object.assign({}, LB_HEALTH, { strategy: "round-robin" }));
   if (lbRound) { lbRound.hidden = true; newGroups.push(lbRound); }
 
   groups = groups.concat(newGroups);
 
-  // ── 8. 新组挂到业务组和 GLOBAL（客户端按 GLOBAL 列表决定组页面显示哪些组）──
-  // 智能选择/最低延迟紧跟"代理连接"之后；其余新组按序追加
-  var TARGET = ["代理连接","代理DNS","TELEGRAM","国外AI","下载相关","风控安全","GOOGLE","YOUTUBE","TIKTOK","海外媒体","GLOBAL"];
-  for (var g1 = 0; g1 < groups.length; g1++) {
-    var gx = groups[g1];
-    if (TARGET.indexOf(gx.name) < 0) continue;
-    for (var v1 = 0; v1 < visible.length; v1++) {
-      if (gx.proxies.indexOf(visible[v1]) < 0) {
-        if (gx.name === "GLOBAL" && (visible[v1] === "智能选择" || visible[v1] === "最低延迟")) {
-          var anchor = visible[v1] === "智能选择" ? "代理连接" : "智能选择";
-          var anchorIdx = gx.proxies.indexOf(anchor);
-          if (anchorIdx < 0) anchorIdx = gx.proxies.indexOf("代理连接");
-          gx.proxies.splice(anchorIdx + 1, 0, visible[v1]);
-        } else {
-          gx.proxies.push(visible[v1]);
-        }
-      }
-    }
-  }
+  // ── 8. 新组挂到业务组和 GLOBAL ──
+   var TARGET = ["代理连接","代理DNS","TELEGRAM","国外AI","下载相关","风控安全","GOOGLE","YOUTUBE","TIKTOK","海外媒体","GLOBAL"];
+   for (var g1 = 0; g1 < groups.length; g1++) {
+     var gx = groups[g1];
+     if (TARGET.indexOf(gx.name) < 0) continue;
+     for (var v1 = 0; v1 < visible.length; v1++) {
+       if (gx.proxies.indexOf(visible[v1]) < 0) {
+         if (gx.name === "GLOBAL" && (visible[v1] === "故障转移" || visible[v1] === "最低延迟")) {
+           var anchor = visible[v1] === "故障转移" ? "代理连接" : "故障转移";
+           var anchorIdx = gx.proxies.indexOf(anchor);
+           if (anchorIdx < 0) anchorIdx = gx.proxies.indexOf("代理连接");
+           gx.proxies.splice(anchorIdx + 1, 0, visible[v1]);
+         } else {
+           gx.proxies.push(visible[v1]);
+         }
+       }
+     }
+   }
 
   // ── 9. 剔除对已删除 LEGACY 组的悬空引用 ──
   var builtin = ["DIRECT","REJECT","REJECT-DROP","PASS","PASS-RULE","COMPATIBLE","IPV4优先","IPV6优先","仅IPV4","仅IPV6"];
   var gnames = {};
   for (var b1 = 0; b1 < groups.length; b1++) gnames[groups[b1].name] = true;
-  for (var c1 = 0; c1 < groups.length; c1++) {
-    groups[c1].proxies = groups[c1].proxies.filter(function(ref){
+  for (var c2 = 0; c2 < groups.length; c2++) {
+    groups[c2].proxies = groups[c2].proxies.filter(function(ref){
       return known[ref] || gnames[ref] || builtin.indexOf(ref) >= 0;
     });
   }
 
-  // ── 9.5 断环兜底：DFS 检测 group→group 引用环，移除回边 ──
+  // ── 9.5 断环兜底 ──
   var gAdj = {};
   for (var a1 = 0; a1 < groups.length; a1++) {
     var an = groups[a1].name;
@@ -443,7 +461,7 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
     if (!gVis[groups[a5].name]) breakCycles(groups[a5].name);
   }
 
-  // ── 10. CN 直连：GEOSITE 跟在域名直连规则后，GEOIP 跟在 IP 直连规则后 ──
+  // ── 10. CN 直连 ──
   var rules = result["rules"];
   rules.splice(rules.indexOf("RULE-SET,direct-lite,直接连接") + 1, 0, "GEOSITE,CN,直接连接");
   rules.splice(rules.indexOf("RULE-SET,direct_ip,直接连接") + 1, 0, "GEOIP,CN,直接连接");
@@ -452,14 +470,14 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
   return result;
 }
 
-// ═══ 原版 originalMain ═══
+// ═══ 原版 originalMain（与 smart 版共用）═══
 function originalMain(config) {
   const subscriptionProxies = config.proxies || [];
   const ipAnchor = { "type": "http", "interval": 86400, "proxy": "代理连接", "behavior": "ipcidr", "format": "mrs" };
   const domainAnchor = { "type": "http", "interval": 86400, "proxy": "代理连接", "behavior": "domain", "format": "mrs" };
   const directDns = ["https://dns.alidns.com/dns-query#直接连接", "https://doh.pub/dns-query#直接连接&h3=false"];
   const proxyDns = ["https://dns.google/dns-query#代理DNS&ecs=8.8.8.8/24&ecs-override=true", "https://dns.quad9.net/dns-query#代理DNS&ecs=9.9.9.9/24&ecs-override=true"];
-  const dlAnchor = { "type": "select", "proxies": ["代理连接", "智能选择", "最低延迟", "负载均衡", "下载散列组", "下载轮询组"], "include-all-providers": true, "empty-fallback": "REJECT" };
+  const dlAnchor = { "type": "select", "proxies": ["代理连接", "故障转移", "最低延迟", "负载均衡", "下载散列组", "下载轮询组"], "include-all-providers": true, "empty-fallback": "REJECT" };
   const originDns = config.dns || {};
   const appendDirectTag = (val) => { if (typeof val === 'string') { return val.split('#')[0] + '#直接连接'; } return val; };
   const formatDnsValues = (dnsValue) => { if (Array.isArray(dnsValue)) return dnsValue.map(appendDirectTag); return appendDirectTag(dnsValue); };
@@ -482,7 +500,6 @@ function originalMain(config) {
   const finalHosts = { ...originHosts, ...defaultHosts };
   const quic = "AND,((NETWORK,udp),(DST-PORT,443)),代理QUIC";
   return { 
-    // 节点IP优先级：ip-version: ipv6-prefer
     "proxy-providers": { "节点": { "type": "inline", "health-check": { "enable": true, "url": "https://dns.google/generate_204", "expected-status": 204, "interval": 600, "timeout": 3000, "max-failed-times": 2, "lazy": false }, "override": { "ip-version": "dual" }, "exclude-filter": "(?i)套餐|剩余|流量|到期|重置|频道|订阅|官网|禁止|客户端|有效|联系|测试|节点|日期|群组|加入|通知|维护|网址|地址|下载|更新|APP|登录|严禁|恢复|处理|谢谢", "payload": subscriptionProxies } },
     "ipv6": true,
     "allow-lan": false,
@@ -496,14 +513,6 @@ function originalMain(config) {
     "keep-alive-interval": 15,
     "keep-alive-idle": 600,
     "etag-support": true,
-    // "global-ua": "Mozilla/5.0 (Linux; Android 16; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.217 Mobile Safari/537.36",
-    // "global-ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.257 Safari/537.36",
-    // "external-controller": "[::]:9090",
-    // "secret": "密码",
-    // "external-doh-server": "/dns-query",
-    // "external-ui": "./zashboard",
-    // 霞鹜文楷：https://github.com/echs-top/proxy/releases/download/zashboard/dist.zip
-    // "external-ui-url": "https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip",
     "lgbm-auto-update": true,
     "lgbm-update-interval": 72,
     "lgbm-url": "https://github.com/vernesong/mihomo/releases/download/LightGBM-Model/Model-large.bin",
@@ -516,15 +525,12 @@ function originalMain(config) {
     "tproxy-port": 0,
     "tun": {
       "enable": true,
-      // Android dummy9 / Windows "以太网 9" / MacOS utun9
-      // "device": "dummy9",
       "stack": "mixed",
       "auto-route": true,
       "auto-redirect": true,
       "auto-detect-interface": true,
       "strict-route": true,
       "disable-icmp-forwarding": true,
-      // "endpoint-independent-nat": true,
       "dns-hijack": ["any:53", "tcp://any:53"],
       "udp-timeout": 600
     },
@@ -538,7 +544,6 @@ function originalMain(config) {
       "use-system-hosts": false,
       "prefer-h3": true,
       "respect-rules": false,
-      // "listen": "[::]:1053",
       "enhanced-mode": "fake-ip",
       "fake-ip-range": "198.18.0.0/15",
       "fake-ip-range6": "fd00:a4c5:9b12:d3f8:e760:00df::/96",
@@ -586,7 +591,6 @@ function originalMain(config) {
       "ai": { ...domainAnchor, "url": "https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/ai.mrs", "path": "./rules/ai.mrs" },
       "download": { ...domainAnchor, "url": "https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/download.mrs", "path": "./rules/download.mrs" },
       "safe": { ...domainAnchor, "url": "https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/safe.mrs", "path": "./rules/safe.mrs" },
-      // YouTube / TikTok 独立分流：echs 无对应规则集，用 MetaCubeX geosite
       "youtube": { ...domainAnchor, "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/youtube.mrs", "path": "./rules/youtube.mrs" },
       "tiktok": { ...domainAnchor, "url": "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/tiktok.mrs", "path": "./rules/tiktok.mrs" },
       "google": { ...domainAnchor, "url": "https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/google.mrs", "path": "./rules/google.mrs" },
@@ -608,7 +612,6 @@ function originalMain(config) {
       "SUB-RULE,(RULE-SET,ai),sub-ai",
       "SUB-RULE,(RULE-SET,download),sub-download",
       "SUB-RULE,(RULE-SET,safe),sub-safe",
-      // 先于 google/media/proxy-lite：youtubei.googleapis.com 等不被 GOOGLE 吞，TikTok 不落进代理连接
       "SUB-RULE,(RULE-SET,youtube),sub-youtube",
       "SUB-RULE,(RULE-SET,tiktok),sub-tiktok",
       "SUB-RULE,(RULE-SET,google),sub-google",
@@ -635,7 +638,7 @@ function originalMain(config) {
     },
     "proxies": [{ "name": "IPV4优先", "type": "direct", "udp": true, "ip-version": "ipv4-prefer" },{ "name": "IPV6优先", "type": "direct", "udp": true, "ip-version": "ipv6-prefer" },{ "name": "仅IPV4", "type": "direct", "udp": true, "ip-version": "ipv4" },{ "name": "仅IPV6", "type": "direct", "udp": true, "ip-version": "ipv6" }],
     "proxy-groups": [
-      { "name": "代理连接", "type": "select", "proxies": ["智能选择", "最低延迟"], "include-all-providers": true, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Universal/StreamingSE.png" },
+      { "name": "代理连接", "type": "select", "proxies": ["最低延迟", "故障转移"], "include-all-providers": true, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Universal/StreamingSE.png" },
       { "name": "直接连接", "type": "select", "proxies": ["DIRECT", "IPV4优先", "IPV6优先", "仅IPV4", "仅IPV6"], "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Accommodation/Online_Booking.png" },
       { "name": "代理DNS", ...dlAnchor, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Universal/Streaming.png" },
       { "name": "代理QUIC", "type": "select", "proxies": ["PASS-RULE", "REJECT"], "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Google_Suite/Admin.png" },

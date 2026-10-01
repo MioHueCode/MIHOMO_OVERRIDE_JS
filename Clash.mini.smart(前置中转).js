@@ -921,55 +921,43 @@ function buildConfig(config) {
     return _residentialPosCombined.test(text);
   }
   const multiplierNamePatterns = [
-    /倍率/,
-    /流量倍率|速率倍率|加速倍率/,
-    /\bbandwidth\b/i,
-    /\bboost\b/i,
-    /\bturbo\b/i,
+    /倍率/, /\bbandwidth\b/i, /\bboost\b/i, /\bturbo\b/i,
     /(?<![a-z])\d+(?:\.\d+)?\s*x\b/i,
-  // 倍率排序提取
     /\bx\s*\d+(?:\.\d+)?(?![a-z])/i,
-    /\d+(?:\.\d+)?\s*倍/
+    /\d+(?:\.\d+)?\s*倍/, /×/, /[\d０-９]\s*[%％]/
   ];
   const multiplierSortInfoCache = new Map();
   function getMultiplierSortInfo(name) {
     const cacheKey = String(name || '');
     if (multiplierSortInfoCache.has(cacheKey)) return multiplierSortInfoCache.get(cacheKey);
-    const normalized = cacheKey
+    const n = cacheKey
       .toLowerCase()
+      .replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); })
+      .replace(/[．。]/g, '.')
+      .replace(/[ｘＸ×]/g, 'x')
+      .replace(/[％%]/g, '%')
       .replace(/[（【［(]/g, '(')
       .replace(/[）】］)]/g, ')')
       .replace(/[，、｜|_]/g, ' ')
       .replace(/倍率/g, 'x')
       .replace(/倍/g, 'x')
-      .replace(/加速倍率|速率倍率/g, 'x')
       .replace(/\s+/g, ' ')
       .trim();
     const candidates = [];
-    // 策略1：正则匹配 Nx / xN 模式（如 0.1x, x2）
-    const multRe = /(?<![a-z])(\d+(?:\.\d+)?)\s*x\b/gi;
-    const multRe2 = /\bx\s*(\d+(?:\.\d+)?)(?![a-z])/gi;
+    const re = /(?<![a-z])(\d+(?:\.\d+)?)\s*x\b|\bx\s*(\d+(?:\.\d+)?)(?![a-z])/gi;
     let m;
-    while ((m = multRe.exec(normalized)) !== null) {
-      const value = Number(m[1]);
-      if (Number.isFinite(value) && value > 0 && value <= 100) {
-        candidates.push({ value, index: m.index });
-      }
+    while ((m = re.exec(n)) !== null) {
+      const v = Number(m[1] || m[2]);
+      if (Number.isFinite(v) && v > 0 && v <= 100) candidates.push({ value: v, index: m.index });
     }
-    while ((m = multRe2.exec(normalized)) !== null) {
-      const value = Number(m[1]);
-      if (Number.isFinite(value) && value > 0 && value <= 100) {
-        candidates.push({ value, index: m.index });
-      }
-    }
-    // 策略2：关键词标记的兜底（无 x 但有倍率关键词，直接取最接近的数字）
-    const hasMultiplierKeyword = /x|bandwidth|boost|turbo|加速|倍率/.test(normalized);
-    if (!candidates.length && hasMultiplierKeyword) {
-      const numMatches = normalized.match(/\d+(?:\.\d+)?/g) || [];
-      for (const numStr of numMatches) {
-        const value = Number(numStr);
-        if (!Number.isFinite(value) || value <= 0 || value > 100) continue;
-        candidates.push({ value, index: normalized.indexOf(numStr) });
+    if (!candidates.length) {
+      var pm = n.match(/(\d+(?:\.\d+)?)\s*%/);
+      if (pm) {
+        var pv = Number(pm[1]);
+        if (Number.isFinite(pv) && pv > 0 && pv <= 10000) {
+          var pval = pv / 100;
+          if (pval > 0 && pval <= 100) candidates.push({ value: pval, index: pm.index });
+        }
       }
     }
     if (candidates.length) {
@@ -983,7 +971,6 @@ function buildConfig(config) {
     return result;
   }
   function isMultiplierProxyName(name) {
-  // 倍率识别
     const text = String(name || '');
     if (multiplierNamePatterns.some(re => re.test(text))) return true;
     return getMultiplierSortInfo(text).recognized;
