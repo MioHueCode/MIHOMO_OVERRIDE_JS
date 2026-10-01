@@ -3804,6 +3804,9 @@ APP_PROCESS: RULES_APP_PROCESS,
     JP_KR_ECOSYSTEM: RULES_JP_KR_ECOSYSTEM,
     NICONICO: RULES_NICONICO,
     SOCIAL_FEED_SUPPLEMENT: RULES_SOCIAL_FEED_SUPPLEMENT,
+    // 外部风控规则集兜底（echs-top safe）：放在所有手写业务规则之后，
+    // 只补手写未覆盖的金融/支付/加密域名，避免抢走 Twitter、Reddit、支付等专项组。
+    RISK_CONTROL_RULESET: ['RULE-SET,safe,风控安全'],
   // 进程兜底必须位于精确域名之后，避免 GMS/下载器吞掉专项流量。
     DIRECT_AND_FALLBACK: RULES_DIRECT_AND_FALLBACK
   };
@@ -3851,6 +3854,7 @@ APP_PROCESS: RULES_APP_PROCESS,
     'JP_KR_ECOSYSTEM',
     'NICONICO',
     'SOCIAL_FEED_SUPPLEMENT',
+    'RISK_CONTROL_RULESET',
     'DIRECT_AND_FALLBACK'
   ];
   // 规则健康检查：确保存在最终兜底规则
@@ -3980,6 +3984,18 @@ APP_PROCESS: RULES_APP_PROCESS,
       interval: _nextRpInterval(),
       format: 'yaml',
       url: 'https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt'
+    };
+  }
+  // echs-top 风控规则集：经节点选择下载，避免 GitHub raw 直连失败。
+  if (!config['rule-providers']['safe'] || typeof config['rule-providers']['safe'] !== 'object') {
+    config['rule-providers']['safe'] = {
+      type: 'http',
+      interval: _nextRpInterval(),
+      behavior: 'domain',
+      format: 'mrs',
+      proxy: applyEmojiRename('节点选择'),
+      url: 'https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/safe.mrs',
+      path: './rules/echs_safe.mrs'
     };
   }
   if (!Array.isArray(config.rules)) {
