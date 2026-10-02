@@ -35,42 +35,46 @@
 //   仅原始线路 / 暂无可选接入点
 //
 // 【本版机场主最新变化】
-//   - 入口点简化为两大组：
-//       HK_TW_SG 组：Sakura HK / GCP SG / AWS SG / HiNet TW / Stealth (Special) / (IPv6) Zouter JP
-//       ZJ 组      ：Zouter JP / GCP JP 01 / GCP JP 02 / AWS JP / BBTEC JP
-//   - 移除了：德国、意大利、Frankfurt Eons、组合入口"GCP SG + AWS SG + HiNet TW + Stealth + (IPv6) Zouter JP"
+//   - 入口点全部改为中文名，命名规则：区域+提供商
+//       HK_TW_SG 组：香港优化 / 新加坡GCP / 新加坡AWS / 台湾HiNet / (实验性)特殊入口 / (IPv6)日本优化 / (IPv6)日本AWS / (IPv6)新加坡AWS
+//       ZJ 组      ：日本优化 / 日本GCP / 日本AWS / 日本软银 / (IPv6)日本优化 / (IPv6)日本AWS / (IPv6)新加坡AWS
+//   - GCP JP 01 / GCP JP 02 合并为「日本GCP」
+//   - 新增两个 IPv6 入口：(IPv6)日本AWS / (IPv6)新加坡AWS
+//   - 区域顺序调整为：港→日→台→新→美
 //
 const ACCESS_POINT_NODES_TEXT = `
-香港 01:AWS SG
-香港 02:HiNet TW
-香港 03:Stealth (Special)
+香港 01:新加坡AWS
+香港 02:台湾HiNet
+香港 03:(实验性)特殊入口
+香港 04:(IPv6)新加坡AWS
 
-台湾 01:(IPv6) Zouter JP
-台湾 02:Sakura HK
-台湾 03:Sakura HK
+台湾 01:(IPv6)日本优化
+台湾 02:香港优化
+台湾 03:香港优化
 
-新加坡 01:Sakura HK
-新加坡 02:Sakura HK
-新加坡 03:Sakura HK
+新加坡 01:香港优化
+新加坡 02:香港优化
+新加坡 03:香港优化
 
-日本 01:GCP JP 02
-日本 02:AWS JP
-日本 03:BBTEC JP
+日本 01:日本GCP
+日本 02:日本AWS
+日本 03:日本软银
+日本 04:(IPv6)日本AWS
 
-美国 01:(IPv6) Zouter JP
-美国 02:Zouter JP
-美国 03:Zouter JP
+美国 01:(IPv6)日本优化
+美国 02:日本优化
+美国 03:日本优化
 
-印度 01:Zouter JP
-泰国 01:Zouter JP
-澳大利亚 01:Zouter JP
-墨西哥 01:Zouter JP
-巴西 01:Zouter JP
+印度 01:日本优化
+泰国 01:日本优化
+澳大利亚 01:日本优化
+墨西哥 01:日本优化
+巴西 01:日本优化
 
-实验 香港:Sakura HK
-实验 新加坡:GCP SG
-实验 日本:Zouter JP
-实验 美国:GCP JP 01
+实验 香港:香港优化
+实验 新加坡:新加坡GCP
+实验 日本:日本优化
+实验 美国:日本GCP
 `;
 
 // 入口点排列顺序：决定生成节点中入口点的先后
@@ -78,11 +82,13 @@ const ACCESS_POINT_NODES_TEXT = `
 // 注意：此处的名字必须与 ACCESS_POINT_NODES_TEXT 中冒号右侧一致
 const ACCESS_POINT_ORDER = [
   // HK_TW_SG 组
-  "Sakura HK", "GCP SG", "AWS SG", "HiNet TW",
-  "Stealth (Special)", "(IPv6) Zouter JP",
+  "香港优化", "新加坡GCP", "新加坡AWS", "台湾HiNet",
+  "(实验性)特殊入口",
+  // IPv6 入口（两组共享）
+  "(IPv6)日本优化", "(IPv6)日本AWS", "(IPv6)新加坡AWS",
   // ZJ 组
-  "Zouter JP",
-  "GCP JP 01", "GCP JP 02", "AWS JP", "BBTEC JP"
+  "日本优化",
+  "日本GCP", "日本AWS", "日本软银"
 ];
 
 // 区域别名表：用于从节点名中匹配区域
@@ -123,12 +129,13 @@ const EXP_REGION_BASE = {
 // 改法：新增组时定义数组并在 ACCESS_POINT_GROUPS 中注册
 // 注意：组名需与 REGION_ACCESS_GROUP 中的值一致
 const ACCESS_POINTS_HK_TW_SG = [
-  "Sakura HK", "GCP SG", "AWS SG", "HiNet TW",
-  "Stealth (Special)", "(IPv6) Zouter JP"
+  "香港优化", "新加坡GCP", "新加坡AWS", "台湾HiNet",
+  "(实验性)特殊入口",
+  "(IPv6)日本优化", "(IPv6)日本AWS", "(IPv6)新加坡AWS"
 ];
 const ACCESS_POINTS_ZJ = [
-  "Zouter JP", "(IPv6) Zouter JP",
-  "GCP JP 01", "GCP JP 02", "AWS JP", "BBTEC JP"
+  "日本优化", "日本GCP", "日本AWS", "日本软银",
+  "(IPv6)日本优化", "(IPv6)日本AWS", "(IPv6)新加坡AWS"
 ];
 const ACCESS_POINT_GROUPS = {
   HK_TW_SG: ACCESS_POINTS_HK_TW_SG,
@@ -151,7 +158,7 @@ const REGION_ACCESS_GROUP = {
 // 改法：调整数组顺序或增删区域名
 // 注意：需要与 REGION_ALIASES / REGION_ACCESS_GROUP 中的 key 保持一致
 const REGION_ORDER = [
-  "香港", "台湾", "新加坡", "日本", "美国",
+  "香港", "日本", "台湾", "新加坡", "美国",
   "印度", "泰国", "澳大利亚", "墨西哥", "巴西",
   "实验 香港", "实验 新加坡", "实验 日本", "实验 美国"
 ];
