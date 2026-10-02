@@ -262,7 +262,13 @@ function buildConfig(config) {
     '163.com', '126.com', '126.net', 'yeah.net',
     'sina.com.cn', 'sohu.com', 'people.com.cn',
   // 字节系
-    'bytedance.com', 'byted.org', 'douyin.com', 'toutiao.com', 'toutiao.io', 'feiliao.com'
+    'bytedance.com', 'byted.org', 'douyin.com', 'toutiao.com', 'toutiao.io', 'feiliao.com',
+  // ── 补全：高频国内站点（外部规则集未覆盖或 .cn 后缀） ──
+    '10086.cn', '189.cn', '10010.com',           // 三大运营商
+    'icbc.com.cn', 'ccb.com', 'boc.cn', 'abchina.com', 'cmbchina.com', 'psbc.com', 'unionpay.com',  // 银行/银联
+    '95598.cn', 'chsi.com.cn', 'xuexi.cn', 'chaoxing.com',  // 政务/教育
+    'didi.cn', 'feishu.cn', 'quark.cn', 'uc.cn', 'migu.cn',  // 出行/办公/网盘/浏览器/音乐
+    '10jqka.com.cn', 'chinanews.com.cn', 'gmw.cn', 'thepaper.cn', 'xinhuanet.com'  // 财经/新闻
   );
   const domesticCdnDomains = () => d(
   // 腾讯系 CDN
@@ -447,12 +453,14 @@ function buildConfig(config) {
   const adguardDns = DNS_ENDPOINTS.adguard;
   // 健康检查参数
   const TEST_URL = 'https://connectivitycheck.gstatic.com/generate_204';
-  const directProxyNames = ['IPv4优先', 'IPv6优先', '双栈'];
+  const directProxyNames = ['IPv4优先', 'IPv6优先', '双栈', '仅IPv4', '仅IPv6'];
   // 三个直连出口用于国内服务的解析偏好承载，通过 ip-version 字段实现真实的 IPv4/IPv6 优先策略。
   const directProxyIpVersionMap = {
     'IPv4优先': 'ipv4-prefer',
     'IPv6优先': 'ipv6-prefer',
-    '双栈': 'dual'
+    '双栈': 'dual',
+    '仅IPv4': 'ipv4',
+    '仅IPv6': 'ipv6'
   };
   const TEST_INTERVAL = 900, TEST_TOLERANCE = 150, TEST_TIMEOUT = 3000, TEST_MAX_FAILED_TIMES = 5;
   const FALLBACK_INTERVAL = 600, FALLBACK_TOLERANCE = 150, FALLBACK_TIMEOUT = 3500, FALLBACK_MAX_FAILED_TIMES = 4;
@@ -478,8 +486,8 @@ function buildConfig(config) {
   // 而切到移动数据（运营商 v6 完备）立刻恢复 —— 这不是节点故障，是本地网络栈差异。
   const IPV6_ONLY_NAME_RE = /ipv6|(?:^|[^a-z0-9])v6(?:[^a-z0-9]|$)/i;
   // 内置直连选项
-  const directChoices = ['IPv4优先', 'IPv6优先', '双栈', 'DIRECT'];
-  const domesticServiceChoices = ['IPv4优先', 'IPv6优先', '双栈', 'DIRECT'];
+  const directChoices = ['IPv4优先', 'IPv6优先', '双栈', '仅IPv4', '仅IPv6', 'DIRECT'];
+  const domesticServiceChoices = ['IPv4优先', 'IPv6优先', '双栈', '仅IPv4', '仅IPv6', 'DIRECT'];
   const DNS_POLICY_DOMAIN_SETS = {
     adguard: adguardDomains(),
     domesticMain: domesticMainDomains(),
@@ -3687,6 +3695,8 @@ const RULES_GITHUB = [
   // 兜底规则：非中国域名走节点选择 → 海外IP兜底 → 最终兜底
   // 注意：国内IP已由 RULES_DOMESTIC 中的 GEOIP,CN,国内服务 兜底，此处不再重复
   const RULES_DIRECT_AND_FALLBACK = [
+    'RULE-SET,cn-direct,国内服务',          // 外部国内域名兜底（~11万域名，补内置名单遗漏）
+    'RULE-SET,cn-cidr,DIRECT,no-resolve',    // 外部国内IP段兜底
     'GEOSITE,geolocation-!cn,节点选择,no-resolve', // 非中国域名走节点选择
     'GEOIP,!CN,漏网之鱼,no-resolve',                // 非中国IP走漏网之鱼
     'MATCH,漏网之鱼'                                // 最终兜底
@@ -3928,6 +3938,27 @@ APP_PROCESS: RULES_APP_PROCESS,
       proxy: applyEmojiRename('节点选择'),
       url: 'https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/safe.mrs',
       path: './rules/echs_safe.mrs'
+    };
+  }
+  // 外部国内域名补充规则集（Loyalsoldier direct.txt，~11万域名）
+  // 放在所有业务组之后，不会抢走 Apple/Microsoft/Google 等已匹配的境外域名
+  if (!config['rule-providers']['cn-direct']) {
+    config['rule-providers']['cn-direct'] = {
+      type: 'http',
+      interval: _nextRpInterval(),
+      behavior: 'domain',
+      format: 'text',
+      url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/direct.txt'
+    };
+  }
+  // 外部国内 IP 段规则集（Loyalsoldier cncidr.txt）
+  if (!config['rule-providers']['cn-cidr']) {
+    config['rule-providers']['cn-cidr'] = {
+      type: 'http',
+      interval: _nextRpInterval(),
+      behavior: 'ipcidr',
+      format: 'text',
+      url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/cncidr.txt'
     };
   }
   if (!Array.isArray(config.rules)) {
