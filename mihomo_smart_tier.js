@@ -448,9 +448,17 @@ function originalMain(config) {
   const subscriptionProxies = config.proxies || [];
   const ipAnchor = { "type": "http", "interval": 86400, "proxy": "代理连接", "behavior": "ipcidr", "format": "mrs" };
   const domainAnchor = { "type": "http", "interval": 86400, "proxy": "代理连接", "behavior": "domain", "format": "mrs" };
+  const domainYamlAnchor = { "type": "http", "interval": 86400, "proxy": "代理连接", "behavior": "domain", "format": "yaml" };
+  const ipYamlAnchor = { "type": "http", "interval": 86400, "proxy": "代理连接", "behavior": "ipcidr", "format": "yaml" };
+  const classicalYamlAnchor = { "type": "http", "interval": 86400, "proxy": "代理连接", "behavior": "classical", "format": "yaml" };
   const directDns = ["https://dns.alidns.com/dns-query#直接连接", "https://doh.pub/dns-query#直接连接&h3=false"];
   const proxyDns = ["https://dns.google/dns-query#代理DNS&ecs=8.8.8.8/24&ecs-override=true", "https://dns.quad9.net/dns-query#代理DNS&ecs=9.9.9.9/24&ecs-override=true"];
   const dlAnchor = { "type": "select", "proxies": ["代理连接", "智能选择", "最低延迟", "负载均衡", "下载散列组", "下载轮询组"], "include-all-providers": true, "empty-fallback": "REJECT" };
+  // 同 normal 版：抖音/字节系内置硬编码直连
+  const cnAppDomains = ["douyin.com","iesdouyin.com","amemv.com","amemv.net","snssdk.com","zjbyte.com","zjbyte.net","toutiao.com","toutiao.cn","toutiaoimg.com","toutiaoimg.net","toutiaocdn.com","toutiaostatic.com","toutiaovod.com","pstatp.com","bytecdn.com","bytecdn.net","bytecdntp.com","bytednsdoc.com","bytescm.com","bytetos.com","volccs.com","volces.com","ixigua.com","ixiguavideo.com","douyinvod.com","douyincdn.com","douyinpic.com","douyinstatic.com","douyinliving.com","douyinec.com"];
+  const cnAppRules = cnAppDomains.map(function(d){ return "DOMAIN-SUFFIX," + d + ",直接连接"; });
+  const cnAppFakeIp = cnAppDomains.map(function(d){ return "DOMAIN-SUFFIX," + d + ",real-ip"; });
+  const cnAppDnsPolicy = {}; cnAppDomains.forEach(function(d){ cnAppDnsPolicy["+." + d] = directDns; });
   const originDns = config.dns || {};
   const appendDirectTag = (val) => { if (typeof val === 'string') { return val.split('#')[0] + '#直接连接'; } return val; };
   const formatDnsValues = (dnsValue) => { if (Array.isArray(dnsValue)) return dnsValue.map(appendDirectTag); return appendDirectTag(dnsValue); };
@@ -471,7 +479,7 @@ function originalMain(config) {
     "cn.bing.com": "global.bing.com"
   };
   const finalHosts = { ...originHosts, ...defaultHosts };
-  const quic = "AND,((NETWORK,udp),(DST-PORT,443)),代理QUIC";
+  // QUIC(UDP:443) 不再单独建组：域名识别交给 sniffer 的 QUIC 嗅探，流量与 TCP 完全同路径
   return { 
     // 节点IP优先级：ip-version: ipv6-prefer
     "proxy-providers": { "节点": { "type": "inline", "health-check": { "enable": true, "url": "https://dns.google/generate_204", "expected-status": 204, "interval": 600, "timeout": 3000, "max-failed-times": 2, "lazy": false }, "override": { "ip-version": "dual" }, "exclude-filter": "(?i)套餐|剩余|流量|到期|重置|频道|订阅|官网|禁止|客户端|有效|联系|测试|节点|日期|群组|加入|通知|维护|网址|地址|下载|更新|APP|登录|严禁|恢复|处理|谢谢", "payload": subscriptionProxies } },
@@ -480,6 +488,10 @@ function originalMain(config) {
     "bind-address": "*",
     "mode": "rule",
     "log-level": "error",
+    // 可选：直连组测速由红转绿。默认测速目标 gstatic（大陆直连必超时=全红，但不影响可用性）。
+    // 取消注释改用小米国内 204；注意：会同时改变所有节点延迟排序口径。
+    // "proxy-test-url": "http://connect.rom.miui.com/generate_204",
+    // "proxy-test-interval": 600,
     "unified-delay": true,
     "tcp-concurrent": true,
     "find-process-mode": "off",
@@ -547,6 +559,9 @@ function originalMain(config) {
         "RULE-SET,media,fake-ip",
         "RULE-SET,proxy-lite,fake-ip",
         "RULE-SET,direct-lite,real-ip",
+        "RULE-SET,cn_domain,real-ip",
+        "RULE-SET,private_domain,real-ip",
+        ...cnAppFakeIp,
         "MATCH,fake-ip"
       ],
       "default-nameserver": ["223.6.6.6", "119.29.29.29"],
@@ -557,9 +572,14 @@ function originalMain(config) {
          "rule-set:ads": ["rcode://name_error"],
          "rule-set:proxy@direct": proxyDns,
          "rule-set:ai,download,safe,youtube,tiktok,google,media,proxy-lite": proxyDns,
-         "rule-set:direct-lite,dnsmasq-china-lite": proxyDns
+          "rule-set:direct-lite,dnsmasq-china-lite": proxyDns,
+          "rule-set:cn_domain,private_domain": directDns,
+         ...cnAppDnsPolicy
        },
-       "direct-nameserver": ["rcode://success"],
+       // 直连路径的兜底解析。原值 rcode://success 会让"未被 nameserver-policy 覆盖"的域名
+       // 在 DIRECT 策略下解析为空答案(no such host)，导致 DIRECT 及 4 个自建 direct 节点测速/建连必然失败。
+       // 若追求极致防泄漏可改回 ["rcode://success"]，代价是直连兜底解析全废。
+       "direct-nameserver": ["223.5.5.5", "119.29.29.29"],
        "direct-nameserver-follow-policy": true
     },
     "sniffer": {
@@ -568,8 +588,8 @@ function originalMain(config) {
       "parse-pure-ip": true,
       "override-destination": false,
       "sniff": { "HTTP": { "ports": [80, "8080-8880"], "override-destination": true }, "TLS": { "ports": [443, 8443] }, "QUIC": { "ports": [443, 8443] } },
-      "skip-domain": ["rule-set:ads,proxy@direct,ai,download,safe,youtube,tiktok,google,media,proxy-lite,direct-lite,dnsmasq-china-lite"],
-      "skip-src-address": ["rule-set:telegram_ip,safe_ip,google_ip,media_ip,direct_ip"]
+      "skip-domain": ["rule-set:ads,proxy@direct,ai,download,safe,youtube,tiktok,google,media,proxy-lite,direct-lite,dnsmasq-china-lite,cn_domain,private_domain"],
+      "skip-src-address": ["rule-set:telegram_ip,safe_ip,google_ip,media_ip,direct_ip,lan_ip,cn_ip"]
     },
     "rule-providers": {
       "ads": { ...domainAnchor, "url": "https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/ads.mrs", "path": "./rules/ads.mrs" },
@@ -589,13 +609,22 @@ function originalMain(config) {
       "safe_ip": { ...ipAnchor, "url": "https://raw.githubusercontent.com/echs-top/proxy/main/mrs/ip/safe.mrs", "path": "./rules/safe_ip.mrs" },
       "google_ip": { ...ipAnchor, "url": "https://raw.githubusercontent.com/echs-top/proxy/main/mrs/ip/google.mrs", "path": "./rules/google_ip.mrs" },
       "media_ip": { ...ipAnchor, "url": "https://raw.githubusercontent.com/echs-top/proxy/main/mrs/ip/media.mrs", "path": "./rules/media_ip.mrs" },
-      "direct_ip": { ...ipAnchor, "url": "https://raw.githubusercontent.com/echs-top/proxy/main/mrs/ip/direct.mrs", "path": "./rules/direct_ip.mrs" }
+      "direct_ip": { ...ipAnchor, "url": "https://raw.githubusercontent.com/echs-top/proxy/main/mrs/ip/direct.mrs", "path": "./rules/direct_ip.mrs" },
+      "cn_domain": { ...domainYamlAnchor, "url": "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/direct.txt", "path": "./rules/cn_domain.yaml" },
+      "cn_ip": { ...ipYamlAnchor, "url": "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/cncidr.txt", "path": "./rules/cn_ip.yaml" },
+      "private_domain": { ...domainYamlAnchor, "url": "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/private.txt", "path": "./rules/private_domain.yaml" },
+      "lan_ip": { ...ipYamlAnchor, "url": "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/lancidr.txt", "path": "./rules/lan_ip.yaml" },
+      "applications_direct": { ...classicalYamlAnchor, "url": "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/applications.txt", "path": "./rules/applications_direct.yaml" }
     },
     "rules": [
+      ...cnAppRules,
+      "RULE-SET,applications_direct,直接连接",
       "DST-PORT,5228-5230,直接连接",
       "SUB-RULE,(RULE-SET,telegram_ip,no-resolve),sub-telegram",
+      "RULE-SET,private_domain,直接连接",
       "RULE-SET,ads,REJECT",
       "RULE-SET,proxy@direct,直接连接",
+      "RULE-SET,cn_domain,直接连接",
       "SUB-RULE,(RULE-SET,ai),sub-ai",
       "SUB-RULE,(RULE-SET,download),sub-download",
       "SUB-RULE,(RULE-SET,safe),sub-safe",
@@ -610,26 +639,26 @@ function originalMain(config) {
       "SUB-RULE,(RULE-SET,google_ip),sub-google",
       "SUB-RULE,(RULE-SET,media_ip),sub-media",
       "RULE-SET,direct_ip,直接连接",
-      quic,
+      "RULE-SET,lan_ip,直接连接,no-resolve",
+      "RULE-SET,cn_ip,直接连接,no-resolve",
       "MATCH,代理连接"
     ],
     "sub-rules": {
-      "sub-telegram": [quic, "MATCH,TELEGRAM"],
-      "sub-ai": [quic, "MATCH,国外AI"],
-      "sub-download": [quic, "MATCH,下载相关"],
-      "sub-safe": [quic, "MATCH,风控安全"],
-      "sub-google": [quic, "MATCH,GOOGLE"],
-      "sub-youtube": [quic, "MATCH,YOUTUBE"],
-      "sub-tiktok": [quic, "MATCH,TIKTOK"],
-      "sub-media": [quic, "MATCH,海外媒体"],
-      "sub-proxy": [quic, "MATCH,代理连接"]
+      "sub-telegram": ["MATCH,TELEGRAM"],
+      "sub-ai": ["MATCH,国外AI"],
+      "sub-download": ["MATCH,下载相关"],
+      "sub-safe": ["MATCH,风控安全"],
+      "sub-google": ["MATCH,GOOGLE"],
+      "sub-youtube": ["MATCH,YOUTUBE"],
+      "sub-tiktok": ["MATCH,TIKTOK"],
+      "sub-media": ["MATCH,海外媒体"],
+      "sub-proxy": ["MATCH,代理连接"]
     },
     "proxies": [{ "name": "IPV4优先", "type": "direct", "udp": true, "ip-version": "ipv4-prefer" },{ "name": "IPV6优先", "type": "direct", "udp": true, "ip-version": "ipv6-prefer" },{ "name": "仅IPV4", "type": "direct", "udp": true, "ip-version": "ipv4" },{ "name": "仅IPV6", "type": "direct", "udp": true, "ip-version": "ipv6" }],
     "proxy-groups": [
       { "name": "代理连接", "type": "select", "proxies": ["智能选择", "最低延迟"], "include-all-providers": true, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Universal/StreamingSE.png" },
-      { "name": "直接连接", "type": "select", "proxies": ["DIRECT", "IPV4优先", "IPV6优先", "仅IPV4", "仅IPV6"], "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Accommodation/Online_Booking.png" },
+      { "name": "直接连接", "type": "select", "proxies": ["DIRECT", "IPV4优先", "IPV6优先", "仅IPV4", "仅IPV6"], "expected-status": "204", "url": "http://connect.rom.miui.com/generate_204", "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Accommodation/Online_Booking.png" },
       { "name": "代理DNS", ...dlAnchor, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Universal/Streaming.png" },
-      { "name": "代理QUIC", "type": "select", "proxies": ["PASS-RULE", "REJECT"], "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Google_Suite/Admin.png" },
       { "name": "TELEGRAM", ...dlAnchor, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Social_Media/Telegram.png" },
       { "name": "国外AI", ...dlAnchor, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Fitness/Chat.png" },
       { "name": "下载相关", ...dlAnchor, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Google_Suite/Drive.png" },
@@ -638,7 +667,7 @@ function originalMain(config) {
       { "name": "YOUTUBE", ...dlAnchor, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Social_Media/YouTube.png" },
       { "name": "TIKTOK", ...dlAnchor, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Social_Media/TikTok.png" },
       { "name": "海外媒体", ...dlAnchor, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Universal/Video.png" },
-      { "name": "GLOBAL", "type": "select", "proxies": ["代理连接", "直接连接", "代理DNS", "代理QUIC", "TELEGRAM", "国外AI", "下载相关", "风控安全", "GOOGLE", "YOUTUBE", "TIKTOK", "海外媒体"], "include-all-providers": true, "hidden": true, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Google_Suite/Browser.png" }
+      { "name": "GLOBAL", "type": "select", "proxies": ["代理连接", "直接连接", "代理DNS", "TELEGRAM", "国外AI", "下载相关", "风控安全", "GOOGLE", "YOUTUBE", "TIKTOK", "海外媒体"], "include-all-providers": true, "hidden": true, "icon": "https://mihomo.echs.top/img/Hand-Painted-icon/Google_Suite/Browser.png" }
     ]
   };
 }
