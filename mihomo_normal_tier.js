@@ -64,20 +64,20 @@ function main(config) {
   ];
   var REGION_ORDER = ["香港","台湾","日本","韩国","新加坡","美国","欧洲","其它"];
 
-  var ENTRIES = [
-    { label: "Sakura HK", key: ["sakura"] },
-    { label: "GCP SG", key: ["gcp sg","gcpsingapore"] },
-    { label: "AWS SG", key: ["aws sg","awssingapore"] },
-    { label: "HiNet TW", key: ["hinet"] },
-    { label: "Stealth (Special)", key: ["stealth"] },
-    { label: "(IPv6) Zouter JP", key: ["ipv6","zouter"] },
-    { label: "GCP JP 01", key: ["gcp jp 01","gcp jp01"] },
-    { label: "GCP JP 02", key: ["gcp jp 02","gcp jp02"] },
-    { label: "Zouter JP", key: ["zouter"] },
-    { label: "AWS JP", key: ["aws jp","awsjapan"] },
-    { label: "BBTEC JP", key: ["bbtec"] },
-    { label: "Frankfurt", key: ["frankfurt","法兰克福"] }
-  ];
+   var ENTRIES = [
+     { label: "香港优化", key: ["香港优化"] },
+     { label: "新加坡GCP", key: ["新加坡gcp","新加坡 gcp"] },
+     { label: "新加坡AWS", key: ["新加坡aws","新加坡 aws"] },
+     { label: "台湾HiNet", key: ["台湾hinet","台湾 hinet"] },
+     { label: "(实验性)特殊入口", key: ["(实验性)特殊入口","实验性)特殊入口"] },
+     { label: "(IPv6)日本优化", key: ["(ipv6)日本优化","(ipv6) 日本优化"] },
+     { label: "(IPv6)日本AWS", key: ["(ipv6)日本aws","(ipv6) 日本aws"] },
+     { label: "(IPv6)新加坡AWS", key: ["(ipv6)新加坡aws","(ipv6) 新加坡aws"] },
+     { label: "日本优化", key: ["日本优化"] },
+     { label: "日本GCP", key: ["日本gcp","日本 gcp"] },
+     { label: "日本AWS", key: ["日本aws","日本 aws"] },
+     { label: "日本软银", key: ["日本软银","日本软银"] }
+   ];
 
   var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b){ return b.length - a.length; });
   function strip(name) {
@@ -101,15 +101,9 @@ function main(config) {
     var best = null, bestLen = 0;
     for (var e2 = 0; e2 < ENTRIES.length; e2++) {
       var entry = ENTRIES[e2];
-      if (entry.label === "(IPv6) Zouter JP") {
-        if (t.indexOf("ipv6") >= 0 && t.indexOf("zouter") >= 0) {
-          best = entry; bestLen = 999;
-        }
-      } else {
-        for (var k2 = 0; k2 < entry.key.length; k2++) {
-          if (t.indexOf(entry.key[k2]) >= 0 && entry.key[k2].length > bestLen) {
-            best = entry; bestLen = entry.key[k2].length;
-          }
+      for (var k2 = 0; k2 < entry.key.length; k2++) {
+        if (t.indexOf(entry.key[k2]) >= 0 && entry.key[k2].length > bestLen) {
+          best = entry; bestLen = entry.key[k2].length;
         }
       }
     }
