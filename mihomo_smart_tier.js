@@ -462,7 +462,7 @@ function originalMain(config) {
   const originDns = config.dns || {};
   const appendDirectTag = (val) => { if (typeof val === 'string') { return val.split('#')[0] + '#直接连接'; } return val; };
   const formatDnsValues = (dnsValue) => { if (Array.isArray(dnsValue)) return dnsValue.map(appendDirectTag); return appendDirectTag(dnsValue); };
-  let finalProxyServerNameserver = directDns;
+  let finalProxyServerNameserver = proxyDns;
   const originPsn = originDns['proxy-server-nameserver'];
   if (originPsn != null && originPsn !== '' && (!Array.isArray(originPsn) || originPsn.length > 0)) { finalProxyServerNameserver = formatDnsValues(originPsn); }
   let finalProxyServerNameserverPolicy = undefined;
@@ -564,29 +564,27 @@ function originalMain(config) {
         ...cnAppFakeIp,
         "GEOSITE,cn,real-ip",
         "GEOSITE,private,real-ip",
-        "GEOSITE,cn,real-ip",
-        "GEOSITE,private,real-ip",
-        "GEOSITE,cn,real-ip",
-        "GEOSITE,private,real-ip",
         "MATCH,fake-ip"
       ],
       "default-nameserver": ["223.6.6.6", "119.29.29.29"],
       "proxy-server-nameserver": finalProxyServerNameserver,
       ...(finalProxyServerNameserverPolicy !== undefined && { "proxy-server-nameserver-policy": finalProxyServerNameserverPolicy }),
-      "nameserver": [...directDns, ...proxyDns],
+      "nameserver": proxyDns,
        "nameserver-policy": {
          "rule-set:ads": ["rcode://name_error"],
          "rule-set:proxy@direct": proxyDns,
          "rule-set:ai,download,safe,youtube,tiktok,google,media,proxy-lite": proxyDns,
           "rule-set:direct-lite,dnsmasq-china-lite": directDns,
           "rule-set:cn_domain,private_domain": directDns,
-         ...cnAppDnsPolicy
-       },
+          "GEOSITE,cn": directDns,
+          "GEOSITE,private": directDns,
+          ...cnAppDnsPolicy
+        },
        // 直连路径的兜底解析。原值 rcode://success 会让"未被 nameserver-policy 覆盖"的域名
        // 在 DIRECT 策略下解析为空答案(no such host)，导致 DIRECT 及 4 个自建 direct 节点测速/建连必然失败。
        // 若追求极致防泄漏可改回 ["rcode://success"]，代价是直连兜底解析全废。
-       "direct-nameserver": ["223.5.5.5", "119.29.29.29"],
-       "direct-nameserver-follow-policy": true
+       "direct-nameserver": directDns,
+       "direct-nameserver-follow-policy": false
     },
     "sniffer": {
       "enable": true,
