@@ -457,8 +457,8 @@ function main(config) {
 
   // ── 10. CN 直连 ──
   var rules = result["rules"];
-  rules.splice(rules.indexOf("RULE-SET,direct-lite,直接连接") + 1, 0, "GEOSITE,CN,直接连接");
-  rules.splice(rules.indexOf("RULE-SET,direct_ip,直接连接") + 1, 0, "GEOIP,CN,直接连接");
+  if (rules.indexOf("GEOSITE,CN,直接连接") < 0) { var gi = rules.indexOf("RULE-SET,direct-lite,直接连接"); if (gi >= 0) rules.splice(gi + 1, 0, "GEOSITE,CN,直接连接"); }
+  if (rules.indexOf("GEOIP,CN,直接连接,no-resolve") < 0) { var pi = rules.indexOf("RULE-SET,direct_ip,直接连接"); if (pi >= 0) rules.splice(pi + 1, 0, "GEOIP,CN,直接连接,no-resolve"); }
 
   result["proxy-groups"] = groups;
   return result;
@@ -476,7 +476,7 @@ function originalMain(config) {
   const proxyDns = ["https://dns.google/dns-query#代理DNS&ecs=8.8.8.8/24&ecs-override=true", "https://dns.quad9.net/dns-query#代理DNS&ecs=9.9.9.9/24&ecs-override=true"];
   const dlAnchor = { "type": "select", "proxies": ["代理连接", "故障转移", "最低延迟", "负载均衡", "下载散列组", "下载轮询组"], "include-all-providers": true, "empty-fallback": "REJECT" };
   // 抖音/字节系国内域名：内置硬编码直连，不依赖外部规则集加载成败，QUIC/IPv6 也能命中
-  const cnAppDomains = ["douyin.com","iesdouyin.com","amemv.com","amemv.net","snssdk.com","zjbyte.com","zjbyte.net","toutiao.com","toutiao.cn","toutiaoimg.com","toutiaoimg.net","toutiaocdn.com","toutiaostatic.com","toutiaovod.com","pstatp.com","bytecdn.com","bytecdn.net","bytecdntp.com","bytednsdoc.com","bytescm.com","bytetos.com","volccs.com","volces.com","ixigua.com","ixiguavideo.com","douyinvod.com","douyincdn.com","douyinpic.com","douyinstatic.com","douyinliving.com","douyinec.com"];
+  const cnAppDomains = ["douyin.com","iesdouyin.com","amemv.com","amemv.net","snssdk.com","zjbyte.com","zjbyte.net","toutiao.com","toutiao.cn","toutiaoimg.com","toutiaoimg.net","toutiaocdn.com","toutiaostatic.com","toutiaovod.com","pstatp.com","bytecdn.com","bytecdn.net","bytecdntp.com","bytednsdoc.com","bytescm.com","bytetos.com","volccs.com","volces.com","ixigua.com","ixiguavideo.com","douyinvod.com","douyincdn.com","douyinpic.com","douyinstatic.com","douyinliving.com","douyinec.com","byteimg.com","bytegoofy.com","bytecdn.cn","ipstatp.com","bytedance.com","byted.org","toutiao.io","jinritemai.com"];
   const cnAppRules = cnAppDomains.map(function(d){ return "DOMAIN-SUFFIX," + d + ",直接连接"; });
   const cnAppFakeIp = cnAppDomains.map(function(d){ return "DOMAIN-SUFFIX," + d + ",real-ip"; });
   const cnAppDnsPolicy = {}; cnAppDomains.forEach(function(d){ cnAppDnsPolicy["+." + d] = directDns; });
@@ -570,17 +570,23 @@ function originalMain(config) {
         "RULE-SET,cn_domain,real-ip",
         "RULE-SET,private_domain,real-ip",
         ...cnAppFakeIp,
+        "GEOSITE,cn,real-ip",
+        "GEOSITE,private,real-ip",
+        "GEOSITE,cn,real-ip",
+        "GEOSITE,private,real-ip",
+        "GEOSITE,cn,real-ip",
+        "GEOSITE,private,real-ip",
         "MATCH,fake-ip"
       ],
       "default-nameserver": ["223.6.6.6", "119.29.29.29"],
       "proxy-server-nameserver": finalProxyServerNameserver,
       ...(finalProxyServerNameserverPolicy !== undefined && { "proxy-server-nameserver-policy": finalProxyServerNameserverPolicy }),
-      "nameserver": proxyDns,
+      "nameserver": [...directDns, ...proxyDns],
        "nameserver-policy": {
          "rule-set:ads": ["rcode://name_error"],
          "rule-set:proxy@direct": proxyDns,
          "rule-set:ai,download,safe,youtube,tiktok,google,media,proxy-lite": proxyDns,
-          "rule-set:direct-lite,dnsmasq-china-lite": proxyDns,
+          "rule-set:direct-lite,dnsmasq-china-lite": directDns,
           "rule-set:cn_domain,private_domain": directDns,
          ...cnAppDnsPolicy
        },
@@ -595,7 +601,7 @@ function originalMain(config) {
       "force-dns-mapping": true,
       "parse-pure-ip": true,
       "override-destination": false,
-      "sniff": { "HTTP": { "ports": [80, "8080-8880"], "override-destination": true }, "TLS": { "ports": [443, 8443] }, "QUIC": { "ports": [443, 8443] } },
+      "sniff": { "HTTP": { "ports": [80, "8080-8880"], "override-destination": true }, "TLS": { "ports": [443, 8443], "override-destination": true }, "QUIC": { "ports": [443, 8443], "override-destination": true } },
       "skip-domain": ["rule-set:ads,proxy@direct,ai,download,safe,youtube,tiktok,google,media,proxy-lite,direct-lite,dnsmasq-china-lite,cn_domain,private_domain"],
       "skip-src-address": ["rule-set:telegram_ip,safe_ip,google_ip,media_ip,direct_ip,lan_ip,cn_ip"]
     },
@@ -632,6 +638,9 @@ function originalMain(config) {
       "RULE-SET,ads,REJECT",
       "RULE-SET,proxy@direct,直接连接",
       "RULE-SET,cn_domain,直接连接",
+      "RULE-SET,direct-lite,直接连接",
+      "RULE-SET,dnsmasq-china-lite,直接连接",
+      "GEOSITE,CN,直接连接",
       "SUB-RULE,(RULE-SET,ai),sub-ai",
       "SUB-RULE,(RULE-SET,download),sub-download",
       "SUB-RULE,(RULE-SET,safe),sub-safe",
@@ -640,11 +649,11 @@ function originalMain(config) {
       "SUB-RULE,(RULE-SET,google),sub-google",
       "SUB-RULE,(RULE-SET,media),sub-media",
       "SUB-RULE,(RULE-SET,proxy-lite),sub-proxy",
-      "RULE-SET,direct-lite,直接连接",
       "SUB-RULE,(RULE-SET,safe_ip),sub-safe",
       "SUB-RULE,(RULE-SET,google_ip),sub-google",
       "SUB-RULE,(RULE-SET,media_ip),sub-media",
       "RULE-SET,direct_ip,直接连接",
+      "GEOIP,CN,直接连接,no-resolve",
       "RULE-SET,lan_ip,直接连接,no-resolve",
       "RULE-SET,cn_ip,直接连接,no-resolve",
       "MATCH,代理连接"
