@@ -240,86 +240,220 @@ function buildConfig(config) {
     'adservice.google.com','adservice.google.com.hk','pagead2.googlesyndication.com','tpc.googlesyndication.com','googletagservices.com','doubleclick.net',
     'adsrvr.org','criteo.com','criteo.net','taboola.com','taboolasyndication.com','outbrain.com','analytics.google.com','ads.google.com'
   );
-  // 国内服务域名分层：主站 / CDN / AI
-  const domesticMainDomains = () => d(
+
+
+  // ════════════════════════════════════════════════════════════════
+  // 【外部规则集模块】统一管理所有 rule-providers 定义
+  //   修改外部规则来源/格式只需改这一处，四版自动同步
+  // ════════════════════════════════════════════════════════════════
+  const EXTERNAL_PROVIDERS = {
+    all(_nextRpInterval, proxyName) {
+      return {
+        'dns-leak-guard': {
+          type: 'http',
+          interval: _nextRpInterval(),
+          behavior: 'domain',
+          format: 'text',
+          url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/tld-not-cn.txt'
+        },
+        'telegramcidr': {
+          type: 'http',
+          interval: _nextRpInterval(),
+          behavior: 'ipcidr',
+          format: 'text',
+          url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/telegramcidr.txt'
+        },
+        'adrules': {
+          type: 'http',
+          behavior: 'classical',
+          interval: _nextRpInterval(),
+          format: 'yaml',
+          url: 'https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt'
+        },
+        'safe': {
+          type: 'http',
+          interval: _nextRpInterval(),
+          behavior: 'domain',
+          format: 'mrs',
+          proxy: proxyName,
+          url: 'https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/safe.mrs',
+          path: './rules/echs_safe.mrs'
+        }
+      };
+    }
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  // 【国内服务模块】统一管理所有国内域名集
+  //   MAIN → 主站/API/互动 → 🇨🇳国内服务组（决定 IP 属地）
+  //   CDN  → 静态资源/流媒体 → DIRECT（省流量保速度）
+  //   AI   → 国内AI平台 → 🇨🇳国内服务组
+  // ════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════
+  // 【国内服务模块】完全工程化：域名集 + DNS策略 + DNS绑定 + 规则 + Provider + 分组
+  //   修改国内服务相关内容只需改这一个对象，四版自动同步
+  // ════════════════════════════════════════════════════════════════
+  const DOMESTIC_SERVICE_MODULE = {
+    domains: {
+      MAIN: () => d(
+  // ── 腾讯系 ──
     'wechat.com', 'weixin.qq.com', 'qq.com', 'tenpay.com', 'v.qq.com',
     'hunyuan.tencent.com', 'yuanbao.tencent.com',
+  // ── 阿里系 ──
     'taobao.com', 'tmall.com', 'alipay.com', 'tongyi.com', 'tongyi.aliyun.com',
+  // ── 电商 / 生活 ──
     'jd.com', 'pinduoduo.com', 'smzdm.com', 'meituan.com', 'dianping.com', 'ctrip.com', '12306.cn',
-  // 视频平台主站
-    'bilibili.com', 'bilibili.cn', 'b23.tv', 'im9.com',
+  // ── 抖音 / 字节系 ──
+    'douyin.com', 'iesdouyin.com', 'iesdouyin.net', 'amemv.com', 'amemv.cn', 'amemv.net', 'snssdk.com',
+    'bytedance.com', 'byted.org', 'toutiao.com', 'toutiao.cn', 'toutiao.io', 'feiliao.com',
+    'douyinpay.com', 'douyinfe.com', 'douyinec.com', 'ieshuodong.cn', 'ieshuodong.net', 'open-douyin.com',
+    'huoshan.com', 'huoshangroup.com', 'woaihuoshan.com', 'duoshan.com',
+  // ── 快手系 ──
+    'kuaishou.com', 'kuaishou.cn', 'e.kuaishou.cn', 'e.kuaishou.com',
+    'ksapisrv.com', 'kspkg.com', 'kuaishouapps.com', 'kuaishouzt.com', 'kuaishoupay.com',
+    'kwaishop.com', 'kwaixiaodian.com', 'kwaiying.com', 'kwaizt.com',
+    'wskwai.com', 'wsukwai.com', 'eckwai.com', 'ecukwai.com', 'inkwai.com', 'inkuai.com', 'kskwai.com',
+  // ── 小红书 ──
+    'xiaohongshu.com', 'rednote.com', 'xhslink.com', 'redelight.cn', 'redocn.com',
+  // ── B站 ──
+    'bilibili.com', 'bilibili.cn', 'b23.tv', 'im9.com', 'biliapi.com', 'biliapi.net',
+    'bilibili.cc', 'bilibili.net', 'bilibili.tv', 'bilibilipay.cn', 'bilibilipay.com',
+    'bilibiligame.cn', 'bilibiligame.net', 'biligame.com', 'biligo.com', 'biliintl.com', 'bilicomic.com',
+    'bili22.cn', 'bili2233.cn', 'bili23.cn', 'bili33.cn', 'bili888.com', 'bili999.com',
+  // ── 微博 ──
+    'weibo.com', 'weibo.cn', 'weibo.com.cn', 'api.weibo.cn', 'sina.com.cn',
+  // ── 知乎 ──
+    'zhihu.com', 'zhihu.org',
+  // ── 长视频平台 ──
     'iqiyi.com', 'qiyi.com', 'pps.tv', 'ppstream.com',
     'mgtv.com', 'hunantv.com', 'sohu.com', 'tv.sohu.com',
-    'youku.com', 'youku.cn', 'tudou.com', 'soku.com',
-    'douyin.com', 'iesdouyin.com', 'amemv.com', 'snssdk.com',
-    'kuaishou.com', 'kuaishou.cn', 'Nebula.app',
-    'weibo.com', 'weibo.cn', 'sina.com.cn', 'sinacdn.com',
-  // 其他平台
-    'zhihu.com', 'zhihu.org', 'xiaohongshu.com', 'redocn.com',
-    'baidu.com', 'baidu.cn', 'bdstatic.com',
-    '163.com', '126.com', '126.net', 'yeah.net',
-    'sina.com.cn', 'sohu.com', 'people.com.cn',
-  // 字节系
-    'bytedance.com', 'byted.org', 'douyin.com', 'toutiao.com', 'toutiao.io', 'feiliao.com',
-  // ── 补全：高频国内站点（外部规则集未覆盖或 .cn 后缀） ──
-    '10086.cn', '189.cn', '10010.com',           // 三大运营商
-    'icbc.com.cn', 'ccb.com', 'boc.cn', 'abchina.com', 'cmbchina.com', 'psbc.com', 'unionpay.com',  // 银行/银联
-    '95598.cn', 'chsi.com.cn', 'xuexi.cn', 'chaoxing.com',  // 政务/教育
-    'didi.cn', 'feishu.cn', 'quark.cn', 'uc.cn', 'migu.cn',  // 出行/办公/网盘/浏览器/音乐
-    '10jqka.com.cn', 'chinanews.com.cn', 'gmw.cn', 'thepaper.cn', 'xinhuanet.com'  // 财经/新闻
-  );
-  const domesticCdnDomains = () => d(
-  // 腾讯系 CDN
+    'youku.com', 'youku.cn', 'tudou.com', 'soku.com', 'Nebula.app',
+  // ── 其他平台 ──
+    'baidu.com', 'baidu.cn', '163.com', '126.com', '126.net', 'yeah.net',
+    'people.com.cn', 'yy.com',
+  // ── 运营商 / 银行 / 政务 / 教育 ──
+    '10086.cn', '189.cn', '10010.com',
+    'icbc.com.cn', 'ccb.com', 'boc.cn', 'abchina.com', 'cmbchina.com', 'psbc.com', 'unionpay.com',
+    '95598.cn', 'chsi.com.cn', 'xuexi.cn', 'chaoxing.com',
+  // ── 出行 / 办公 / 网盘 / 浏览器 / 音乐 ──
+    'didi.cn', 'feishu.cn', 'quark.cn', 'uc.cn', 'migu.cn',
+  // ── 财经 / 新闻 ──
+    '10jqka.com.cn', 'chinanews.com.cn', 'gmw.cn', 'thepaper.cn', 'xinhuanet.com'
+  ),
+      CDN: () => d(
+  // ── 腾讯系 CDN ──
     'gtimg.com', 'gtimg.cn', 'qpic.cn', 'qqvideo.tc.qq.com', 'qlogo.cn', 'idqqimg.com', 'myqcloud.com',
     'weiyun.com', 'cdn-go.cn', 'wetranstv.com',
-  // 阿里系 CDN
-    'alicdn.com', 'aliyuncs.com', 'alipayobjects.com', 'aliimg.com', 'alikunlun.com', 'alikunlun.net', 'cdngslb.com',
-    'alibabausercontent.com', 'aliyundrive.com',
-  // 优酷 / 京东 / 淘宝 CDN
+  // ── 阿里系 CDN ──
+    'alicdn.com', 'aliyuncs.com', 'alipayobjects.com', 'aliimg.com', 'alikunlun.com', 'alikunlun.net',
+    'cdngslb.com', 'alibabausercontent.com', 'aliyundrive.com',
+  // ── 优酷 / 京东 / 淘宝 CDN ──
     'youkuimg.com', 'jdstatic.com', '360buyimg.com', 'taobaocdn.com',
-  // B站 CDN
-    'biliapi.com', 'biliimg.com', 'bilivideo.com', 'bilivideo.cn', 'hdslb.com', 'b23.tv', 'bilibili.co',
-  // 爱奇艺 / 芒果 CDN
-    'iqiyipic.com', 'ppsvod.com', 'pps.tv', 'ppstream.com',
-    'mgtv.com', 'hunantv.com', 'cmvideo.cn',
-  // 字节 / 抖音 CDN
-    'douyincdn.com', 'bytecdn.cn', 'byteimg.com', 'iesdouyin.com', 'zjcdn.com', 
-    'douyinstatic.com', 'douyinvod.com', 'pstatp.com', 'douyinpic.com', 'bytegoofy.com', 'bytednsdoc.com',
-    'toutiao.com', 'toutiao.cn', 'ixigua.com', 'jinritemai.com',
-  // 快手 CDN
-    'ksapisrv.com', 'kspkg.com', 'ksyuncdn.com', 'ks-cdn.com', 'kuaishoupay.com',
-  // 知乎 / 微博 / 小红书 CDN
-    'zhimg.com', 'weibocdn.com', 'sinaimg.cn', 'sinajs.cn', 'xhscdn.com', 'xhsglobal.com', 'sinacdn.com',
-  // 百度 CDN
+  // ── 抖音 / 字节 CDN ──
+    'douyincdn.com', 'douyinpic.com', 'douyinstatic.com', 'douyinvod.com',
+    'idouyinvod.com', 'idouyinpic.com', 'idouyinstatic.com', 'douyinliving.com', 'idouyinliving.com',
+    'bytecdn.cn', 'byteimg.com', 'zjcdn.com', 'bytegoofy.com', 'bytednsdoc.com',
+    'pstatp.com', 'ixiguavideo.com', 'ixiguaav.com', 'bytetos.com', 'volccdn.com', 'jinritemai.com',
+  // ── 快手 CDN ──
+    'yximgs.com', 'kwimgs.com', 'kwaicdn.com', 'kastatic.com',
+    'ks-cdn.com', 'ksyuncdn.com', 'kwai-video.com', 'kwai-live.com', 'kwai-player.com',
+  // ── B站 CDN ──
+    'biliimg.com', 'bilibili.co', 'bilivideo.com', 'bilivideo.cn', 'bilivideo.net',
+    'bilicdn1.com', 'bilicdn2.com', 'bilicdn3.com', 'bilicdn4.com', 'bilicdn5.com',
+    'hdslb.com', 'maoercdn.com', 'mincdn.com', 'acgvideo.com',
+  // ── 小红书 CDN ──
+    'xhscdn.com', 'xhscdn.net', 'xhsglobal.com', 'xhsrcdn.com', 'rednotecdn.com',
+  // ── 微博 CDN ──
+    'weibocdn.com', 'sinaimg.cn', 'sinajs.cn', 'sinacdn.com', 'sinaedge.com',
+  // ── 知乎 CDN ──
+    'zhimg.com',
+  // ── 火山 CDN ──
+    'huoshancdn.com', 'huoshanimg.com', 'huoshanlive.com', 'huoshanstatic.com',
+    'huoshanvideo.cn', 'huoshanvideo.net', 'huoshanvod.com',
+    'huoshanzhibo.cn', 'huoshanzhibo.com', 'ihuoshanimg.com', 'ihuoshanlive.com',
+    'ihuoshanstatic.com', 'ihuoshanvod.com',
+  // ── 爱奇艺 / 芒果 CDN ──
+    'iqiyipic.com', 'ppsvod.com', 'cmvideo.cn',
+  // ── 百度 CDN ──
     'bdimg.com', 'bdstatic.com', 'bcebos.com', 'baidubce.com', 'bdydstatic.com', 'baidutv.com',
-  // 网易 CDN
+  // ── 网易 CDN ──
     'nos.netease.com', 'ydstatic.com',
-  // 360 / 小米 / 美团 / 搜狐 CDN
+  // ── 360 / 小米 / 美团 / 搜狐 CDN ──
     'qhimg.com', 'qhres.com', 'qhres2.com', 'qhmsg.com', '360.cn', '360safe.com',
     'mi-img.com', 'mifile.cn', 'xiaomicdn.com',
     'meituan.net', 'dpfile.com',
-    'sohucs.com', 'itc.cn', 'ctcdn.cn', 'v-56.com'
-  );
-  const domesticAiDomains = () => d(
+    'sohucs.com', 'itc.cn', 'ctcdn.cn', 'v-56.com',
+  // ── 通用 CDN 运营商 ──
+    'wangsu.com', 'chinanetcenter.com', 'qiniu.com', 'qiniucdn.com',
+    'upaiyun.com', 'upyun.com', 'bsclink.cn',
+    'bootcdn.cn', 'bootcdn.net', 'bootcss.com'
+  ),
+      AI: () => d(
     'doubao.com', 'volces.com', 'qianfan.baidu.com', 'erniebot.com', 'yiyan.baidu.com',
     'deepseek.com', 'deepseek.cn', 'moonshot.cn', 'kimi.com', 'minimaxi.com',
     'xinghuo.xfyun.cn', 'sensenova.cn', 'chatglm.cn', 'chatglm.ai', 'bigmodel.cn',
     'yiyan.baidu.com', 'spark.cli.cn', 'tongyi.aliyun.com', 'hunyuan.tencent.com',
     'yuanbao.tencent.com', 'baichuan-ai.com', 'stepfun.com', 'stepship.cn',
     'zhipuai.cn', 'zhipu.ai', 'moonshot.cn', 'api.moonshot.cn'
-  );
-  // 惰性单例：国内服务域名集（主站+CDN+AI），避免重复构建
-  let _domesticServiceDomainsCache = null;
-  const domesticServiceDomains = () => {
-    if (!_domesticServiceDomainsCache) {
-      _domesticServiceDomainsCache = uniqList([
-        ...domesticMainDomains(),
-        ...domesticCdnDomains(),
-        ...domesticAiDomains()
-      ]);
+  )
+    },
+    all() {
+      if (!this._cache) this._cache = uniqList([...this.domains.MAIN(), ...this.domains.CDN(), ...this.domains.AI()]);
+      return this._cache;
+    },
+    _cache: null,
+
+    // ── DNS 策略域名集（替代原 DNS_POLICY_DOMAIN_SETS 中 domestic* 四项）──
+    dnsPolicySets() {
+      return {
+        domesticMain: this.domains.MAIN(),
+        domesticCdn: this.domains.CDN(),
+        domesticAi: this.domains.AI(),
+        domestic: this.all()
+      };
+    },
+
+    // ── DNS 绑定条目（替代原 DNS_SERVICE_BINDINGS 中国内服务项）──
+    dnsBindingEntry(safeFastDomesticDns) {
+      return {
+        key: '国内服务',
+        policyDomains: this.domains.MAIN().concat(this.domains.AI()),
+        fallbackDomains: this.domains.MAIN(),
+        dns: safeFastDomesticDns
+      };
+    },
+
+    // ── 规则装配（替代原 RULES_DOMESTIC）──
+    buildRules(ruleSuffix) {
+      return [
+        ...ruleSuffix(this.domains.CDN(), 'DIRECT'),
+        ...ruleSuffix(this.domains.MAIN().concat(this.domains.AI()), '国内服务'),
+        'GEOSITE,CN,国内服务',
+        'GEOIP,CN,DIRECT,no-resolve'
+      ];
+    },
+
+    // ── 外部规则集 Provider（替代原 rule-providers cn-direct/cn-cidr）──
+    providers(_nextRpInterval) {
+      return {
+        'cn-direct': {
+          type: 'http',
+          interval: _nextRpInterval(),
+          behavior: 'domain',
+          format: 'text',
+          url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/direct.txt'
+        },
+        'cn-cidr': {
+          type: 'http',
+          interval: _nextRpInterval(),
+          behavior: 'ipcidr',
+          format: 'text',
+          url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/cncidr.txt'
+        }
+      };
     }
-    return _domesticServiceDomainsCache;
   };
+
 // === 基础配置：运行参数、网络栈与实验特性 ===
   // Profile：持久化配置
   config.profile = {
@@ -362,7 +496,7 @@ function buildConfig(config) {
   config.sniffer['sniff'] = {
     'HTTP': { 'ports': [80, '8080-8880'], 'override-destination': true },
     'TLS': { 'ports': [443, 8443] },
-    'QUIC': { 'ports': [443, 8443], 'override-destination': true }
+    'QUIC': { 'ports': [443, 8443], 'override-destination': false }
   };
   config.sniffer['force-domain'] = uniqList([
     ...openaiRealtimeDomains(),
@@ -477,10 +611,10 @@ function buildConfig(config) {
   const domesticServiceChoices = ['IPv4优先', 'IPv6优先', '双栈', '仅IPv4', '仅IPv6', 'DIRECT'];
   const DNS_POLICY_DOMAIN_SETS = {
     adguard: adguardDomains(),
-    domesticMain: domesticMainDomains(),
-    domesticCdn: domesticCdnDomains(),
-    domesticAi: domesticAiDomains(),
-    domestic: domesticServiceDomains(),
+    domesticMain: DOMESTIC_SERVICE_MODULE.dnsPolicySets().domesticMain,
+    domesticCdn: DOMESTIC_SERVICE_MODULE.dnsPolicySets().domesticCdn,
+    domesticAi: DOMESTIC_SERVICE_MODULE.dnsPolicySets().domesticAi,
+    domestic: DOMESTIC_SERVICE_MODULE.dnsPolicySets().domestic,
     tiktok: tiktokDomains(),
     adguardService: adguardServiceDomains(),
     browserRisk: browserRiskDomains(),
@@ -520,7 +654,7 @@ function buildConfig(config) {
     infra: infraDomains(),
     privacyAndCaptivePortal: privacyDomains(),
     googlePlayIntegrity: googlePlayIntegrityDomains(),
-    domestic: domesticServiceDomains(),
+    domestic: DOMESTIC_SERVICE_MODULE.all(),
   // 以下从 DNS_POLICY_DOMAIN_SETS 复用
     meta: DNS_POLICY_DOMAIN_SETS.meta,
     discord: DNS_POLICY_DOMAIN_SETS.discord,
@@ -745,11 +879,8 @@ function buildConfig(config) {
   const DNS_SERVICE_BINDINGS = [
     { key: '广告拦截', policyDomains: DNS_POLICY_DOMAIN_SETS.adguard, dns: safeAdguardDns },
     // CDN 域名走 DIRECT，由 direct-nameserver 统一提供国内 DNS，不在 nameserver-policy 中重复绑定
-    // 注：domestic (domesticServiceDomains) 包含 CDN，故不使用；仅用 domesticMain + domesticAi
-    { key: '国内服务', policyDomains: uniqList([].concat(
-      DNS_POLICY_DOMAIN_SETS.domesticMain,
-      DNS_POLICY_DOMAIN_SETS.domesticAi
-    )), fallbackDomains: DNS_POLICY_DOMAIN_SETS.domesticMain, dns: safeFastDomesticDns },
+    // 注：domestic (DOMESTIC_SERVICE_MODULE.all()) 包含 CDN，故不使用；仅用 MAIN + AI
+    DOMESTIC_SERVICE_MODULE.dnsBindingEntry(safeFastDomesticDns),
     { key: 'TikTok', policyDomains: DNS_POLICY_DOMAIN_SETS.tiktok, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok, dns: safeTrustDns },
     { key: 'AdGuard服务', policyDomains: DNS_POLICY_DOMAIN_SETS.adguardService, dns: safeTrustDns, auxiliary: true },
     { key: '风控安全', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.browserRisk, DNS_POLICY_DOMAIN_SETS.finance, DNS_POLICY_DOMAIN_SETS.crypto)), fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: safeTrustDns },
@@ -2706,6 +2837,14 @@ const CORE_ENTRY_GROUPS = [
   for (let i = 0; i < loadBalanceGroups.length; i++) {
     CORE_AUTO_GROUPS.push(loadBalanceGroups[i]);
   }
+  // QUIC(UDP:443) 独立控制组：紧跟负载均衡。
+  // 成员是两个隐藏别名组，目的是在面板上把内置动作渲染成中文“通过/拒绝”。
+  // 通过 = 境外 QUIC 正常走代理；拒绝 = 阻 QUIC，客户端自动降级 TCP/TLS，随后命中正常域名规则。
+  CORE_AUTO_GROUPS.push(
+    { name: '通过', type: 'select', icon: 'https://api.iconify.design/tabler:world-download.svg?color=%2322c55e', hidden: true, proxies: ensureGroupList(['节点选择'], ['DIRECT']) },
+    { name: '拒绝', type: 'select', icon: 'https://api.iconify.design/tabler:world-off.svg?color=%23ef4444', hidden: true, proxies: ['REJECT', 'REJECT-DROP'] },
+    { name: 'QUIC控制', type: 'select', icon: 'https://api.iconify.design/tabler:world-www.svg?color=%2306b6d4', proxies: ['通过', '拒绝'] }
+  );
   CORE_AUTO_GROUPS.push(makeSelectGroup('全球手动', iconMap.select, allProxyNames, []));
   const CORE_FAILOVER_GROUPS = [];
   for (let i = 0; i < fallbackGroups.length; i++) {
@@ -2752,7 +2891,8 @@ const CORE_ENTRY_GROUPS = [
   // 分组候选清洗：删除无效/重复/自引用，补最小兜底，切断显式环引用。
         || group.name === '下载轮询组'
   // 全局直连组语义固定，最终必须只保留 DIRECT。
-        || group.name === '下载散列组';
+        || group.name === '下载散列组'
+        || group.name === '负载均衡';
   // 全球手动组尽量保留真实节点，不给默认兜底项。
       if (shouldHide) {
   // 自动选择组允许极端情况下回退到“全球手动 / DIRECT”。
@@ -3021,6 +3161,7 @@ for (let i = 0; i < config.proxies.length; i++) {
     '全球手动': '🔧全球手动',
     'DIRECT': 'DIRECT',
     '负载均衡': '⚖️负载均衡',
+    'QUIC控制': '🌐QUIC控制',
     '下载散列组': '🔀下载散列组',
     '下载轮询组': '🔁下载轮询组',
     '谷歌商店专用': '🛒谷歌商店专用',
@@ -3478,15 +3619,20 @@ for (let i = 0; i < config.proxies.length; i++) {
     ...RULES_STREAMING_EXTRA,
   ];
   // Apple 生态规则（DOMAIN-SUFFIX 已覆盖子域名）
-  const RULES_DOMESTIC = [
-  // === 精确匹配 ===
-    ...ruleSuffix(domesticMainDomains(), '国内服务'),    // 主站域名 → 国内服务组（直连）
-    ...ruleSuffix(domesticCdnDomains(), 'DIRECT'),      // CDN域名 → 直连（不走代理，避免延迟）
-    ...ruleSuffix(domesticAiDomains(), '国内服务'),      // 国内AI域名 → 国内服务组（直连）
-  // === 兜底匹配 ===
-    'GEOSITE,CN,国内服务',                             // cn域名兜底 → 国内服务组
-    'GEOIP,CN,DIRECT,no-resolve'                       // 中国IP兜底 → 直连
-  ];
+  // ════════════════════════════════════════════════════════════════════
+  // 国内分流（两大类，顺序即优先级：CDN 先于主站，父域最后）
+  //
+  //   类一【DIRECT】   CDN / 直播 / 媒体 → 直连   （省流量保速度，不改 IP 属地）
+  //   类二【国内服务】 主站 / API / 互动 → 国内服务（决定评论/发帖 IP 属地）
+  //   兜底             CN 域名 → 国内服务 · CN IP → 直连
+  //
+  // 依据：MediaCrawler 逆向显示评论与内容「同域名不同路径」，Clash 只能域名
+  //       粒度，故按「CDN 域 vs 主站/API 域」二分，两类域名互斥无重复。
+  // 改清单：只改 DOMESTIC_SERVICE_MODULE.domains 中的 MAIN / CDN / AI。
+  // 关某类：把对应 ruleSuffix 那一行注释掉即可。
+  // ════════════════════════════════════════════════════════════════════
+  const RULES_DOMESTIC = DOMESTIC_SERVICE_MODULE.buildRules(ruleSuffix);
+  // Apple 服务域名（被误删后恢复）
   const RULES_APPLE_MEDIA = ruleSuffix(['tv.apple.com', 'video.apple.com'], '流媒体');
   const RULES_APPLE = [
     ...ruleSuffix(['apple.com', 'icloud.com', 'icloud-content.com', 'itunes.apple.com', 'apps.apple.com', 'mzstatic.com', 'apple-dns.net', 'apple-mapkit.com', 'cdn-apple.com', 'apple.news', 'applemusic.com', 'appstore.com'], 'Apple')
@@ -3698,6 +3844,18 @@ const RULES_GITHUB = [
       'washingtonpost.com', 'latimes.com', 'abcnews.go.com', 'nbcnews.com', 'cbsnews.com', 'foxnews.com'
     ], '新闻资讯')
   ];
+  // QUIC(UDP:443) 控制规则：必须紧跟局域网规则、排在所有业务域名规则之前。
+  // 原因：规则自上而下首个命中即返回，youtube.com 在 idx≈135、douyin 在 ≈661、GEOIP,CN 在 ≈929，
+  // 任何“放后面”的方案都轮不到它，只能放最前才能真正管住视频 QUIC。
+  // GEOSITE,geolocation-!cn 用于限定境外：国内域名（抖音/淘宝等）不在该集合内，
+  // 其 HTTP/3 不会被这组规则误伤，仍按原规则直连。
+  const RULES_QUIC_CONTROL = [
+  // 国内域名的 QUIC 必须先于 geolocation-!cn 判定。
+  // geolocation-!cn 的语义是“不在 cn 分类里的全部域名”，含 geosite 未收录的未知域名，
+  // 抖音 CDN（douyinvod/zjcdn/pstatp 等）一旦落入其中就会被截去代理，导致卡顿。
+    'AND,((NETWORK,UDP),(DST-PORT,443),(GEOSITE,cn)),国内服务',
+    'AND,((NETWORK,UDP),(DST-PORT,443),(GEOSITE,geolocation-!cn)),QUIC控制'
+  ];
   const RULES_LAN_PRIVATE = [
     'GEOSITE,private,DIRECT',
   // 协作办公 / 云生产力
@@ -3758,6 +3916,7 @@ const RULES_GITHUB = [
   ];
   const RULE_SET_MAP = {
     LAN_PRIVATE: RULES_LAN_PRIVATE,
+    QUIC_CONTROL: RULES_QUIC_CONTROL,
     YOUTUBE: RULES_YOUTUBE,
     TRANSLATION: RULES_TRANSLATION,
     RISK_SECURITY: RULES_RISK_SECURITY,
@@ -3809,6 +3968,7 @@ APP_PROCESS: RULES_APP_PROCESS,
   };
   const RULE_ASSEMBLY_ORDER = [
     'LAN_PRIVATE',
+    'QUIC_CONTROL',
     'RISK_SECURITY',
     'YOUTUBE',
     'TRANSLATION',
@@ -3954,68 +4114,10 @@ APP_PROCESS: RULES_APP_PROCESS,
   if (!config['rule-providers'] || typeof config['rule-providers'] !== 'object') {
     config['rule-providers'] = {};
   }
-  if (!config['rule-providers']['dns-leak-guard'] || typeof config['rule-providers']['dns-leak-guard'] !== 'object') {
-    config['rule-providers']['dns-leak-guard'] = {
-      type: 'http',
-      interval: _nextRpInterval(),
-      behavior: 'domain',
-      format: 'text',
-      url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/tld-not-cn.txt'
-    };
-  }
-  // Telegram IP 段规则订阅
-  if (!config['rule-providers']['telegramcidr']) {
-    config['rule-providers']['telegramcidr'] = {
-      type: 'http',
-      interval: _nextRpInterval(),
-      behavior: 'ipcidr',
-      format: 'text',
-      url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/telegramcidr.txt'
-    };
-  }
-  // 远程广告拦截规则订阅（已移除 anti-ad，只保留 adrules）
-  if (!config['rule-providers']['adrules']) {
-    config['rule-providers']['adrules'] = {
-      type: 'http',
-      behavior: 'classical',
-      interval: _nextRpInterval(),
-      format: 'yaml',
-      url: 'https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt'
-    };
-  }
-  // echs-top 风控规则集：经节点选择下载，避免 GitHub raw 直连失败。
-  if (!config['rule-providers']['safe'] || typeof config['rule-providers']['safe'] !== 'object') {
-    config['rule-providers']['safe'] = {
-      type: 'http',
-      interval: _nextRpInterval(),
-      behavior: 'domain',
-      format: 'mrs',
-      proxy: applyEmojiRename('节点选择'),
-      url: 'https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/safe.mrs',
-      path: './rules/echs_safe.mrs'
-    };
-  }
-  // 外部国内域名补充规则集（Loyalsoldier direct.txt，~11万域名）
-  // 放在所有业务组之后，不会抢走 Apple/Microsoft/Google 等已匹配的境外域名
-  if (!config['rule-providers']['cn-direct']) {
-    config['rule-providers']['cn-direct'] = {
-      type: 'http',
-      interval: _nextRpInterval(),
-      behavior: 'domain',
-      format: 'text',
-      url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/direct.txt'
-    };
-  }
-  // 外部国内 IP 段规则集（Loyalsoldier cncidr.txt）
-  if (!config['rule-providers']['cn-cidr']) {
-    config['rule-providers']['cn-cidr'] = {
-      type: 'http',
-      interval: _nextRpInterval(),
-      behavior: 'ipcidr',
-      format: 'text',
-      url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/cncidr.txt'
-    };
-  }
+  // 统一注入外部规则集（从 EXTERNAL_PROVIDERS + DOMESTIC_SERVICE_MODULE）
+  Object.assign(config['rule-providers'], EXTERNAL_PROVIDERS.all(_nextRpInterval, applyEmojiRename('节点选择')));
+  Object.assign(config['rule-providers'], DOMESTIC_SERVICE_MODULE.providers(_nextRpInterval));
+
   if (!Array.isArray(config.rules)) {
     config.rules = [];
   }
