@@ -15,6 +15,32 @@
  *   ① 关闭系统 DNS 加密：设置 → 网络 → DNS 设置 → 关闭「加密 DNS」
  *   ② 在 Clash 客户端中开启「严格路由」或 equivalent 选项
  */
+// ════════════════════════════════════════════════════════════════
+  // 【外部资源集中管理】所有外部 URL 统一在此定义，换源只改一处
+  // ════════════════════════════════════════════════════════════════
+  var EXTERNAL_URLS = {
+    cdn: {
+      jsdelivrFastly: 'https://fastly.jsdelivr.net/gh/',
+      jsdelivrCdn:    'https://cdn.jsdelivr.net/gh/',
+      githubRaw:      'https://raw.githubusercontent.com/',
+      iconify:        'https://api.iconify.design/'
+    },
+    icons: {
+      qureBase:  'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/',
+      miniColor: 'https://raw.githubusercontent.com/Orz-3/mini/master/Color/',
+      fcm:       'https://fastly.jsdelivr.net/gh/MiToverG422/Qure@master/IconSet/Color/fcm.png'
+    },
+    rules: {
+      dnsLeakGuard:   'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/tld-not-cn.txt',
+      telegramCidr:   'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/telegramcidr.txt',
+      adRules:        'https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt',
+      safeMrs:        'https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/safe.mrs',
+      cnGeositeMrs:   'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/cn.mrs',
+      cnGeoipMrs:     'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cn.mrs'
+    }
+  };
+  var qIcon = name => EXTERNAL_URLS.icons.qureBase + name + '.png';
+
 function buildConfig(config) {
   // ---------- 统一日志 & 调试 ----------
   var log = (typeof console !== 'undefined' && console.log) ? console.log.bind(console) : function(){};
@@ -89,9 +115,7 @@ function buildConfig(config) {
     console.log('[Clash.js][perf]', JSON.stringify(perfMarks));
   }
 // === 通用工具与规则工厂 ===
-  // 图标资源：统一走 Qure 图标仓库
-  const QURE_BASE = 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/';
-  const qIcon = name => QURE_BASE + name + '.png';
+
   // 数组工具：统一处理外部输入
   function asArray(value) {
     return Array.isArray(value) ? value : [];
@@ -243,7 +267,6 @@ function buildConfig(config) {
     'adsrvr.org','criteo.com','criteo.net','taboola.com','taboolasyndication.com','outbrain.com','analytics.google.com','ads.google.com'
   );
 
-
   // ════════════════════════════════════════════════════════════════
   // 【外部规则集模块】统一管理所有 rule-providers 定义
   //   修改外部规则来源/格式只需改这一处，四版自动同步
@@ -256,21 +279,21 @@ function buildConfig(config) {
           interval: _nextRpInterval(),
           behavior: 'domain',
           format: 'text',
-          url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/tld-not-cn.txt'
+          url: EXTERNAL_URLS.rules.dnsLeakGuard
         },
         'telegramcidr': {
           type: 'http',
           interval: _nextRpInterval(),
           behavior: 'ipcidr',
           format: 'text',
-          url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/telegramcidr.txt'
+          url: EXTERNAL_URLS.rules.telegramCidr
         },
         'adrules': {
           type: 'http',
           behavior: 'classical',
           interval: _nextRpInterval(),
           format: 'yaml',
-          url: 'https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt'
+          url: EXTERNAL_URLS.rules.adRules
         },
         'safe': {
           type: 'http',
@@ -278,7 +301,7 @@ function buildConfig(config) {
           behavior: 'domain',
           format: 'mrs',
           proxy: proxyName,
-          url: 'https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/safe.mrs',
+          url: EXTERNAL_URLS.rules.safeMrs,
           path: './rules/echs_safe.mrs'
         }
       };
@@ -428,11 +451,9 @@ function buildConfig(config) {
     // ── 规则装配（替代原 RULES_DOMESTIC）──
     buildRules(ruleSuffix) {
       return [
-        ...ruleSuffix(this.domains.CDN(), 'DIRECT'),
-        ...ruleSuffix(this.domains.MAIN().concat(this.domains.AI()), '国内服务'),
-        'GEOSITE,CN,国内服务',
-        'GEOIP,CN,DIRECT,no-resolve'
-      ];
+         ...ruleSuffix(this.domains.CDN(), 'DIRECT'),
+         ...ruleSuffix(this.domains.MAIN().concat(this.domains.AI()), '国内服务')
+       ];
     },
 
     // ── 外部规则集 Provider（替代原 rule-providers cn-direct/cn-cidr）──
@@ -442,15 +463,15 @@ function buildConfig(config) {
           type: 'http',
           interval: _nextRpInterval(),
           behavior: 'domain',
-          format: 'text',
-          url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/direct.txt'
+          format: 'mrs',
+          url: EXTERNAL_URLS.rules.cnGeositeMrs
         },
         'cn-cidr': {
           type: 'http',
           interval: _nextRpInterval(),
           behavior: 'ipcidr',
-          format: 'text',
-          url: 'https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/cncidr.txt'
+          format: 'mrs',
+          url: EXTERNAL_URLS.rules.cnGeoipMrs
         }
       };
     }
@@ -942,6 +963,23 @@ function buildConfig(config) {
     const arr = sanitizeDnsServerList(v);
     if (key && arr.length) sanitizedNameserverPolicy[key] = arr;
   }
+  // geosite: 前缀在 mihomo 的 nameserver-policy 中是合法语法，但上面的
+  // sanitizeCompatDomainPattern 为兼容旧前端会把 rule-set:/geosite: 键一律丢弃，
+  // 实际后果：国内域名只剩逐条枚举的百余项目走国内 DNS，其余全部落到主 nameserver
+  // （境外 DoH），抖音 CDN 这类域名被解析到境外/异地节点后直连必然绕路、卡顿。
+  // 这里在清洗之后重新注入，保证「国内域名 = 国内解析」这条链路真正生效。
+  const reinjectGeoPolicy = [
+    ['geosite:private', safeFastDomesticDns],
+    ['geosite:cn', safeFastDomesticDns],
+    ['geosite:geolocation-!cn', safeTrustDns],
+    ['geosite:category-ads-all', safeAdguardDns]
+  ];
+  for (const [k, v] of reinjectGeoPolicy) {
+    const arr = sanitizeDnsServerList(v);
+    if (arr.length) sanitizedNameserverPolicy[k] = arr;
+  }
+  // 字节系等国内直连域名的解析绑定，已由文件末尾的
+  // syncDnsPolicyWithRules 从规则表自动派生，无需在此硬编码。
   // 节点域名解析策略：仅作用于代理节点域名，避免和通用业务 DNS 分流混用。
   config.dns['nameserver-policy'] = sanitizedNameserverPolicy;
   const proxyServerNameserverPolicy = Object.assign({}, config.dns['proxy-server-nameserver-policy'] || {});
@@ -1022,11 +1060,50 @@ function buildConfig(config) {
     if (/^\d+$/.test(text)) return false;
     if (/\b\d+\/\d+\b/.test(text)) return false;
     if (PROXY_TRAFFIC_RE.test(text) || PROXY_DATE_RE.test(text)) return false;
-  // 节点特征：家宽 / 倍率 / 流媒体
     if (PROXY_PROMO_HANDLE_RE.test(text)) return false;
     if (PROXY_INFO_RE.test(text) || PROXY_INFO_LINE_RE.test(text)) return false;
     return true;
   }
+  // ═══ 节点特征识别器（家宽 / 专线 / 倍率 / 流媒体 / 运营商）═══
+
+  // ── 运营商识别 ── 关键字命中即归类（同一节点可归入多个运营商），供运营商优化组使用
+  const CARRIER_CLASSIFIER = {
+    carriers: [
+      { label: '移动', kw: ['移动', 'cmcc', 'chinamobile', 'china mobile'] },
+      { label: '联通', kw: ['联通', 'cucc', 'chinaunicom', 'china unicom'] },
+      { label: '电信', kw: ['电信', 'ctcc', 'chinatelecom', 'china telecom'] },
+      { label: '广电', kw: ['广电', 'cbn', 'cbnnet', 'chinabroadcast', 'china broadcast'] }
+    ],
+    carrierIcons: {
+      '移动': EXTERNAL_URLS.cdn.jsdelivrFastly + 'Orz-3/mini@master/Color/10086.png',
+      '联通': EXTERNAL_URLS.cdn.jsdelivrFastly + 'Orz-3/mini@master/Color/10010.png',
+      '电信': EXTERNAL_URLS.cdn.jsdelivrFastly + 'Orz-3/mini@master/Color/10000.png',
+      '广电': EXTERNAL_URLS.cdn.iconify + 'tabler:device-tv.svg?color=%23722ED1'
+    },
+    carrierEmoji: { '移动': '📱', '联通': '📶', '电信': '☎️', '广电': '📺' },
+
+    matchCarriers(name) {
+      const c = String(name || '').toLowerCase();
+      const found = [];
+      for (const car of this.carriers) {
+        if (car.kw.some(k => c.includes(k))) found.push(car.label);
+      }
+      return found;
+    },
+
+    classifyAll(proxyNames) {
+      const result = {};
+      for (const name of proxyNames) {
+        const cars = this.matchCarriers(name);
+        for (const c of cars) {
+          if (!result[c]) result[c] = [];
+          result[c].push(name);
+        }
+      }
+      return result;
+    }
+  };
+
   const residentialNamePatterns = [
     /家宽|家庭宽带|家庭住宅|住宅宽带|住宅|宽带|民用宽带|家庭网络|原生住宅/,
     /\bresi(?:dential)?\b/i,
@@ -1056,7 +1133,6 @@ function buildConfig(config) {
   const _residentialOverride = /家宽|住宅|resi|home\s*ip|native\s*ip/i;
   function isResidentialProxyName(name) {
     const text = String(name || '');
-  // 倍率识别
     if (!text) return false;
     if (_residentialNegCombined.test(text) && !_residentialOverride.test(text)) return false;
     return _residentialPosCombined.test(text);
@@ -1122,8 +1198,6 @@ function buildConfig(config) {
     /\bnf\b/i,
     /\bmedia\b/i,
     /\bstream(?:ing)?\b/i,
-    /\bunlock\b/i
-  // 专线识别：与家宽同级特征池，供全球专线聚合
   ];
   // 优化：合并为单一正则
   const _streamingCombined = new RegExp(streamingNamePatterns.map(re => re.source).join('|'), 'i');
@@ -1137,7 +1211,6 @@ function buildConfig(config) {
     /\biplc\b/i,
     /\biepl\b/i,
     /\bcni?2(?:\s|-|_)*gia\b/i,
-    /\bcn2gia\b/i,
     /\bbgp(?:\s|-|_)*(?:transit|direct|line|专线)\b/i,
     /\bdedicated(?:\s|-|_)*(?:line|link|route|ip)?\b/i,
     /\bprivate(?:\s|-|_)*(?:line|link|route)\b/i,
@@ -1158,12 +1231,10 @@ function buildConfig(config) {
   function isDedicatedProxyName(name) {
     const text = String(name || '');
     if (!text) return false;
-  // 节点清洗
     if (_dedicatedNameCombined.test(text)) return true;
     return _dedicatedContextCombined.test(text);
   }
 
-  // perfStart('proxy_classify') removed for speed
   const cleanProxies = [];
   const allProxyNames = [];
   const residentialProxyNames = [];
@@ -1223,7 +1294,6 @@ function buildConfig(config) {
     if (isHostname(proxy.server)) proxyHostnames.add(String(proxy.server).trim().toLowerCase());
     if (isHostname(proxy.servername)) proxyHostnames.add(String(proxy.servername).trim().toLowerCase());
     if (isResidentialProxyName(proxyName)) residentialProxyNames.push(proxyName);
-  // 将订阅节点中的真实域名纳入节点解析策略，优先复用国内可直连 bootstrap，降低节点自举漂移。
     if (isDedicatedProxyName(proxyName)) dedicatedProxyNames.push(proxyName);
     if (isMultiplierProxyName(proxyName)) multiplierProxyNames.push(proxyName);
     if (isStreamingProxyName(proxyName)) streamingProxyNames.push(proxyName);
@@ -1533,7 +1603,6 @@ function buildConfig(config) {
     return result;
   }
   // 三个直连伪节点专属于国内服务组，不参与地区分类，避免被回收进「其它地区」
-  // perfStart('region_classify') removed for speed
   const directProxyNameSet = new Set(directProxyNames);
   for (let i = 0; i < cleanProxies.length; i++) {
     const proxy = cleanProxies[i];
@@ -1645,7 +1714,6 @@ if (PERF_ENABLED) perfEnd('region_classify');
   }
   function makeSmartGroup(name, icon, nodes, interval, tolerance, options = {}) {
     const sampleRate = options.sampleRate !== undefined ? options.sampleRate : 0.3;
-    const residentialPriority = options.residentialPriority !== undefined ? options.residentialPriority : false;
     const proxies = ensureGroupList(nodes, []);
     if (!ENABLE_SMART_GROUPS) return makeUrlTestGroup(name, icon, nodes, interval, tolerance, options);
     if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
@@ -1785,7 +1853,6 @@ if (PERF_ENABLED) perfEnd('region_classify');
     '俄罗斯': qIcon('Russia'), '欧盟': qIcon('European_Union'), '东南亚': qIcon('Asia_Map'),
     '加拿大': qIcon('Canada'), '拉美地区': qIcon('America_Map'), '非洲': qIcon('Africa_Map'), '其它地区': qIcon('World_Map')
   };
-  const MINI_COLOR_BASE = 'https://raw.githubusercontent.com/Orz-3/mini/master/Color/';
   const homeRegionIconMap = {
     '香港': 'https://api.iconify.design/circle-flags:hk.svg',
     '台湾': 'https://api.iconify.design/circle-flags:tw.svg',
@@ -1819,7 +1886,7 @@ if (PERF_ENABLED) perfEnd('region_classify');
     playstore: 'https://api.iconify.design/logos:google-play-icon.svg',
     microsoft: qIcon('Microsoft'), bing: 'https://api.iconify.design/simple-icons:microsoftbing.svg?color=%2300837D', apple: qIcon('Apple'), cloudflare: qIcon('Cloudflare'),
     github: qIcon('GitHub'), ai: qIcon('AI'), claude: 'https://api.iconify.design/simple-icons:claude.svg?color=%23D97757', gemini: 'https://api.iconify.design/logos:google-gemini.svg',
-    fcm: 'https://fastly.jsdelivr.net/gh/MiToverG422/Qure@master/IconSet/Color/fcm.png',
+    fcm: EXTERNAL_URLS.icons.fcm,
     streaming: qIcon('Netflix'), streamingGlobal: qIcon('Media'), netflix: qIcon('Netflix'),
     spotify: qIcon('Spotify'), twitch: qIcon('Twitch'), discord: qIcon('Discord'),
     niconico: qIcon('niconico'),
@@ -2329,7 +2396,6 @@ if (PERF_ENABLED) perfEnd('region_classify');
     ? makeSmartGroup('全球专线智能', iconMap.dedicated, globalDedicatedNodes, regionUrlTestInterval, regionUrlTestTolerance)
     : null;
   if (globalDedicatedAuto) globalDedicatedAuto.hidden = true;
-  if (globalHomeAuto) globalHomeAuto.hidden = true;
   const globalDedicatedGroup = globalDedicatedAuto && globalDedicatedNodes.length
     ? { name: '全球专线', type: 'select', icon: iconMap.dedicated, proxies: buildChoiceList(['全球专线智能'], globalDedicatedNodes) }
     : null;
@@ -2354,6 +2420,25 @@ if (PERF_ENABLED) perfEnd('region_classify');
   const globalStreamingGroup = globalStreamingAuto && globalStreamingNodes.length
     ? { name: '全球流媒体', type: 'select', icon: iconMap.streamingGlobal, proxies: buildChoiceList(['全球流媒体智能'], globalStreamingNodes) }
     : null;
+  // ── 运营商优化组（移动/联通/电信/广电）：自动组 hidden + 可见 select ──
+  // 识别逻辑见 CARRIER_CLASSIFIER；无匹配节点时整组不生成，不污染 UI。
+  const carrierMap = CARRIER_CLASSIFIER.classifyAll(allProxyNames);
+  const carrierGroups = [];
+  const carrierAutoGroups = [];
+  const carrierNames = [];
+  for (const carDef of CARRIER_CLASSIFIER.carriers) {
+    const carNodes = unique(carrierMap[carDef.label] || []);
+    if (!carNodes.length) continue;
+    const carIcon = CARRIER_CLASSIFIER.carrierIcons[carDef.label];
+    const carAutoName = CARRIER_CLASSIFIER.carrierEmoji[carDef.label] + carDef.label + '优化智能';
+    const carSelName = CARRIER_CLASSIFIER.carrierEmoji[carDef.label] + carDef.label + '优化';
+    const carAuto = makeSmartGroup(carAutoName, carIcon, carNodes, regionUrlTestInterval, regionUrlTestTolerance);
+    if (!carAuto) continue;
+    carAuto.hidden = true;
+    carrierAutoGroups.push(carAuto);
+    carrierGroups.push({ name: carSelName, type: 'select', icon: carIcon, proxies: buildChoiceList([carAutoName], carNodes) });
+    carrierNames.push(carSelName);
+  }
   const globalFeatureChoices = buildChoiceList(
     globalHomeGroup ? ['🏡全球家宽'] : [],
     globalDedicatedGroup ? ['全球专线'] : [],
@@ -2363,9 +2448,10 @@ if (PERF_ENABLED) perfEnd('region_classify');
   // 下载散列组 / 下载轮询组也一并排除：它们是「下载专用组」的内部编排单元（隐藏组），
   // 不应作为通用候选出现在其它业务组的选项里，否则每个业务组都会冒出这两个下载组。
     highMultiplierGroup ? ['高倍率节点'] : [],
-    globalStreamingGroup ? ['全球流媒体'] : []
+    globalStreamingGroup ? ['全球流媒体'] : [],
+    carrierNames
   );
-  const globalFeatureAutoGroups = [globalHomeAuto, globalDedicatedAuto, highMultiplierAuto, lowMultiplierAuto, globalStreamingAuto].filter(Boolean);
+  const globalFeatureAutoGroups = [globalHomeAuto, globalDedicatedAuto, highMultiplierAuto, lowMultiplierAuto, globalStreamingAuto, ...carrierAutoGroups].filter(Boolean);
   const playStoreExclusiveSet = new Set(['谷歌商店专用', '下载散列组', '下载轮询组']);
   const commonLoadBalanceNames = loadBalanceNames.filter(name => !playStoreExclusiveSet.has(name));
   const regionFallbackNames = ['港台智能选择', '日韩智能选择', '欧美智能选择'];
@@ -2682,6 +2768,7 @@ usableChoiceDef('riskControl', [
   // standardMultiplierGroup removed
   if (lowMultiplierGroup) specialFeatureGroups.push(lowMultiplierGroup);
   if (globalStreamingGroup) specialFeatureGroups.push(globalStreamingGroup);
+  for (const carrierGroup of carrierGroups) specialFeatureGroups.push(carrierGroup);
   const RISK_CONTROL_SERVICE_GROUP = makeSelectGroupDef(
     '风控安全',
     iconMap.riskControl,
@@ -3854,8 +3941,10 @@ const RULES_GITHUB = [
   // 注意：国内IP已由 RULES_DOMESTIC 中的 GEOIP,CN,国内服务 兜底，此处不再重复
   const RULES_DIRECT_AND_FALLBACK = [
     'RULE-SET,cn-direct,国内服务',          // 外部国内域名兜底（~11万域名，补内置名单遗漏）
-    'RULE-SET,cn-cidr,DIRECT,no-resolve',    // 外部国内IP段兜底
-    'GEOSITE,geolocation-!cn,节点选择,no-resolve', // 非中国域名走节点选择
+     'RULE-SET,cn-cidr,DIRECT,no-resolve',    // 外部国内IP段兜底
+     'GEOSITE,CN,国内服务',                    // 内置兜底（mrs下载失败时降级）
+     'GEOIP,CN,DIRECT,no-resolve',             // 内置兜底
+     'GEOSITE,geolocation-!cn,节点选择,no-resolve',
     'GEOIP,!CN,漏网之鱼,no-resolve',                // 非中国IP走漏网之鱼
     'MATCH,漏网之鱼'                                // 最终兜底
   ];
@@ -4105,9 +4194,87 @@ APP_PROCESS: RULES_APP_PROCESS,
   // 克隆核心配置字段
   if (Array.isArray(config['proxy-groups'])) {
   }
+  // ── DNS 与分流规则的最终一致性同步（通用，不依赖域名清单）──
+  // 规则表此刻已装配完成，反向从中提取「判定为直连」的域名，补齐 nameserver-policy。
+  // 根治点：解析路径不再依赖域名清单是否齐全、geosite 是否及时收录某域名。
+  // 只要分流规则判定某域名走直连，它必然用国内解析器，不会被境外 DoH 引到异地/海外节点。
+  // 顺序敏感：按规则表顺序扫描并取每个域名的首次命中，与内核匹配语义一致；
+  // 已有显式绑定的域名不覆盖，避免影响广告拦截/风控等专用解析策略。
+  (function syncDnsPolicyWithRules() {
+    if (!config.dns || typeof config.dns !== 'object' || !Array.isArray(config.rules)) return;
+    const domesticDns = (Array.isArray(config.dns['direct-nameserver']) ? config.dns['direct-nameserver'] : [])
+      .filter(function (x) { return typeof x === 'string' && x; });
+    if (!domesticDns.length) return;
+    const groups = Array.isArray(config['proxy-groups']) ? config['proxy-groups'] : [];
+    const byName = {};
+    for (const g of groups) if (g && g.name) byName[g.name] = g;
+    // 规则目标是否等价于直连：递归展开 select 组的首个成员（即面板默认选中项）
+    function isDirect(target, guard) {
+      if (!target || (guard || 0) > 6) return false;
+      if (/^DIRECT$/i.test(target)) return true;
+      const g = byName[target];
+      if (!g || g.type !== 'select' || !Array.isArray(g.proxies) || !g.proxies.length) return false;
+      return isDirect(String(g.proxies[0]).trim(), (guard || 0) + 1);
+    }
+    // 规则尾部可带 ,no-resolve 等修饰参数，取目标前先剔除，避免误判为非直连
+    function ruleTarget(rest) {
+      return String(rest).split(',').map(function (s) { return s.trim(); })
+        .filter(function (s) { return s && !/^no-resolve$/i.test(s); })
+        .join(',');
+    }
+    const policy = config.dns['nameserver-policy'] || {};
+    const seen = new Set();
+    for (const rule of config.rules) {
+      if (typeof rule !== 'string') continue;
+      // 注意保留捕获组区分：DOMAIN 为精确匹配，DOMAIN-SUFFIX 含全部子域
+      const m = rule.match(/^(DOMAIN-SUFFIX|DOMAIN)\s*,\s*([^,]+)\s*,(.+)$/i);
+      if (!m) continue;
+      const raw = String(m[2]).trim().toLowerCase();
+      if (!raw || seen.has(raw)) continue;
+      seen.add(raw);
+      if (!/^[a-z0-9._-]+$/.test(raw)) continue;
+      if (!isDirect(ruleTarget(m[3]), 0)) continue;
+      const key = m[1].toUpperCase() === 'DOMAIN' ? raw : '*.' + raw;
+      // 已存在同键或更宽/更窄绑定时保持原样，不覆盖广告拦截、风控等专用解析策略
+      if (policy[key] || policy[raw] || policy['*.' + raw]) continue;
+      policy[key] = domesticDns.slice();
+    }
+    config.dns['nameserver-policy'] = policy;
+  })();
   perfFlush();
+  breakProxyGroupCycles(config['proxy-groups'] || []);
   return config;
 }
+
+function breakProxyGroupCycles(groups) {
+    const gnames = new Set(groups.map(g => g.name));
+    const adj = {};
+    for (const g of groups) {
+      adj[g.name] = (g.proxies || []).filter(p => gnames.has(p) && p !== g.name);
+    }
+    const vis = {}, stk = {};
+    function dfs(name) {
+      if (stk[name]) return true;
+      if (vis[name]) return false;
+      stk[name] = true;
+      const neighbors = adj[name] || [];
+      for (let i = neighbors.length - 1; i >= 0; i--) {
+        if (dfs(neighbors[i])) {
+          // Remove this edge from the actual group
+          const grp = groups.find(g => g.name === name);
+          if (grp) grp.proxies = grp.proxies.filter(p => p !== neighbors[i]);
+          neighbors.splice(i, 1);
+        }
+      }
+      delete stk[name];
+      vis[name] = true;
+      return false;
+    }
+    for (const g of groups) {
+      if (!vis[g.name]) dfs(g.name);
+    }
+  }
+
 function clonePlainConfig(value) {
   if (!value || typeof value !== 'object') return {};
   const config = Object.assign({}, value);
@@ -4123,7 +4290,7 @@ function clonePlainConfig(value) {
   config.sniffer = value.sniffer && typeof value.sniffer === 'object' ? Object.assign({}, value.sniffer) : {};
   config.hosts = value.hosts && typeof value.hosts === 'object' ? Object.assign({}, value.hosts) : {};
   config.experimental = value.experimental && typeof value.experimental === 'object' ? Object.assign({}, value.experimental) : {};
-  return config;
+return config;
 }
 function normalizeInputConfig(input) {
   const config = input && typeof input === 'object' ? input : {};
