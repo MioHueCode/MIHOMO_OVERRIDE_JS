@@ -310,7 +310,7 @@ function buildConfig(config) {
   // 【国内服务模块】统一管理所有国内域名集
   //   MAIN → 主站/API/互动 → 🇨🇳国内服务组（决定 IP 属地）
   //   CDN  → 静态资源/流媒体 → DIRECT（省流量保速度）
-  //   AI   → 国内AI平台 → 🇨🇳国内服务组
+  //   AI   → 国内AI平台 → 直连（境内服务，无需代理）
   // ════════════════════════════════════════════════════════════════
   // ════════════════════════════════════════════════════════════════
   // 【国内服务模块】完全工程化：域名集 + DNS策略 + DNS绑定 + 规则 + Provider + 分组
@@ -448,9 +448,11 @@ function buildConfig(config) {
 
     // ── 规则装配（替代原 RULES_DOMESTIC）──
     buildRules(ruleSuffix) {
+      const aiSet = new Set(this.domains.AI());
       return [
          ...ruleSuffix(this.domains.CDN(), 'DIRECT'),
-         ...ruleSuffix(this.domains.MAIN().concat(this.domains.AI()), '国内服务')
+         ...ruleSuffix(this.domains.AI(), 'DIRECT'),
+         ...ruleSuffix(this.domains.MAIN().filter(x => !aiSet.has(x)), '国内服务')
        ];
     },
 
@@ -1065,9 +1067,9 @@ function buildConfig(config) {
       '移动': EXTERNAL_URLS.cdn.jsdelivrFastly + 'Orz-3/mini@master/Color/10086.png',
       '联通': EXTERNAL_URLS.cdn.jsdelivrFastly + 'Orz-3/mini@master/Color/10010.png',
       '电信': EXTERNAL_URLS.cdn.jsdelivrFastly + 'Orz-3/mini@master/Color/10000.png',
-      '广电': EXTERNAL_URLS.cdn.iconify + 'tabler:device-tv.svg?color=%23722ED1'
+      '广电': EXTERNAL_URLS.cdn.iconify + 'tabler:router.svg?color=%23722ED1'
     },
-    carrierEmoji: { '移动': '📱', '联通': '📶', '电信': '☎️', '广电': '📺' },
+    carrierEmoji: { '移动': '📱', '联通': '📶', '电信': '☎️', '广电': '🗼' },
 
     matchCarriers(name) {
       const c = String(name || '').toLowerCase();
@@ -1076,6 +1078,13 @@ function buildConfig(config) {
         if (car.kw.some(k => c.includes(k))) found.push(car.label);
       }
       return found;
+    },
+
+    // ── 三网优化识别（独立于运营商，不与移动/联通/电信/广电交叉）──
+    // 命名含“三网”字样即视为三网优化线路（同时服务移动·联通·电信），
+    // 单独成组，避免被误归入某一个运营商优化组造成选线偏差。
+    isTripleNet(name) {
+      return String(name || '').includes('三网');
     },
 
     classifyAll(proxyNames) {
@@ -2435,9 +2444,23 @@ cleanProxies.push(proxy);
   // ── 运营商优化组（移动/联通/电信/广电）：自动组 hidden + 可见 select ──
   // 识别逻辑见 CARRIER_CLASSIFIER；无匹配节点时整组不生成，不污染 UI。
   const carrierMap = CARRIER_CLASSIFIER.classifyAll(allProxyNames);
+  const tripleNetNodes = unique(allProxyNames.filter(CARRIER_CLASSIFIER.isTripleNet));
   const carrierGroups = [];
   const carrierAutoGroups = [];
   const carrierNames = [];
+  // 三网优化组：与四大运营商优化组平行，smart(hidden) + select(visible) 双层
+  if (tripleNetNodes.length) {
+    const tnAutoName = '💠三网优化自动';
+    const tnSelName = '💠三网优化';
+    const tnIcon = EXTERNAL_URLS.cdn.iconify + 'tabler:world.svg?color=%230EA5E9';
+    const tnAuto = makeUrlTestGroup(tnAutoName, tnIcon, tripleNetNodes, regionUrlTestInterval, regionUrlTestTolerance);
+    if (tnAuto) {
+      tnAuto.hidden = true;
+      carrierAutoGroups.push(tnAuto);
+      carrierGroups.push({ name: tnSelName, type: 'select', icon: tnIcon, proxies: buildChoiceList([tnAutoName], tripleNetNodes) });
+      carrierNames.push(tnSelName);
+    }
+  }
   for (const carDef of CARRIER_CLASSIFIER.carriers) {
     const carNodes = unique(carrierMap[carDef.label] || []);
     if (!carNodes.length) continue;
@@ -2492,7 +2515,7 @@ cleanProxies.push(proxy);
     ...regionHomeManualNames,
     ...regionAutoNames,
     ...regionHomeAutoNames,
-    '🌐链式出口',
+    '🔗链式出口',
   // 候选作用域
     '🪜链式中转'
   ]);
@@ -2629,7 +2652,7 @@ cleanProxies.push(proxy);
       .map(key => ({
         key,
         first: BALANCED_CHAIN_FIRST_KEYS.has(key)
-          ? ['节点选择', '🌐链式出口', '自动选择']
+          ? ['节点选择', '🔗链式出口', '自动选择']
           : commonFirst,
         poolKey: 'common'
       })),
@@ -2637,10 +2660,10 @@ cleanProxies.push(proxy);
     { key: 'Spotify', first: ['港台故障转移'], poolKey: 'common' },
     {
       key: 'Google',
-      first: ['节点选择', '港台故障转移', '🌐链式出口', '自动选择'],
+      first: ['节点选择', '港台故障转移', '🔗链式出口', '自动选择'],
       poolKey: 'common'
     },
-    { key: 'TikTok', first: ['港台故障转移', '🌐链式出口'], poolKey: 'common' },
+    { key: 'TikTok', first: ['港台故障转移', '🔗链式出口'], poolKey: 'common' },
     ...['日韩生态区', 'Niconico'].map(key => ({
       key,
       first: ['日韩故障转移'],
@@ -2652,12 +2675,12 @@ cleanProxies.push(proxy);
     { key: '谷歌商店', first: playStoreServiceChoices, poolKey: 'playStore' },
     {
       key: '国外AI',
-      first: ['节点选择', '🌐链式出口'],
+      first: ['节点选择', '🔗链式出口'],
       poolKey: 'aiOnly'
     },
     {
       key: '支付服务',
-      first: ['🌐链式出口', '港台故障转移', '节点选择', '自动选择'],
+      first: ['🔗链式出口', '港台故障转移', '节点选择', '自动选择'],
       poolKey: 'common'
     },
     {
@@ -2734,7 +2757,7 @@ cleanProxies.push(proxy);
   const MAIN_CHOICE_POOL_DEFS = [
     usableChoiceDef(
       'nodeSelection',
-      ['节点选择', '自动选择', '🌐链式出口', '负载均衡', '全球手动'],
+      ['节点选择', '自动选择', '🔗链式出口', '负载均衡', '全球手动'],
       fallbackNames.filter(name => !excludedFallbackChoiceSet.has(name)),
       globalFeatureChoices,
       fusionVisibleRegions
@@ -2784,7 +2807,7 @@ cleanProxies.push(proxy);
   const RISK_CONTROL_SERVICE_GROUP = makeSelectGroupDef(
     '风控安全',
     iconMap.riskControl,
-    ['🌐链式出口'].concat(CHOICE_GROUPS.riskControl),
+    ['🔗链式出口'].concat(CHOICE_GROUPS.riskControl),
     []
   );
   const domesticServiceDisplayChoices = buildChoiceList(['DIRECT'], domesticServiceChoices, regionManualNames);
@@ -2933,7 +2956,7 @@ const chainExitChoices = sanitizeUiChoiceList(
     : null;
   const chainExitGroup = chainExitChoices.length
  ? {
-     name: '🌐链式出口',
+     name: '🔗链式出口',
      type: 'select',
      icon: 'https://api.iconify.design/tabler:logout-2.svg?color=%230ea5e9',
      override: { 'dialer-proxy': '⚙️ 前置中转' },
@@ -3033,7 +3056,7 @@ const CORE_ENTRY_GROUPS = [
   // candidates 是已经过基础过滤后的候选列表；这里再按组类型决定最终落盘形式。
   }
    // 注入机场原生的链式中转组（前置中转、跳板线路）到最终 proxy-groups。
-// 机场的 vless 节点自带 dialer-proxy: '前置中转'，而 🌐链式出口 组也通过 dialer-proxy 链到 前置中转。
+// 机场的 vless 节点自带 dialer-proxy: '前置中转'，而 🔗链式出口 组也通过 dialer-proxy 链到 前置中转。
 // 如果不保留这两个组，所有 dialer-proxy 引用都会失效（报 'not found'）。
 // 注意：原样保留 proxies 列表，不做 allProxyNames 过滤——
 // 因为这些组里的成员（如 🇨🇳 南京移动）是机场专用中转节点，已被排除出 allProxyNames，
@@ -3274,7 +3297,7 @@ for (let i = 0; i < config.proxies.length; i++) {
     '全球手动': '🔧全球手动',
     'DIRECT': 'DIRECT',
     '负载均衡': '⚖️负载均衡',
-    'QUIC控制': '🌐QUIC控制',
+    'QUIC控制': '⚙️QUIC控制',
     '下载散列组': '🔀下载散列组',
     '下载轮询组': '🔁下载轮询组',
     '谷歌商店专用': '🛒谷歌商店专用',
@@ -3287,7 +3310,7 @@ for (let i = 0; i < config.proxies.length; i++) {
     '风控安全': '🔐风控安全',
     '国内服务': '🇨🇳国内服务',
     '流媒体': '🎬流媒体',
-    '台湾媒体': '📺台湾媒体',
+    '台湾媒体': '🛰台湾媒体',
     'FCM': '📨FCM',
     'Apple': '🍎Apple',
     'Cloudflare': '☁️Cloudflare',
@@ -3313,7 +3336,7 @@ for (let i = 0; i < config.proxies.length; i++) {
     '谷歌商店': '🛒谷歌商店',
     '微软服务': '🪟微软服务',
     '微软Bing': '🆎微软Bing',
-    '翻译服务': '🌏翻译服务',
+    '翻译服务': '📚翻译服务',
     '支付服务': '💳支付服务',
     'Twitch': '🕹️Twitch',
     'GitHub': '🐙GitHub',
@@ -3339,7 +3362,7 @@ for (let i = 0; i < config.proxies.length; i++) {
   GROUP_EMOJI_MAP['低倍率节点自动'] = '🐢低倍率节点自动';
   GROUP_EMOJI_MAP['🎞️全球流媒体自动'] = '🎞️全球流媒体自动';
   // 地区家宽自动组：地区家宽自动 → 🇭🇰香港家宽自动
-  GROUP_EMOJI_MAP['🌐链式出口'] = '🌐链式出口';
+  GROUP_EMOJI_MAP['🔗链式出口'] = '🔗链式出口';
   // 地区家宽节点组：🏠地区家宽节点 → 🏠🇭🇰香港家宽节点
   GROUP_EMOJI_MAP['🪜链式中转'] = '🪜链式中转';
   const regionNameSet = new Set(Object.keys(REGION_EMOJI));
@@ -3569,8 +3592,10 @@ for (let i = 0; i < config.proxies.length; i++) {
       'ai.perplexity.app.android',
       'com.openai.chatgpt', 'com.openai.chat', 'ai.x.grok',
       'ai.cici.android', 'com.ciciai.app', 'com.coze.android', 'ai.coze.app',
-      'com.microsoft.copilot', 'com.deepseek.chat', 'com.moonshot.kimichat'
+      'com.microsoft.copilot'
     ], '国外AI'),
+    // DeepSeek / Kimi 服务器在境内，进国外AI组会被代理拖慢且换 IP 后易风控，改走直连
+    ...ruleProcess(['com.deepseek.chat', 'com.moonshot.kimichat'], 'DIRECT'),
     ...ruleProcess(['com.spotify.music', 'com.spotify.lite', 'com.aspiro.tidal'], 'Spotify'),
     ...ruleProcess([
       'com.netflix.mediaclient', 'com.disney.disneyplus', 'com.amazon.avod.thirdpartyclient',
@@ -3736,6 +3761,7 @@ for (let i = 0; i < config.proxies.length; i++) {
   // 国内分流（两大类，顺序即优先级：CDN 先于主站，父域最后）
   //
   //   类一【DIRECT】   CDN / 直播 / 媒体 → 直连   （省流量保速度，不改 IP 属地）
+  //   类一【DIRECT】   国内 AI 平台 → 直连（境内可达，代理反而变慢）
   //   类二【国内服务】 主站 / API / 互动 → 国内服务（决定评论/发帖 IP 属地）
   //   兜底             CN 域名 → 国内服务 · CN IP → 直连
   //

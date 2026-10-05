@@ -185,7 +185,7 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
 
   // ── 6. 分类统计 ──
   var tierProxies = {}, tierCount = {}, regionProxies = {}, regionCount = {},
-      tierRegionProxies = {}, entryProxies = {}, entryCount = {}, known = {},
+      tierRegionProxies = {}, entryProxies = {}, entryCount = {}, known = {}, tripleNetProxies = [],
       multHighProxies = [], multLowProxies = [], homeAllProxies = [],
       homeRegionProxies = {}, carrierProxies = {};
   for (var v = 0; v < nodes.length; v++) {
@@ -215,6 +215,8 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
       homeAllProxies.push(nm);
       (homeRegionProxies[reg] = homeRegionProxies[reg] || []).push(nm);
     }
+    // 三网优化：独立组，与运营商组平行不交叉
+    if (nm.indexOf("三网") >= 0) tripleNetProxies.push(nm);
     // 运营商优化（一个节点可同时归入多个运营商组）
     var cars = matchCarriers(nm);
     for (var cc = 0; cc < cars.length; cc++) {
@@ -294,7 +296,7 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
     for (var h1 = 0; h1 < REGION_ORDER.length; h1++) {
       var hr = REGION_ORDER[h1];
       if (!homeRegionProxies[hr] || !homeRegionProxies[hr].length) continue;
-      var hrd = REGION_MAP[hr], hgn = hrd.flag + hr + "家宽", hsn = hrd.flag + hr + "家宽智能";
+      var hrd = REGION_MAP[hr], hgn = "🏠" + hrd.flag + hr + "家宽", hsn = "🏠" + hrd.flag + hr + "家宽智能";
       var hIcon = HOME_REGION_ICON[hr] || hrd.icon;
       newGroups.push(Object.assign(anchor(true), { name: hsn, proxies: homeRegionProxies[hr].slice(), icon: hIcon }));
       newGroups.push({ name: hgn, type: "select", proxies: [hsn].concat(homeRegionProxies[hr].slice()), "empty-fallback": "REJECT", icon: hIcon });
@@ -334,6 +336,14 @@ var SUF = ENTRIES.map(function(e){ return " - " + e.label; }).sort(function(a,b)
     newGroups.push(Object.assign(anchor(true), { name: csn, proxies: carrierProxies[cl].slice(), icon: cIcon }));
     newGroups.push({ name: cgn, type: "select", proxies: [csn].concat(carrierProxies[cl].slice()), "empty-fallback": "REJECT", icon: cIcon });
     visible.push(cgn);
+  }
+  // 三网优化组：命名含“三网”的线路独立成组（同时服务移动·联通·电信）
+  if (tripleNetProxies.length) {
+    var tgn = "💠三网优化", tsn = "💠三网优化智能";
+    var tIcon = "https://api.iconify.design/tabler:world.svg?color=%230EA5E9";
+    newGroups.push(Object.assign(anchor(true), { name: tsn, proxies: tripleNetProxies.slice(), icon: tIcon }));
+    newGroups.push({ name: tgn, type: "select", proxies: [tsn].concat(tripleNetProxies.slice()), "empty-fallback": "REJECT", icon: tIcon });
+    visible.push(tgn);
   }
 
   // ── 7I 下载专用组：负载均衡 / 下载散列组 / 下载轮询组（抄 Clash.mini.smart.js）──
@@ -591,7 +601,7 @@ function originalMain(config) {
       "force-dns-mapping": true,
       "parse-pure-ip": true,
       "override-destination": false,
-      "sniff": { "HTTP": { "ports": [80, "8080-8880"], "override-destination": true }, "TLS": { "ports": [443, 8443], "override-destination": true }, "QUIC": { "ports": [443, 8443], "override-destination": true } },
+      "sniff": { "HTTP": { "ports": [80, "8080-8880"], "override-destination": true }, "TLS": { "ports": [443, 8443], "override-destination": true }, "QUIC": { "ports": [443, 8443], "override-destination": false } },
       "skip-domain": ["rule-set:ads,proxy@direct,ai,download,safe,youtube,tiktok,google,media,proxy-lite,direct-lite,dnsmasq-china-lite,cn_domain,private_domain"],
       "skip-src-address": ["rule-set:telegram_ip,safe_ip,google_ip,media_ip,direct_ip,lan_ip,cn_ip"]
     },
