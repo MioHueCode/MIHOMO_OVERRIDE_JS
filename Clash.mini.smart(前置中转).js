@@ -36,7 +36,8 @@
       adRules:        'https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt',
       safeMrs:        'https://raw.githubusercontent.com/echs-top/proxy/main/mrs/domain/safe.mrs',
       cnGeositeMrs:   'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/cn.mrs',
-      cnGeoipMrs:     'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cn.mrs'
+      cnGeoipMrs:     'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geoip/cn.mrs',
+      gfwMrs:         'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/geosite/gfw.mrs'
     }
   };
   var qIcon = name => EXTERNAL_URLS.icons.qureBase + name + '.png';
@@ -301,6 +302,14 @@ function buildConfig(config) {
           proxy: proxyName,
           url: EXTERNAL_URLS.rules.safeMrs,
           path: './rules/echs_safe.mrs'
+        },
+        'gfw': {
+          type: 'http',
+          interval: _nextRpInterval(),
+          behavior: 'domain',
+          format: 'mrs',
+          proxy: proxyName,
+          url: EXTERNAL_URLS.rules.gfwMrs
         }
       };
     }
@@ -308,9 +317,11 @@ function buildConfig(config) {
 
   // ════════════════════════════════════════════════════════════════
   // 【国内服务模块】统一管理所有国内域名集
-  //   MAIN → 主站/API/互动 → 🇨🇳国内服务组（决定 IP 属地）
-  //   CDN  → 静态资源/流媒体 → DIRECT（省流量保速度）
-  //   AI   → 国内AI平台 → 直连（境内服务，无需代理）
+  //   MAIN → 手写互动API（决定IP属地/发帖·评论·接口）→ 🇨🇳国内改ip用组
+  //   CDN  → 已清空，由外部 cn-direct(geosite cn) 全量覆盖 → 国内媒体主站
+  //   AI   → 已清空，由外部 cn-direct(geosite cn) 全量覆盖 → 国内媒体主站
+  //   外部 cn-direct / cn-cidr（geosite cn + geoip cn）→ 🇨🇳国内媒体主站
+  //   内置 GEOSITE,CN / GEOIP,CN（mihomo 自带）→ DIRECT（mrs 降级兜底）
   // ════════════════════════════════════════════════════════════════
   // ════════════════════════════════════════════════════════════════
   // 【国内服务模块】完全工程化：域名集 + DNS策略 + DNS绑定 + 规则 + Provider + 分组
@@ -319,105 +330,41 @@ function buildConfig(config) {
   const DOMESTIC_SERVICE_MODULE = {
     domains: {
       MAIN: () => d(
-  // ── 腾讯系 ──
-    'wechat.com', 'weixin.qq.com', 'qq.com', 'tenpay.com', 'v.qq.com',
-    'hunyuan.tencent.com', 'yuanbao.tencent.com',
-  // ── 阿里系 ──
-    'taobao.com', 'tmall.com', 'alipay.com', 'tongyi.com', 'tongyi.aliyun.com',
-  // ── 电商 / 生活 ──
-    'jd.com', 'pinduoduo.com', 'smzdm.com', 'meituan.com', 'dianping.com', 'ctrip.com', '12306.cn',
-  // ── 抖音 / 字节系 ──
-    'douyin.com', 'iesdouyin.com', 'iesdouyin.net', 'amemv.com', 'amemv.cn', 'amemv.net', 'snssdk.com',
-    'bytedance.com', 'byted.org', 'toutiao.com', 'toutiao.cn', 'toutiao.io', 'feiliao.com',
-    'douyinpay.com', 'douyinfe.com', 'douyinec.com', 'ieshuodong.cn', 'ieshuodong.net', 'open-douyin.com',
-    'huoshan.com', 'huoshangroup.com', 'woaihuoshan.com', 'duoshan.com',
-  // ── 快手系 ──
-    'kuaishou.com', 'kuaishou.cn', 'e.kuaishou.cn', 'e.kuaishou.com',
-    'ksapisrv.com', 'kspkg.com', 'kuaishouapps.com', 'kuaishouzt.com', 'kuaishoupay.com',
-    'kwaishop.com', 'kwaixiaodian.com', 'kwaiying.com', 'kwaizt.com',
-    'wskwai.com', 'wsukwai.com', 'eckwai.com', 'ecukwai.com', 'inkwai.com', 'inkuai.com', 'kskwai.com',
-  // ── 小红书 ──
-    'xiaohongshu.com', 'rednote.com', 'xhslink.com', 'redelight.cn', 'redocn.com',
-  // ── B站 ──
-    'bilibili.com', 'bilibili.cn', 'b23.tv', 'im9.com', 'biliapi.com', 'biliapi.net',
-    'bilibili.cc', 'bilibili.net', 'bilibili.tv', 'bilibilipay.cn', 'bilibilipay.com',
-    'bilibiligame.cn', 'bilibiligame.net', 'biligame.com', 'biligo.com', 'biliintl.com', 'bilicomic.com',
-    'bili22.cn', 'bili2233.cn', 'bili23.cn', 'bili33.cn', 'bili888.com', 'bili999.com',
-  // ── 微博 ──
-    'weibo.com', 'weibo.cn', 'weibo.com.cn', 'api.weibo.cn', 'sina.com.cn',
-  // ── 知乎 ──
+  // ── 互动API（决定IP属地/发帖·评论·接口）→ 国内改ip用组 ──
+  //   抖音 / 字节 互动API
+    'douyin.com', 'iesdouyin.com', 'iesdouyin.net', 'snssdk.com', 'amemv.com', 'amemv.cn', 'amemv.net', 'open-douyin.com',
+  //   快手 互动API
+    'kuaishou.com', 'gifshow.com', 'kwaipro.com',
+  //   小红书 互动API
+    'xiaohongshu.com', 'rednote.com', 'xhslink.com',
+  //   微博 互动API
+    'weibo.com', 'weibo.cn', 'weibo.com.cn', 'api.weibo.cn',
+  //   B站 互动API
+    'bilibili.com', 'bilibili.cn', 'biliapi.com', 'biliapi.net', 'b23.tv',
+  //   知乎 互动API
     'zhihu.com', 'zhihu.org',
-  // ── 长视频平台 ──
-    'iqiyi.com', 'qiyi.com', 'pps.tv', 'ppstream.com',
-    'mgtv.com', 'hunantv.com', 'sohu.com', 'tv.sohu.com',
-    'youku.com', 'youku.cn', 'tudou.com', 'soku.com', 'Nebula.app',
-  // ── 其他平台 ──
-    'baidu.com', 'baidu.cn', '163.com', '126.com', '126.net', 'yeah.net',
-    'people.com.cn', 'yy.com',
-  // ── 运营商 / 银行 / 政务 / 教育 ──
-    '10086.cn', '189.cn', '10010.com',
-    'icbc.com.cn', 'ccb.com', 'boc.cn', 'abchina.com', 'cmbchina.com', 'psbc.com', 'unionpay.com',
-    '95598.cn', 'chsi.com.cn', 'xuexi.cn', 'chaoxing.com',
-  // ── 出行 / 办公 / 网盘 / 浏览器 / 音乐 ──
-    'didi.cn', 'feishu.cn', 'quark.cn', 'uc.cn', 'migu.cn',
-  // ── 财经 / 新闻 ──
-    '10jqka.com.cn', 'chinanews.com.cn', 'gmw.cn', 'thepaper.cn', 'xinhuanet.com'
+  //   音乐 互动API
+    'music.163.com', 'music.126.net', 'y.qq.com', 'music.qq.com', 'kugou.com', 'kuwo.cn',
+  //   社区 / 论坛 互动API（发帖·评论·回帖）
+    'hupu.com', 'hupu.hk', 'douban.com', 'doubanio.com', 'nga.cn', 'ngabbs.com', 'nga.178.com', 'tianya.cn', 'tianya.com',
+  //   贴吧 / 搜索互动
+    'tieba.baidu.com', 'jump.bdimg.com',
+  //   电商 / 导购 互动API（评论·晒单·种草）
+    'pinduoduo.com', 'yangkeduo.com', 'dewu.com', 'smzdm.com', 'autohome.com.cn', 'dongchedi.com', 'dongchedi.com.cn',
+  //   社交 / 职场 互动API
+    'maimai.cn', 'immomo.com', 'tantanapp.com',
+  //   小说 / 创作平台 评论互动
+    'jjwxc.net', 'qidian.com', 'yuewen.com', 'hongxiu.com', 'fanqienovel.com',
+  //   门户 / 资讯 评论互动
+    '163.com', 'news.163.com', 'netease.com', 'qq.com', 'sina.com.cn',
+  //   其他互动 / 直播
+    'yy.com'
   ),
       CDN: () => d(
-  // ── 腾讯系 CDN ──
-    'gtimg.com', 'gtimg.cn', 'qpic.cn', 'qqvideo.tc.qq.com', 'qlogo.cn', 'idqqimg.com', 'myqcloud.com',
-    'weiyun.com', 'cdn-go.cn', 'wetranstv.com',
-  // ── 阿里系 CDN ──
-    'alicdn.com', 'aliyuncs.com', 'alipayobjects.com', 'aliimg.com', 'alikunlun.com', 'alikunlun.net',
-    'cdngslb.com', 'alibabausercontent.com', 'aliyundrive.com',
-  // ── 优酷 / 京东 / 淘宝 CDN ──
-    'youkuimg.com', 'jdstatic.com', '360buyimg.com', 'taobaocdn.com',
-  // ── 抖音 / 字节 CDN ──
-    'douyincdn.com', 'douyinpic.com', 'douyinstatic.com', 'douyinvod.com',
-    'idouyinvod.com', 'idouyinpic.com', 'idouyinstatic.com', 'douyinliving.com', 'idouyinliving.com',
-    'bytecdn.cn', 'byteimg.com', 'zjcdn.com', 'bytegoofy.com', 'bytednsdoc.com',
-    'pstatp.com', 'ixiguavideo.com', 'ixiguaav.com', 'bytetos.com', 'volccdn.com', 'jinritemai.com',
-  // ── 快手 CDN ──
-    'yximgs.com', 'kwimgs.com', 'kwaicdn.com', 'kastatic.com',
-    'ks-cdn.com', 'ksyuncdn.com', 'kwai-video.com', 'kwai-live.com', 'kwai-player.com',
-  // ── B站 CDN ──
-    'biliimg.com', 'bilibili.co', 'bilivideo.com', 'bilivideo.cn', 'bilivideo.net',
-    'bilicdn1.com', 'bilicdn2.com', 'bilicdn3.com', 'bilicdn4.com', 'bilicdn5.com',
-    'hdslb.com', 'maoercdn.com', 'mincdn.com', 'acgvideo.com',
-  // ── 小红书 CDN ──
-    'xhscdn.com', 'xhscdn.net', 'xhsglobal.com', 'xhsrcdn.com', 'rednotecdn.com',
-  // ── 微博 CDN ──
-    'weibocdn.com', 'sinaimg.cn', 'sinajs.cn', 'sinacdn.com', 'sinaedge.com',
-  // ── 知乎 CDN ──
-    'zhimg.com',
-  // ── 火山 CDN ──
-    'huoshancdn.com', 'huoshanimg.com', 'huoshanlive.com', 'huoshanstatic.com',
-    'huoshanvideo.cn', 'huoshanvideo.net', 'huoshanvod.com',
-    'huoshanzhibo.cn', 'huoshanzhibo.com', 'ihuoshanimg.com', 'ihuoshanlive.com',
-    'ihuoshanstatic.com', 'ihuoshanvod.com',
-  // ── 爱奇艺 / 芒果 CDN ──
-    'iqiyipic.com', 'ppsvod.com', 'cmvideo.cn',
-  // ── 百度 CDN ──
-    'bdimg.com', 'bdstatic.com', 'bcebos.com', 'baidubce.com', 'bdydstatic.com', 'baidutv.com',
-  // ── 网易 CDN ──
-    'nos.netease.com', 'ydstatic.com',
-  // ── 360 / 小米 / 美团 / 搜狐 CDN ──
-    'qhimg.com', 'qhres.com', 'qhres2.com', 'qhmsg.com', '360.cn', '360safe.com',
-    'mi-img.com', 'mifile.cn', 'xiaomicdn.com',
-    'meituan.net', 'dpfile.com',
-    'sohucs.com', 'itc.cn', 'ctcdn.cn', 'v-56.com',
-  // ── 通用 CDN 运营商 ──
-    'wangsu.com', 'chinanetcenter.com', 'qiniu.com', 'qiniucdn.com',
-    'upaiyun.com', 'upyun.com', 'bsclink.cn',
-    'bootcdn.cn', 'bootcdn.net', 'bootcss.com'
+  //   国内 CDN / 静态资源已由外部 cn-direct(geosite cn) 全量覆盖，此处不再手写维护
   ),
       AI: () => d(
-    'doubao.com', 'volces.com', 'qianfan.baidu.com', 'erniebot.com', 'yiyan.baidu.com',
-    'deepseek.com', 'deepseek.cn', 'moonshot.cn', 'kimi.com', 'minimaxi.com',
-    'xinghuo.xfyun.cn', 'sensenova.cn', 'chatglm.cn', 'chatglm.ai', 'bigmodel.cn',
-    'yiyan.baidu.com', 'spark.cli.cn', 'tongyi.aliyun.com', 'hunyuan.tencent.com',
-    'yuanbao.tencent.com', 'baichuan-ai.com', 'stepfun.com', 'stepship.cn',
-    'zhipuai.cn', 'zhipu.ai', 'moonshot.cn', 'api.moonshot.cn'
+  //   国内 AI 平台已由外部 cn-direct(geosite cn) 全量覆盖，此处不再手写维护
   )
     },
     all() {
@@ -436,23 +383,20 @@ function buildConfig(config) {
       };
     },
 
-    // ── DNS 绑定条目（替代原 DNS_SERVICE_BINDINGS 中国内服务项）──
+    // ── DNS 绑定条目（互动API走国内快速DNS解析，保持连接稳定）──
     dnsBindingEntry(safeFastDomesticDns) {
       return {
-        key: '国内服务',
-        policyDomains: this.domains.MAIN().concat(this.domains.AI()),
+        key: '国内改ip用',
+        policyDomains: this.domains.MAIN(),
         fallbackDomains: this.domains.MAIN(),
         dns: safeFastDomesticDns
       };
     },
 
-    // ── 规则装配（替代原 RULES_DOMESTIC）──
+    // ── 规则装配（互动API → 国内改ip用组，决定评论/发帖IP属地）──
     buildRules(ruleSuffix) {
-      const aiSet = new Set(this.domains.AI());
       return [
-         ...ruleSuffix(this.domains.CDN(), 'DIRECT'),
-         ...ruleSuffix(this.domains.AI(), 'DIRECT'),
-         ...ruleSuffix(this.domains.MAIN().filter(x => !aiSet.has(x)), '国内服务')
+         ...ruleSuffix(this.domains.MAIN(), '国内改ip用')
        ];
     },
 
@@ -2840,12 +2784,21 @@ usableChoiceDef('riskControl', [
     []
   );
   const domesticServiceDisplayChoices = buildChoiceList(['DIRECT'], domesticServiceChoices, regionManualNames);
+  // 国内媒体主站：收外部 cn-direct / cn-cidr（geosite cn + geoip cn），直连优先（沿用原国内服务组出口）
   const DOMESTIC_SERVICE_GROUP = makeSelectGroupDef(
-    '国内服务',
+    '国内媒体主站',
     iconMap.china,
     domesticServiceDisplayChoices,
     [],
     domesticServiceDisplayChoices
+  );
+  // 国内改ip用：收手写互动API，DIRECT→全球手动→各地区节点，海外优先改IP属地
+  const cnIpOverrideChoices = buildChoiceList(['DIRECT', '全球手动'], fusionVisibleRegions);
+  const CN_IP_OVERRIDE_GROUP = makeSelectGroupDef(
+    '国内改ip用',
+    'https://api.iconify.design/tabler:location-filled.svg?color=%233b82f6',
+    cnIpOverrideChoices,
+    []
   );
   const SERVICE_GROUP_BASE_DEFS = makeSelectGroupDefList([
     RISK_CONTROL_SERVICE_GROUP,
@@ -2882,6 +2835,7 @@ usableChoiceDef('riskControl', [
     ...businessServiceGroupDefs.slice(0, BUSINESS_SERVICE_HEAD.length),
   // 工具组
     DOMESTIC_SERVICE_GROUP,
+    CN_IP_OVERRIDE_GROUP,
     ...businessServiceGroupDefs.slice(BUSINESS_SERVICE_HEAD.length),
     ...SERVICE_GROUP_BASE_DEFS.slice(2)
   ]);
@@ -2903,6 +2857,11 @@ usableChoiceDef('riskControl', [
       icon: iconMap.privacy,
       choices: ['REJECT', '智能选择'],
       extraDefaults: ['REJECT']
+    },
+    {
+      name: '受限网站',
+      icon: 'https://api.iconify.design/mdi:shield-lock-outline.svg?color=%23e67e22',
+      choices: MAIN_CHOICE_POOLS.finalFallback
     },
     {
       name: '漏网之鱼',
@@ -3080,6 +3039,7 @@ const CORE_ENTRY_GROUPS = [
     if (groupName === '广告拦截') return ['REJECT-DROP', 'REJECT', 'PASS'];
   // 只要候选中还存在一个真实节点，就说明这个组不需要走语义兜底。
     if (groupName === '跟踪分析') return ['REJECT', 'DIRECT'];
+    if (groupName === '受限网站') return ['智能选择', '全球手动', 'DIRECT'];
     if (groupName === '漏网之鱼') return ['智能选择', '全球手动', 'DIRECT'];
     return [];
   // candidates 是已经过基础过滤后的候选列表；这里再按组类型决定最终落盘形式。
@@ -3356,7 +3316,8 @@ for (let i = 0; i < config.proxies.length; i++) {
     '欧美智能选择': '✨欧美智能选择',
     'YouTube无广节点优先组': '🎯YouTube无广节点优先组',
     '风控安全': '🔐风控安全',
-    '国内服务': '🇨🇳国内服务',
+    '国内媒体主站': '🇨🇳国内媒体',
+    '国内改ip用': '📍改IP属地',
     '流媒体': '🎬流媒体',
     '台湾媒体': '🛰台湾媒体',
     'FCM': '📨FCM',
@@ -3366,6 +3327,7 @@ for (let i = 0; i < config.proxies.length; i++) {
     '广告拦截': '🚫广告拦截',
     '跟踪分析': '🕵️跟踪分析',
     '隐私保护': '🔒隐私保护',
+    '受限网站': '🚧受限网站',
     '漏网之鱼': '🐟漏网之鱼',
     '🏡全球家宽': '🏡全球家宽',
     '全球专线': '🚄全球专线',
@@ -3664,10 +3626,14 @@ for (let i = 0; i < config.proxies.length; i++) {
     ], 'TikTok'),
     ...ruleProcess([
       'org.telegram.messenger', 'org.telegram.messenger.web', 'org.telegram.plus',
-      'com.exteragram.messenger', 'nekox.messenger', 'tw.nekomimi.nekogram',
+      'com.exteragram.messenger', 'nekox.messenger', 'tw.nekomimi.nekogram', 'me.nekogram.app',
   // 协作 / 云办公：暂挂 GitHub 组（开发与生产力同池，避免再拆一组）
       'xyz.nextalone.nagram', 'ellipi.messenger', 'org.thunderdog.challegram',
-      'org.aka.messenger', 'org.telegram.BifToGram'
+      'org.aka.messenger', 'org.telegram.BifToGram',
+      // 第三方补充：AyuGram / Turrit / SoundGram / Graph / Catogram / MDGram / OctoGram / Lapogram
+      'com.radolyn.ayugram', 'com.turrit.tg', 'org.soundgram.messenger', 'org.telegram.group',
+      'com.creativetrends.apps.tg', 'com.catogram.android', 'com.mdgram.android',
+      'org.octogram.android', 'me.lapogram.app'
     ], 'Telegram'),
     ...ruleProcess(['org.thoughtcrime.securesms', 'org.thoughtcrime.securesms.donations'], '隐私保护'),
     ...ruleProcess([
@@ -3930,9 +3896,14 @@ const RULES_GITHUB = [
   ];
   const RULES_TELEGRAM = [
     ...ruleProcess([
+      // 官方 + 主流第三方
       'org.telegram.messenger', 'org.telegram.messenger.web', 'com.exteragram.messenger',
-      'nekox.messenger', 'tw.nekomimi.nekogram', 'xyz.nextalone.nagram', 'org.telegram.plus',
-      'ellipi.messenger', 'org.thunderdog.challegram'
+      'nekox.messenger', 'tw.nekomimi.nekogram', 'me.nekogram.app', 'xyz.nextalone.nagram',
+      'org.telegram.plus', 'ellipi.messenger', 'org.thunderdog.challegram',
+      // 补充：AyuGram / Turrit / SoundGram / Graph / Catogram / MDGram / OctoGram / Lapogram
+      'com.radolyn.ayugram', 'com.turrit.tg', 'org.soundgram.messenger', 'org.telegram.group',
+      'com.creativetrends.apps.tg', 'com.catogram.android', 'com.mdgram.android',
+      'org.octogram.android', 'me.lapogram.app'
     ], 'Telegram'),
     ...ruleKeyword(['telegram'], 'Telegram'),
     ...ruleSuffix([
@@ -4040,7 +4011,7 @@ const RULES_GITHUB = [
   // 国内域名的 QUIC 必须先于 geolocation-!cn 判定。
   // geolocation-!cn 的语义是“不在 cn 分类里的全部域名”，含 geosite 未收录的未知域名，
   // 抖音 CDN（douyinvod/zjcdn/pstatp 等）一旦落入其中就会被截去代理，导致卡顿。
-    'AND,((NETWORK,UDP),(DST-PORT,443),(GEOSITE,cn)),国内服务',
+    'AND,((NETWORK,UDP),(DST-PORT,443),(GEOSITE,cn)),国内媒体主站',
     'AND,((NETWORK,UDP),(DST-PORT,443),(GEOSITE,geolocation-!cn)),QUIC控制'
   ];
   const RULES_LAN_PRIVATE = [
@@ -4092,13 +4063,14 @@ const RULES_GITHUB = [
   // 规则内容与装配顺序分离
     ], '支付服务')
   ];
-  // 兜底规则：非中国域名走节点选择 → 海外IP兜底 → 最终兜底
-  // 注意：国内IP已由 RULES_DOMESTIC 中的 GEOIP,CN,国内服务 兜底，此处不再重复
+  // 兜底规则：外部国内域名/IP走国内媒体主站（可选手动改IP）→ 内置CN走DIRECT → 境外域名走节点选择 → 未知境外IP兜底
+  // 注意：手写互动API已由 RULES_DOMESTIC 中的 '国内改ip用' 承载，此处由外部 cn-direct/cn-cidr 兜底
   const RULES_DIRECT_AND_FALLBACK = [
-    'RULE-SET,cn-direct,国内服务',          // 外部国内域名兜底（~11万域名，补内置名单遗漏）
-    'RULE-SET,cn-cidr,DIRECT,no-resolve',    // 外部国内IP段兜底,
-     'GEOSITE,CN,国内服务',          // 内置兜底（mrs下载失败时降级）
+    'RULE-SET,cn-direct,国内媒体主站',          // 外部国内域名兜底（geosite cn，~11万域名）
+    'RULE-SET,cn-cidr,国内媒体主站,no-resolve',    // 外部国内IP段兜底（geoip cn）
+     'GEOSITE,CN,DIRECT',          // 内置兜底（mrs下载失败时降级）
      'GEOIP,CN,DIRECT,no-resolve',             // 内置兜底
+     'RULE-SET,gfw,受限网站',                        // 被GFW封锁域名优先走受限网站组(须在 geolocation-!cn 之前,否则被它吞)
      'GEOSITE,geolocation-!cn,节点选择,no-resolve', // 非中国域名走节点选择
     'GEOIP,!CN,漏网之鱼,no-resolve',                // 非中国IP走漏网之鱼
     'MATCH,漏网之鱼'                                // 最终兜底
