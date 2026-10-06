@@ -75,7 +75,6 @@ function buildConfig(config) {
   const RULE_DIAGNOSTICS_ENABLED = false;
   const perfMarks = Object.create(null);
   const perfNow = () => Date.now();
-  const DEBUG_LOG_ENABLED = false;
   function debugLog(){/*no-op*/}
   function isHostname(value) {
     const s = String(value || '').trim().toLowerCase();
@@ -311,9 +310,9 @@ function buildConfig(config) {
           format: 'mrs',
           proxy: proxyName,
           url: EXTERNAL_URLS.rules.gfwMrs
-        },
-        };
-    }
+        }
+    };
+  }
   };
 
   // ════════════════════════════════════════════════════════════════
@@ -335,7 +334,7 @@ function buildConfig(config) {
     },
     _cache: null,
 
-    // ── DNS 策略域名集（国内域名统一走国内快速DNS）──
+    // ── DNS 策略域名集（替代原 DNS_POLICY_DOMAIN_SETS 中 domestic* 四项）──
     dnsPolicySets() {
       return {
         domestic: d()
@@ -1138,7 +1137,8 @@ function buildConfig(config) {
     if (_dedicatedNameCombined.test(text)) return true;
     return _dedicatedContextCombined.test(text);
   }
-  if (PERF_ENABLED) perfStart('proxy_classify');
+
+  perfStart('proxy_classify');
   const cleanProxies = [];
   const allProxyNames = [];
   const residentialProxyNames = [];
@@ -1147,13 +1147,26 @@ function buildConfig(config) {
   const streamingProxyNames = [];
   const proxyHostnames = new Set();
   const seenProxyNames = new Set();
+
+  // 收集机场原生的前置中转节点名（前置中转 和 跳板线路 组里的 type:http 节点）。
+  // 这些是机场专用的前置跳板节点（如 🇨🇳 南京移动），不应进入普通节点组，
+  // 只应存在于注入的机场组（前置中转 / 跳板线路）中。
+  const airportTransitNodeNames = new Set();
+  for (const groupName of ['前置中转', '跳板线路']) {
+    const grp = existingGroupMap[groupName];
+    if (grp && Array.isArray(grp.proxies)) {
+      for (const memberName of grp.proxies) {
+        airportTransitNodeNames.add(memberName);
+      }
+    }
+  }
   // 剔除 server/sni/servername 带非法字符（如订阅源脏数据中出现的 "+"）的节点，
   // 避免这类字段被内核校验拒绝导致整份配置导入失败。
   for (let i = 0; i < config.proxies.length; i++) {
     const proxy = config.proxies[i];
     const proxyName = proxy && proxy.name;
-    if (!proxyName || !isRealProxyName(proxyName) || seenProxyNames.has(proxyName)) continue;
-    if (!isValidProxyServerField(proxy && proxy.server)) continue;
+if (!proxyName || !isRealProxyName(proxyName) || seenProxyNames.has(proxyName)) continue;
+      if (!isValidProxyServerField(proxy && proxy.server)) continue;
   // CF/Anycast 节点：走 IPv4 边缘并关闭 TFO（CF 的 v6 边缘常绕路限速、TFO 支持不稳）。
     if (!isValidOptionalProxyDomainField(proxy && proxy.sni)) continue;
     if (!isValidOptionalProxyDomainField(proxy && proxy.servername)) continue;
@@ -1193,8 +1206,13 @@ function buildConfig(config) {
         proxy.tls['tls13-ciphers'] = 'TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256';
       }
     }
-    cleanProxies.push(proxy);
-    allProxyNames.push(proxyName);
+cleanProxies.push(proxy);
+      // 机场专用前置中转节点（如 🇨🇳 南京移动）：
+      // 保留在 proxies 列表（内核需要识别），但不加入 allProxyNames（不进普通节点组）。
+      // 它们只应存在于注入的机场组（前置中转 / 跳板线路）中。
+      if (!(airportTransitNodeNames.has(proxyName) && proxy.type === 'http')) {
+        allProxyNames.push(proxyName);
+      }
     if (isHostname(proxy.server)) proxyHostnames.add(String(proxy.server).trim().toLowerCase());
     if (isHostname(proxy.servername)) proxyHostnames.add(String(proxy.servername).trim().toLowerCase());
     if (isResidentialProxyName(proxyName)) residentialProxyNames.push(proxyName);
@@ -2797,23 +2815,22 @@ function buildConfig(config) {
     regionAutoNames,
     regionManualNames.filter(name => !String(name).includes('家宽'))
   );
-  const chainExitChoices = sanitizeUiChoiceList(
-    [
-      '家宽故障转移',
-      globalHomeGroup ? '🏡全球家宽' : null,
-      globalHomeAuto ? '🏡全球家宽自动' : null
-    ].filter(Boolean),
-    regionHomeManualNames,
-    ['家宽故障转移', '自动兜底'],
-    regionManualNames.filter(name => !regionHomeManualNames.includes(name)),
-    [
-      globalStreamingGroup ? '全球流媒体' : null,
-      globalDedicatedGroup ? '全球专线' : null,
-      highMultiplierGroup ? '高倍率节点' : null,
-      lowMultiplierGroup ? '低倍率节点' : null
-    ].filter(Boolean),
-    allProxyNames
-  );
+const chainExitChoices = sanitizeUiChoiceList(
+      [
+        '家宽故障转移',
+        globalHomeGroup ? '🏡全球家宽' : null,
+        globalHomeAuto ? '🏡全球家宽自动' : null
+      ].filter(Boolean),
+      regionHomeManualNames,
+      ['家宽故障转移', '自动兜底'],
+      regionManualNames.filter(name => !regionHomeManualNames.includes(name)),
+      [
+        globalStreamingGroup ? '全球流媒体' : null,
+        highMultiplierGroup ? '高倍率节点' : null,
+        lowMultiplierGroup ? '低倍率节点' : null
+      ].filter(Boolean),
+      allProxyNames
+    );
   const chainTransitGroup = chainTransitChoices.length
 ? {
         name: '🪜链式中转',
@@ -2828,16 +2845,17 @@ function buildConfig(config) {
       }
     : null;
   const chainExitGroup = chainExitChoices.length
-? {
-        name: '🔗链式出口',
-        type: 'select',
-        icon: 'https://api.iconify.design/tabler:logout-2.svg?color=%230ea5e9',
-        override: { 'dialer-proxy': '🪜链式中转' },
-        proxies: chainExitChoices
-      }
-    : null;
+ ? {
+     name: '🔗链式出口',
+     type: 'select',
+     icon: 'https://api.iconify.design/tabler:logout-2.svg?color=%230ea5e9',
+     override: { 'dialer-proxy': '⚙️ 前置中转' },
+     proxies: chainExitChoices
+   }
+ : null;
   const chainGroups = [chainTransitGroup, chainExitGroup].filter(Boolean);
-  const CORE_ENTRY_GROUPS = [
+
+const CORE_ENTRY_GROUPS = [
     makeSelectGroup('节点选择', iconMap.rocket, MAIN_CHOICE_POOLS.nodeSelection)
   ];
   const CORE_AUTO_GROUPS = [];
@@ -2928,7 +2946,75 @@ function buildConfig(config) {
     return [];
   // candidates 是已经过基础过滤后的候选列表；这里再按组类型决定最终落盘形式。
   }
-  const finalizedProxyGroups = finalizeGroupList(proxyGroups);
+   // 注入机场原生的链式中转组（前置中转、跳板线路）到最终 proxy-groups。
+// 机场的 vless 节点自带 dialer-proxy: '前置中转'，而 🔗链式出口 组也通过 dialer-proxy 链到 前置中转。
+// 如果不保留这两个组，所有 dialer-proxy 引用都会失效（报 'not found'）。
+// 注意：原样保留 proxies 列表，不做 allProxyNames 过滤——
+// 因为这些组里的成员（如 🇨🇳 南京移动）是机场专用中转节点，已被排除出 allProxyNames，
+// 如果过滤会导致它们从注入组消失。
+// 注入时加 emoji 前缀和图标，让机场组在 UI 中更醒目。
+// 同时更新组内 proxies 引用的组名（机场原始名称 → 新 emoji 名称），避免内核报 not found。
+const airportGroupEmojis = {
+  '前置中转': '⚙️',
+  '跳板线路': '🌍'
+};
+const airportGroupIcons = {
+  '前置中转': 'https://api.iconify.design/tabler:settings.svg?color=%230ea5e9',
+  '跳板线路': 'https://api.iconify.design/tabler:world.svg?color=%2310b981'
+};
+for (const preservedName of ['前置中转', '跳板线路']) {
+  const preservedGroup = existingGroupMap[preservedName];
+  if (preservedGroup) {
+    const renamedGroup = Object.assign({}, preservedGroup);
+    // 加 emoji 前缀到组名
+    if (airportGroupEmojis[preservedName]) {
+      renamedGroup.name = airportGroupEmojis[preservedName] + ' ' + preservedName;
+    }
+    // 加图标
+    if (airportGroupIcons[preservedName]) {
+      renamedGroup.icon = airportGroupIcons[preservedName];
+    }
+    // 更新组内 proxies 引用的组名：机场原始名称 → 新 emoji 名称
+    if (Array.isArray(renamedGroup.proxies)) {
+      renamedGroup.proxies = renamedGroup.proxies.map(name => {
+        for (const [origName, emoji] of Object.entries(airportGroupEmojis)) {
+          if (name === origName) return emoji + ' ' + origName;
+        }
+        return name;
+      });
+    }
+    proxyGroups.push(renamedGroup);
+  }
+}
+
+const finalizedProxyGroups = finalizeGroupList(proxyGroups);
+
+// 构建所有已知 proxy-group 名称集合（含机场原生组，如 前置中转、跳板线路）
+const proxyGroupNames = new Set(finalizedProxyGroups.map(group => group?.name || ''));
+
+// 清理无效的 dialer-proxy 引用：
+// 仅当 dialer-proxy 指向的组名既不在 proxy-groups 中、也不是合法内建动作时才删除。
+// 机场原生的链式中转组（如 前置中转、跳板线路）已注入 proxy-groups（带 emoji 前缀），
+// 因此机场原生的 dialer-proxy: '前置中转' 引用会被更新为新名称（带 emoji）后再校验。
+for (let i = 0; i < config.proxies.length; i++) {
+  const proxy = config.proxies[i];
+  if (proxy && proxy['dialer-proxy']) {
+    const dialerProxy = proxy['dialer-proxy'];
+    // 机场原生 dialer-proxy 引用原始名称，更新为带 emoji 的新名称
+    if (dialerProxy === '前置中转') {
+      proxy['dialer-proxy'] = '⚙️ 前置中转';
+      continue;
+    }
+    if (dialerProxy === '跳板线路') {
+      proxy['dialer-proxy'] = '🌍 跳板线路';
+      continue;
+    }
+    const validBuiltins = ['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', '链式中转'];
+    if (!proxyGroupNames.has(dialerProxy) && !validBuiltins.includes(dialerProxy)) {
+      delete proxy['dialer-proxy'];
+    }
+  }
+}
   const availableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(finalizedProxyGroups);
   // Direct组固定只保留 DIRECT，避免被旧配置或别处逻辑污染。
   const realChoiceCandidateSet = buildRealChoiceCandidateSet();
@@ -3067,9 +3153,6 @@ function buildConfig(config) {
       .filter(group => !shouldDropEmptyGroup(group));
   }
   function getProxyGroupSignature(groups) {
-  // 稳定化清洗：反复执行"删失效引用 -> 切环 -> 删空自动组"，直到分组关系不再变化。
-  // 这样即使存在 A 引用 B、B 删除后又影响 C 的级联场景，也不会残留 not found。
-  // 优化：用轻量字符串拼接替代 JSON.stringify，避免大量临时对象创建与序列化开销
     const list = asArray(groups);
     let sig = '';
     for (let i = 0; i < list.length; i++) {
@@ -3086,11 +3169,10 @@ function buildConfig(config) {
   let previousSignature = '';
   let _cachedChoiceSet = null;
   for (let round = 0; round < 8; round++) {
-    // 优化：第 2 轮起复用上一轮的 choice set，避免重复构建
     const availableChoiceNameSet = _cachedChoiceSet || buildAvailableChoiceNameSetFromGroups(stabilizedProxyGroups);
-  // === 最终落盘与一致性校验 ===
+// === 最终落盘与一致性校验 ===
   // 组名 Emoji 前缀：在最终落盘前统一添加，避免散落在各处的字符串引用需要逐一修改。
-  // 同时把规则目标中的旧组名同步替换为带 emoji 的新组名。
+  // 同时把规则目标中的旧组名同步替换为新组名。
     stabilizedProxyGroups = runProxyGroupCleanupPass(stabilizedProxyGroups, availableChoiceNameSet);
     const nextAvailableChoiceNameSet = buildAvailableChoiceNameSetFromGroups(stabilizedProxyGroups);
     stabilizedProxyGroups = runProxyGroupCleanupPass(stabilizedProxyGroups, nextAvailableChoiceNameSet);
@@ -3570,6 +3652,18 @@ function buildConfig(config) {
     ...RULES_FINANCE_EXTRA,
     ...RULES_STREAMING_EXTRA,
   ];
+  // Apple 生态规则（DOMAIN-SUFFIX 已覆盖子域名）
+  // ════════════════════════════════════════════════════════════════════
+  // 国内分流（两大类，顺序即优先级：CDN 先于主站，父域最后）
+  //
+  //   类一【DIRECT】   CDN / 直播 / 媒体 → 直连   （省流量保速度，不改 IP 属地）
+  //   类一【DIRECT】   国内 AI 平台 → 直连（境内可达，代理反而变慢）
+  //   类二【国内服务】 主站 / API / 互动 → 国内服务（决定评论/发帖 IP 属地）
+  //   兜底             CN 域名 → 国内服务 · CN IP → 直连
+  //
+  // 依据：MediaCrawler 逆向显示评论与内容「同域名不同路径」，Clash 只能域名
+  //       粒度，故按「CDN 域 vs 主站/API 域」二分，两类域名互斥无重复。
+  // ════════════════════════════════════════════════════════════════════
   // 国内分流：cn-direct/cn-cidr/GEOSITE,CN/GEOIP,CN → DIRECT（B++）；互动API清单另走 IP属地组
   // Apple 服务域名（被误删后恢复）
   const RULES_APPLE_MEDIA = ruleSuffix(['tv.apple.com', 'video.apple.com'], '流媒体');
@@ -3962,10 +4056,10 @@ const RULES_GITHUB = [
     TRANSLATION: RULES_TRANSLATION,
     RISK_SECURITY: RULES_RISK_SECURITY,
     RISK_CONTROL: RULES_RISK_CONTROL,
- APP_PROCESS: RULES_APP_PROCESS,
+APP_PROCESS: RULES_APP_PROCESS,
     CDN_DIRECT: RULES_CDN_DIRECT,
     INTERACTIVE_API: RULES_INTERACTIVE_API,
-       ADBLOCK: RULES_ADBLOCK,
+      ADBLOCK: RULES_ADBLOCK,
     TRACKER: RULES_TRACKER,
     PRIVACY: RULES_PRIVACY,
     PAYMENT: RULES_PAYMENT,
