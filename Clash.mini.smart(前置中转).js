@@ -311,96 +311,42 @@ function buildConfig(config) {
           proxy: proxyName,
           url: EXTERNAL_URLS.rules.gfwMrs
         }
-      };
-    }
+    };
+  }
   };
 
   // ════════════════════════════════════════════════════════════════
-  // 【国内服务模块】统一管理所有国内域名集
-  //   MAIN → 手写互动API（决定IP属地/发帖·评论·接口）→ 🇨🇳国内改ip用组
-  //   CDN  → 已清空，由外部 cn-direct(geosite cn) 全量覆盖 → 国内媒体主站
-  //   AI   → 已清空，由外部 cn-direct(geosite cn) 全量覆盖 → 国内媒体主站
-  //   外部 cn-direct / cn-cidr（geosite cn + geoip cn）→ 🇨🇳国内媒体主站
-  //   内置 GEOSITE,CN / GEOIP,CN（mihomo 自带）→ DIRECT（mrs 降级兜底）
-  // ════════════════════════════════════════════════════════════════
-  // ════════════════════════════════════════════════════════════════
-  // 【国内服务模块】完全工程化：域名集 + DNS策略 + DNS绑定 + 规则 + Provider + 分组
-  //   修改国内服务相关内容只需改这一个对象，四版自动同步
+  // 【国内服务模块】极简版
+  //   国内域名/IP 全部由外部 cn-direct(geosite cn) + cn-cidr(geoip cn) 覆盖
+  //   不再手写 MAIN/CDN/AI 域名（geosite cn 已全量包含抖音/快手/B站/小红书等）
+  //   B++：互动API清单 → IP属地组（选节点仅改评论IP）；其余国内流量 cn-direct → 直连
+  //   内置 GEOSITE,CN / GEOIP,CN 作降级兜底
   // ════════════════════════════════════════════════════════════════
   const DOMESTIC_SERVICE_MODULE = {
     domains: {
-      MAIN: () => d(
-  // ── 互动API（决定IP属地/发帖·评论·接口）→ 国内改ip用组 ──
-  //   抖音 / 字节 互动API
-    'douyin.com', 'iesdouyin.com', 'iesdouyin.net', 'snssdk.com', 'amemv.com', 'amemv.cn', 'amemv.net', 'open-douyin.com',
-  //   快手 互动API
-    'kuaishou.com', 'gifshow.com', 'kwaipro.com',
-  //   小红书 互动API
-    'xiaohongshu.com', 'rednote.com', 'xhslink.com',
-  //   微博 互动API
-    'weibo.com', 'weibo.cn', 'weibo.com.cn', 'api.weibo.cn',
-  //   B站 互动API
-    'bilibili.com', 'bilibili.cn', 'biliapi.com', 'biliapi.net', 'b23.tv',
-  //   知乎 互动API
-    'zhihu.com', 'zhihu.org',
-  //   音乐 互动API
-    'music.163.com', 'music.126.net', 'y.qq.com', 'music.qq.com', 'kugou.com', 'kuwo.cn',
-  //   社区 / 论坛 互动API（发帖·评论·回帖）
-    'hupu.com', 'hupu.hk', 'douban.com', 'doubanio.com', 'nga.cn', 'ngabbs.com', 'nga.178.com', 'tianya.cn', 'tianya.com',
-  //   贴吧 / 搜索互动
-    'tieba.baidu.com', 'jump.bdimg.com',
-  //   电商 / 导购 互动API（评论·晒单·种草）
-    'pinduoduo.com', 'yangkeduo.com', 'dewu.com', 'smzdm.com', 'autohome.com.cn', 'dongchedi.com', 'dongchedi.com.cn',
-  //   社交 / 职场 互动API
-    'maimai.cn', 'immomo.com', 'tantanapp.com',
-  //   小说 / 创作平台 评论互动
-    'jjwxc.net', 'qidian.com', 'yuewen.com', 'hongxiu.com', 'fanqienovel.com',
-  //   门户 / 资讯 评论互动
-    '163.com', 'news.163.com', 'netease.com', 'qq.com', 'sina.com.cn',
-  //   其他互动 / 直播
-    'yy.com'
-  ),
-      CDN: () => d(
-  //   国内 CDN / 静态资源已由外部 cn-direct(geosite cn) 全量覆盖，此处不再手写维护
-  ),
-      AI: () => d(
-  //   国内 AI 平台已由外部 cn-direct(geosite cn) 全量覆盖，此处不再手写维护
-  )
+      // 手写域名已全部移除，由外部 cn-direct(geosite cn) 全量覆盖
+      MAIN: () => d(),
+      CDN: () => d(),
+      AI: () => d()
     },
     all() {
-      if (!this._cache) this._cache = uniqList([...this.domains.MAIN(), ...this.domains.CDN(), ...this.domains.AI()]);
-      return this._cache;
+      return d();
     },
     _cache: null,
 
     // ── DNS 策略域名集（替代原 DNS_POLICY_DOMAIN_SETS 中 domestic* 四项）──
     dnsPolicySets() {
       return {
-        domesticMain: this.domains.MAIN(),
-        domesticCdn: this.domains.CDN(),
-        domesticAi: this.domains.AI(),
-        domestic: this.all()
+        domestic: d()
       };
     },
 
-    // ── DNS 绑定条目（互动API走国内快速DNS解析，保持连接稳定）──
-    dnsBindingEntry(safeFastDomesticDns) {
-      return {
-        key: '国内改ip用',
-        policyDomains: this.domains.MAIN(),
-        fallbackDomains: this.domains.MAIN(),
-        dns: safeFastDomesticDns
-      };
+    // ── DNS 绑定（已由 direct-nameserver 统一提供国内DNS，不再单独绑定）──
+    dnsBindingEntry() {
+      return null;
     },
 
-    // ── 规则装配（互动API → 国内改ip用组，决定评论/发帖IP属地）──
-    buildRules(ruleSuffix) {
-      return [
-         ...ruleSuffix(this.domains.MAIN(), '国内改ip用')
-       ];
-    },
-
-    // ── 外部规则集 Provider（替代原 rule-providers cn-direct/cn-cidr）──
+    // ── 外部规则集 Provider ──
     providers(_nextRpInterval) {
       return {
         'cn-direct': {
@@ -561,10 +507,10 @@ function buildConfig(config) {
     '仅IPv4': 'ipv4',
     '仅IPv6': 'ipv6'
   };
-  const TEST_INTERVAL = 900, TEST_TOLERANCE = 150, TEST_TIMEOUT = 3000, TEST_MAX_FAILED_TIMES = 5;
-  const FALLBACK_INTERVAL = 600, FALLBACK_TOLERANCE = 150, FALLBACK_TIMEOUT = 3500, FALLBACK_MAX_FAILED_TIMES = 4;
-  const REGION_TEST_INTERVAL = 1200, REGION_TEST_TOLERANCE = 250, REGION_TEST_TIMEOUT = 4000, REGION_TEST_MAX_FAILED_TIMES = 6;
-  const HOME_TEST_INTERVAL = 1800, HOME_TEST_TOLERANCE = 800, HOME_TEST_TIMEOUT = 7000, HOME_TEST_MAX_FAILED_TIMES = 10;
+  const TEST_INTERVAL = 600, TEST_TOLERANCE = 150, TEST_TIMEOUT = 3500, TEST_MAX_FAILED_TIMES = 3;
+  const FALLBACK_INTERVAL = 300, FALLBACK_TOLERANCE = 150, FALLBACK_TIMEOUT = 3000, FALLBACK_MAX_FAILED_TIMES = 3;
+  const REGION_TEST_INTERVAL = 600, REGION_TEST_TOLERANCE = 200, REGION_TEST_TIMEOUT = 4000, REGION_TEST_MAX_FAILED_TIMES = 4;
+  const HOME_TEST_INTERVAL = 1200, HOME_TEST_TOLERANCE = 300, HOME_TEST_TIMEOUT = 5000, HOME_TEST_MAX_FAILED_TIMES = 5;
   const PLAY_STORE_TEST_URL = TEST_URL;
   const PLAY_STORE_SPECIAL_GROUP_NAMES = ['谷歌商店专用'];
   const HEALTH_CHECK_LAZY = true;
@@ -575,7 +521,7 @@ function buildConfig(config) {
   const SMART_COLLECT_DATA = true;
   const SMART_SAMPLE_RATE = '0.3';
   const SMART_PREFER_ASN = true;
-  const SMART_EXPECTED_RTT = 250;
+  const SMART_EXPECTED_RTT = 200;
   // Cloudflare / Anycast 类节点识别：这类节点走 CDN 边缘入口，
   // IPv6 边缘在移动网络下经常绕路或被限速，且 AAAA 探测失败会拖长首连时间。
   const CF_ANYCAST_NAME_RE = /cloudflare|anycast|(?:^|[^a-z])cf(?:[^a-z]|$)/i;
@@ -589,9 +535,6 @@ function buildConfig(config) {
   const domesticServiceChoices = ['IPv4优先', 'IPv6优先', '双栈', '仅IPv4', '仅IPv6', 'DIRECT'];
   const DNS_POLICY_DOMAIN_SETS = {
     adguard: adguardDomains(),
-    domesticMain: DOMESTIC_SERVICE_MODULE.dnsPolicySets().domesticMain,
-    domesticCdn: DOMESTIC_SERVICE_MODULE.dnsPolicySets().domesticCdn,
-    domesticAi: DOMESTIC_SERVICE_MODULE.dnsPolicySets().domesticAi,
     domestic: DOMESTIC_SERVICE_MODULE.dnsPolicySets().domestic,
     tiktok: tiktokDomains(),
     adguardService: adguardServiceDomains(),
@@ -856,9 +799,6 @@ function buildConfig(config) {
   }
   const DNS_SERVICE_BINDINGS = [
     { key: '广告拦截', policyDomains: DNS_POLICY_DOMAIN_SETS.adguard, dns: safeAdguardDns },
-    // CDN 域名走 DIRECT，由 direct-nameserver 统一提供国内 DNS，不在 nameserver-policy 中重复绑定
-    // 注：domestic (DOMESTIC_SERVICE_MODULE.all()) 包含 CDN，故不使用；仅用 MAIN + AI
-    DOMESTIC_SERVICE_MODULE.dnsBindingEntry(safeFastDomesticDns),
     { key: 'TikTok', policyDomains: DNS_POLICY_DOMAIN_SETS.tiktok, fallbackDomains: DNS_FALLBACK_FILTER_DOMAIN_SETS.tiktok, dns: safeTrustDns },
     { key: 'AdGuard服务', policyDomains: DNS_POLICY_DOMAIN_SETS.adguardService, dns: safeTrustDns, auxiliary: true },
     { key: '风控安全', policyDomains: uniqList([].concat(DNS_POLICY_DOMAIN_SETS.browserRisk, DNS_POLICY_DOMAIN_SETS.finance, DNS_POLICY_DOMAIN_SETS.crypto)), fallbackDomains: uniqList([].concat(DNS_FALLBACK_FILTER_DOMAIN_SETS.finance, DNS_FALLBACK_FILTER_DOMAIN_SETS.crypto)), dns: safeTrustDns },
@@ -2255,7 +2195,7 @@ cleanProxies.push(proxy);
     { key: '美国', groupName: '美国下载', icon: regionIconMap['美国'] || qIcon('US') },
     { key: '欧盟', groupName: '欧盟下载', icon: regionIconMap['欧盟'] || qIcon('EU') }
   ];
-  const LOAD_BALANCE_HEALTH = { interval: 180, timeout: 2500, maxFailedTimes: 3 };
+  const LOAD_BALANCE_HEALTH = { interval: 300, timeout: 3000, maxFailedTimes: 3 };
   function makeLoadBalanceGroup(name, icon, nodes, options = {}) {
     const proxies = ensureGroupList(nodes, []);
     if (!proxies.length || (proxies.length === 1 && proxies[0] === 'DIRECT')) return null;
@@ -2783,22 +2723,14 @@ usableChoiceDef('riskControl', [
     ['🔗链式出口'].concat(CHOICE_GROUPS.riskControl),
     []
   );
-  const domesticServiceDisplayChoices = buildChoiceList(['DIRECT'], domesticServiceChoices, regionManualNames);
-  // 国内媒体主站：收外部 cn-direct / cn-cidr（geosite cn + geoip cn），直连优先（沿用原国内服务组出口）
+  const domesticServiceDisplayChoices = buildChoiceList(['DIRECT'], ['全球手动'], domesticServiceChoices, fusionVisibleRegions.length ? fusionVisibleRegions : regionManualNames);
+  // IP属地：仅承载互动API域名（B++清单），DIRECT首位；选节点=仅互动API改IP属地
   const DOMESTIC_SERVICE_GROUP = makeSelectGroupDef(
-    '国内媒体主站',
+    'IP属地',
     iconMap.china,
     domesticServiceDisplayChoices,
     [],
     domesticServiceDisplayChoices
-  );
-  // 国内改ip用：收手写互动API，DIRECT→全球手动→各地区节点，海外优先改IP属地
-  const cnIpOverrideChoices = buildChoiceList(['DIRECT', '全球手动'], fusionVisibleRegions);
-  const CN_IP_OVERRIDE_GROUP = makeSelectGroupDef(
-    '国内改ip用',
-    'https://api.iconify.design/tabler:location-filled.svg?color=%233b82f6',
-    cnIpOverrideChoices,
-    []
   );
   const SERVICE_GROUP_BASE_DEFS = makeSelectGroupDefList([
     RISK_CONTROL_SERVICE_GROUP,
@@ -2835,7 +2767,6 @@ usableChoiceDef('riskControl', [
     ...businessServiceGroupDefs.slice(0, BUSINESS_SERVICE_HEAD.length),
   // 工具组
     DOMESTIC_SERVICE_GROUP,
-    CN_IP_OVERRIDE_GROUP,
     ...businessServiceGroupDefs.slice(BUSINESS_SERVICE_HEAD.length),
     ...SERVICE_GROUP_BASE_DEFS.slice(2)
   ]);
@@ -3316,8 +3247,7 @@ for (let i = 0; i < config.proxies.length; i++) {
     '欧美智能选择': '✨欧美智能选择',
     'YouTube无广节点优先组': '🎯YouTube无广节点优先组',
     '风控安全': '🔐风控安全',
-    '国内媒体主站': '🇨🇳国内媒体',
-    '国内改ip用': '📍改IP属地',
+    'IP属地': '📍IP属地',
     '流媒体': '🎬流媒体',
     '台湾媒体': '🛰台湾媒体',
     'FCM': '📨FCM',
@@ -3622,7 +3552,7 @@ for (let i = 0; i < config.proxies.length; i++) {
     ], 'Meta'),
     ...ruleProcess([
       'com.zhiliaoapp.musically', 'com.ss.android.ugc.trill', 'com.ss.android.ugc.aweme.mobile',
-      'com.ss.android.ugc.trill.go'
+      'com.ss.android.ugc.trill.go', 'com.rezvorck.tiktokplugin'
     ], 'TikTok'),
     ...ruleProcess([
       'org.telegram.messenger', 'org.telegram.messenger.web', 'org.telegram.plus',
@@ -3781,10 +3711,8 @@ for (let i = 0; i < config.proxies.length; i++) {
   //
   // 依据：MediaCrawler 逆向显示评论与内容「同域名不同路径」，Clash 只能域名
   //       粒度，故按「CDN 域 vs 主站/API 域」二分，两类域名互斥无重复。
-  // 改清单：只改 DOMESTIC_SERVICE_MODULE.domains 中的 MAIN / CDN / AI。
-  // 关某类：把对应 ruleSuffix 那一行注释掉即可。
   // ════════════════════════════════════════════════════════════════════
-  const RULES_DOMESTIC = DOMESTIC_SERVICE_MODULE.buildRules(ruleSuffix);
+  // 国内分流：cn-direct/cn-cidr/GEOSITE,CN/GEOIP,CN → DIRECT（B++）；互动API清单另走 IP属地组
   // Apple 服务域名（被误删后恢复）
   const RULES_APPLE_MEDIA = ruleSuffix(['tv.apple.com', 'video.apple.com'], '流媒体');
   const RULES_APPLE = [
@@ -4011,7 +3939,7 @@ const RULES_GITHUB = [
   // 国内域名的 QUIC 必须先于 geolocation-!cn 判定。
   // geolocation-!cn 的语义是“不在 cn 分类里的全部域名”，含 geosite 未收录的未知域名，
   // 抖音 CDN（douyinvod/zjcdn/pstatp 等）一旦落入其中就会被截去代理，导致卡顿。
-    'AND,((NETWORK,UDP),(DST-PORT,443),(GEOSITE,cn)),国内媒体主站',
+    'AND,((NETWORK,UDP),(DST-PORT,443),(GEOSITE,cn)),DIRECT',
     'AND,((NETWORK,UDP),(DST-PORT,443),(GEOSITE,geolocation-!cn)),QUIC控制'
   ];
   const RULES_LAN_PRIVATE = [
@@ -4063,11 +3991,105 @@ const RULES_GITHUB = [
   // 规则内容与装配顺序分离
     ], '支付服务')
   ];
-  // 兜底规则：外部国内域名/IP走国内媒体主站（可选手动改IP）→ 内置CN走DIRECT → 境外域名走节点选择 → 未知境外IP兜底
-  // 注意：手写互动API已由 RULES_DOMESTIC 中的 '国内改ip用' 承载，此处由外部 cn-direct/cn-cidr 兜底
+  // 兜底规则：互动API→IP属地组（可改IP）→ 其余国内(geosite/geoip cn)直连 → 境外域名→节点选择 → 未知IP兜底
+  // ════════════════════════════════════════════════════════════════
+  // B++ 互动API清单：选节点时仅以下互动API走「IP属地」组（改评论/发帖IP属地）
+  //   其余国内流量（视频CDN/支付/银行/微信/搜索/云服务）→ cn-direct → 全部直连
+  //   不想改某个平台的IP → 从下面数组删掉对应域名即可
+  // ════════════════════════════════════════════════════════════════
+  const INTERACTIVE_API_DOMAINS = d(
+    // 抖音 / 今日头条
+    'douyin.com', 'iesdouyin.com', 'iesdouyin.net', 'snssdk.com', 'amemv.com', 'amemv.cn', 'amemv.net', 'open-douyin.com', 'toutiao.com', 'toutiao.cn',
+    // 快手
+    'kuaishou.com', 'kuaishou.cn', 'gifshow.com', 'kwaipro.com', 'ksapisrv.com',
+    // 小红书
+    'xiaohongshu.com', 'rednote.com', 'xhslink.com',
+    // 微博
+    'weibo.com', 'weibo.cn', 'weibo.com.cn', 'api.weibo.cn',
+    // B站
+    'bilibili.com', 'bilibili.cn', 'biliapi.com', 'biliapi.net', 'b23.tv',
+    // 知乎 / 豆瓣 / NGA / 虎扑
+    'zhihu.com', 'zhihu.org', 'douban.com', 'nga.cn', 'ngabbs.com', 'nga.178.com', 'hupu.com', 'hupu.hk',
+    // 百度贴吧
+    'tieba.baidu.com', 'tieba.com', 'jump.bdimg.com',
+    // QQ空间（精准后缀，不影响微信/邮箱）
+    'qzone.qq.com',
+    // 音乐评论（网易云/QQ音乐/酷狗/酷我）
+    'music.163.com', 'y.qq.com', 'kugou.com', 'kuwo.cn',
+    // 电商评价（淘宝/天猫/京东/拼多多/得物/什么值得买/汽车之家/懂车帝）
+    'taobao.com', 'tmall.com', 'jd.com', 'pinduoduo.com', 'yangkeduo.com', 'dewu.com', 'smzdm.com', 'autohome.com.cn', 'dongchedi.com', 'dongchedi.com.cn',
+    // 直播弹幕（虎牙/斗鱼/YY）
+    'huya.com', 'douyu.com', 'yy.com',
+    // 社交/职场（脉脉/陌陌/探探）
+    'maimai.cn', 'immomo.com', 'tantanapp.com',
+    // 小说/创作（晋江/起点/阅文/红袖/番茄）
+    'jjwxc.net', 'qidian.com', 'yuewen.com', 'hongxiu.com', 'fanqienovel.com'
+  );
+  // 装配：互动API域名 → IP属地组（DIRECT首位；选节点=改IP属地）
+  const RULES_INTERACTIVE_API = ruleSuffix(INTERACTIVE_API_DOMAINS, 'IP属地');
+
+  // B+ 白名单：选节点改IP时钉死DIRECT —— 视频/图片CDN（刷视频不卡）+ 微信/QQ/支付（防风控）
+  // 优先级高于 cn-direct 和 ADBLOCK（与原 DOMESTIC_CDN_WHITELIST 同位置，防CDN被去广告误杀）
+  const RULES_CDN_DIRECT = [
+    // B++ 国内CDN白名单：全量恢复自 v61 清单（防被 geolocation-!cn 截去代理 / 防被去广告误杀）
+    ...ruleSuffix([
+      // ── 腾讯系 CDN ──
+      'gtimg.com', 'gtimg.cn', 'qpic.cn', 'qqvideo.tc.qq.com', 'qlogo.cn', 'idqqimg.com',
+      'myqcloud.com',
+      'weiyun.com', 'cdn-go.cn', 'wetranstv.com',
+      // ── 阿里系 CDN ──
+      'alicdn.com', 'aliyuncs.com', 'alipayobjects.com', 'aliimg.com', 'alikunlun.com', 'alikunlun.net',
+      'cdngslb.com', 'alibabausercontent.com', 'aliyundrive.com',
+      // ── 优酷 / 京东 / 淘宝 CDN ──
+      'youkuimg.com', 'jdstatic.com', '360buyimg.com', 'taobaocdn.com',
+      // ── 抖音 / 字节 CDN ──
+      'douyincdn.com', 'douyinpic.com', 'douyinstatic.com', 'douyinvod.com',
+      'idouyinvod.com', 'idouyinpic.com', 'idouyinstatic.com', 'douyinliving.com', 'idouyinliving.com',
+      'bytecdn.cn', 'byteimg.com', 'zjcdn.com', 'bytegoofy.com', 'bytednsdoc.com',
+      'pstatp.com', 'ixiguavideo.com', 'ixiguaav.com', 'bytetos.com', 'volccdn.com', 'jinritemai.com',
+      // ── 快手 CDN ──
+      'yximgs.com', 'kwimgs.com', 'kwaicdn.com', 'kastatic.com',
+      'ks-cdn.com', 'ksyuncdn.com', 'kwai-video.com', 'kwai-live.com', 'kwai-player.com',
+      // ── B站 CDN ──
+      'biliimg.com', 'bilibili.co', 'bilivideo.com', 'bilivideo.cn', 'bilivideo.net',
+      'bilicdn1.com', 'bilicdn2.com', 'bilicdn3.com', 'bilicdn4.com', 'bilicdn5.com',
+      'hdslb.com', 'maoercdn.com', 'mincdn.com', 'acgvideo.com',
+      // ── 小红书 CDN ──
+      'xhscdn.com', 'xhscdn.net', 'xhsglobal.com', 'xhsrcdn.com', 'rednotecdn.com',
+      // ── 微博 CDN ──
+      'weibocdn.com', 'sinaimg.cn', 'sinajs.cn', 'sinacdn.com', 'sinaedge.com',
+      // ── 知乎 CDN ──
+      'zhimg.com',
+      // ── 火山 CDN ──
+      'huoshancdn.com', 'huoshanimg.com', 'huoshanlive.com', 'huoshanstatic.com',
+      'huoshanvideo.cn', 'huoshanvideo.net', 'huoshanvod.com',
+      'huoshanzhibo.cn', 'huoshanzhibo.com', 'ihuoshanimg.com', 'ihuoshanlive.com',
+      'ihuoshanstatic.com', 'ihuoshanvod.com',
+      // ── 爱奇艺 / 芒果 CDN ──
+      'iqiyipic.com', 'ppsvod.com', 'cmvideo.cn',
+      // ── 百度 CDN ──
+      'bdimg.com', 'bdstatic.com', 'bcebos.com', 'baidubce.com', 'bdydstatic.com', 'baidutv.com',
+      // ── 网易 CDN ──
+      'nos.netease.com', 'ydstatic.com', 'music.126.net',
+      // ── 360 / 小米 / 美团 / 搜狐 CDN ──
+      'qhimg.com', 'qhres.com', 'qhres2.com', 'qhmsg.com', '360.cn', '360safe.com',
+      'mi-img.com', 'mifile.cn', 'xiaomicdn.com',
+      'meituan.net', 'dpfile.com',
+      'sohucs.com', 'itc.cn', 'ctcdn.cn', 'v-56.com',
+      // ── 通用 CDN 运营商 ──
+      'wangsu.com', 'chinanetcenter.com', 'qiniu.com', 'qiniucdn.com',
+      'upaiyun.com', 'upyun.com', 'bsclink.cn',
+      'bootcdn.cn', 'bootcdn.net', 'bootcss.com',
+      // ── v61补充 ──
+      'zijieapi.com', 'bdxiguaimg.com', 'ibytedtos.com', 'ibyteimg.com', 'toutiaoimg.com', 'toutiaocdn.com',
+      'xiguavideo.com',
+      // ── 微信/QQ/支付 防风控（改IP时也保持直连）──
+      'qq.com', 'qpic.cn', 'qlogo.cn', 'tenpay.com', 'wechat.com', 'servicewechat.com', 'weixinbridge.com'
+    ], 'DIRECT')
+  ];
   const RULES_DIRECT_AND_FALLBACK = [
-    'RULE-SET,cn-direct,国内媒体主站',          // 外部国内域名兜底（geosite cn，~11万域名）
-    'RULE-SET,cn-cidr,国内媒体主站,no-resolve',    // 外部国内IP段兜底（geoip cn）
+    'RULE-SET,cn-direct,DIRECT',          // 外部国内域名兜底（geosite cn，~11万域名）
+    'RULE-SET,cn-cidr,DIRECT,no-resolve',    // 外部国内IP段兜底（geoip cn）
      'GEOSITE,CN,DIRECT',          // 内置兜底（mrs下载失败时降级）
      'GEOIP,CN,DIRECT,no-resolve',             // 内置兜底
      'RULE-SET,gfw,受限网站',                        // 被GFW封锁域名优先走受限网站组(须在 geolocation-!cn 之前,否则被它吞)
@@ -4083,14 +4105,15 @@ const RULES_GITHUB = [
     RISK_SECURITY: RULES_RISK_SECURITY,
     RISK_CONTROL: RULES_RISK_CONTROL,
 APP_PROCESS: RULES_APP_PROCESS,
-     ADBLOCK: RULES_ADBLOCK,
+    CDN_DIRECT: RULES_CDN_DIRECT,
+    INTERACTIVE_API: RULES_INTERACTIVE_API,
+      ADBLOCK: RULES_ADBLOCK,
     TRACKER: RULES_TRACKER,
     PRIVACY: RULES_PRIVACY,
     PAYMENT: RULES_PAYMENT,
     PERSONAL_MEDIA: RULES_PERSONAL_MEDIA,
     NEWS: RULES_NEWS,
     AI_TIKTOK_EXTRA: RULES_AI_TIKTOK_EXTRA,
-    DOMESTIC: RULES_DOMESTIC,
     APPLE_MEDIA: RULES_APPLE_MEDIA,
     APPLE: RULES_APPLE,
     AI_GLOBAL: RULES_AI_GLOBAL,
@@ -4129,6 +4152,7 @@ APP_PROCESS: RULES_APP_PROCESS,
   };
   const RULE_ASSEMBLY_ORDER = [
     'LAN_PRIVATE',
+    'INTERACTIVE_API',
     'QUIC_CONTROL',
     'RISK_SECURITY',
     'YOUTUBE',
@@ -4136,14 +4160,14 @@ APP_PROCESS: RULES_APP_PROCESS,
   // 补丁型专项规则
     'RISK_CONTROL',
     'APP_PROCESS',
-     'ADBLOCK',
-     'TRACKER',
+    'CDN_DIRECT',
+    'ADBLOCK',
+    'TRACKER',
     'PRIVACY',
     'PAYMENT',
     'PERSONAL_MEDIA',
     'NEWS',
     'AI_TIKTOK_EXTRA',
-    'DOMESTIC',
     'APPLE_MEDIA',
     'APPLE',
     'AI_GLOBAL',
