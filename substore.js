@@ -16,7 +16,7 @@
 //   落地节点"香港 01"（server: 152.175.13.85:57422）
 //   入口点"新加坡AWS"对应的入口机地址是 aws-sg.domestic.nowhere-backend.xyz:57422
 //   → 生成新节点：名字="香港 01 - 新加坡AWS"，server=aws-sg那台
-//   你连这个新节点时，流量先进 aws-sg 入口机，再转发到香港 01 的落地机
+//   你连这个新节点时，流量先进 aws-sg 入口机，再转发到香港 01 落地机
 //
 // 【运行环境】
 //   Sub-Store 脚本操作器（Script Operator）
@@ -32,6 +32,15 @@
 //   ├─ 改区域排列顺序    → 修改 REGION_ORDER
 //   ├─ 改排序模式        → 修改 SORT_MODE
 //   └─ 改 CF 节点跳过    → 修改 SKIP_CF
+//
+// 【性能优化说明】（本次优化新增，改动不影响输出结果）
+//   ① 每个节点的 基础名/区域/编号/查找键/CF标记 只计算一次，缓存在 proxyMetaCache，
+//      消除原先"收集入口机"与"节点分类"两轮循环里的重复正则匹配（原版每节点最多跑 3 次去后缀 + 4 次区域正则）
+//   ② 两轮主循环合并为一轮，单次遍历同时完成入口机收集与节点分类
+//   ③ 生成新节点用浅拷贝 {...proxy} 替代 JSON.parse(JSON.stringify(proxy)) 深拷贝
+//      （新节点只改顶层标量字段 server/name，嵌套对象共享引用无副作用，Sub-Store 序列化输出结果完全一致）
+//   ④ 区域排序索引 REGION_INDEX_MAP 用 Map O(1) 查找替代 indexOf 线性查找
+//   ⑤ 区域正则按"有编号/无编号"构建时一次分离，匹配循环内不再每次判断 Set.has
 //
 // ============================================================
 
@@ -258,6 +267,10 @@ const REGION_PATTERNS = REGION_ORDER.map(region => {
   };
 });
 
+// 【优化⑤】构建时一次分离：常规区域（有编号正则）单独成表，
+// 后面 getRegionFromName / getNodeNumber 的匹配循环里不再每次判断 NO_NUMBER_REGIONS.has
+const NUMBERED_REGION_PATTERNS = REGION_PATTERNS.filter(p => p.numRe);
+
 // 从节点名中提取区域
 // 比如传入"【高级】香港 01" → 返回"香港"
 // 比如传入"【实验】香港" → 返回"实验 香港"
@@ -275,9 +288,8 @@ function getRegionFromName(name) {
       if (text.includes(baseName)) return expRegion;
     }
   }
-  // 常规区域正则匹配
-  for (const p of REGION_PATTERNS) {
-    if (NO_NUMBER_REGIONS.has(p.region)) continue; // 跳过实验区域（已用模糊匹配处理）
+  // 常规区域正则匹配（实验区域已在上面用模糊匹配处理，这里只查有编号的区域）
+  for (const p of NUMBERED_REGION_PATTERNS) {
     if (p.testRe.test(text)) return p.region;
   }
   return null;
@@ -290,11 +302,9 @@ function getRegionFromName(name) {
 function getNodeNumber(name) {
   if (!name) return null;
   const text = String(name);
-  for (const p of REGION_PATTERNS) {
-    if (p.numRe) {
-      const m = text.match(p.numRe);
-      if (m) return parseInt(m[2], 10);
-    }
+  for (const p of NUMBERED_REGION_PATTERNS) {
+    const m = text.match(p.numRe);
+    if (m) return parseInt(m[2], 10);
   }
   return null;
 }
@@ -360,12 +370,13 @@ function getBaseRegion(proxy) {
   return proxy?.name ? getRegionFromName(getBaseName(proxy.name)) : null;
 }
 
-// 获取区域在 REGION_ORDER 中的位置索引，用于排序
+// 【优化④】区域排序索引预计算成 Map，排序比较函数里 O(1) 查找
 // 比如香港在 REGION_ORDER 里排第 0 位 → 返回 0
 // 如果某个区域不在 REGION_ORDER 里 → 返回 9999（排到最后）
+const REGION_INDEX_MAP = new Map(REGION_ORDER.map((r, i) => [r, i]));
 function getRegionIndex(region) {
-  const i = REGION_ORDER.indexOf(region);
-  return i === -1 ? 9999 : i;
+  const i = REGION_INDEX_MAP.get(region);
+  return i === undefined ? 9999 : i;
 }
 
 // 预计算每个区域可用的入口点集合（转成 Set，后续查找 O(1)）
@@ -393,57 +404,80 @@ function regionSupportsAccessPoint(region, ap) {
 // 结果形如：{ "香港 01": "香港优化", "香港 02": "新加坡GCP", ... }
 const ACCESS_POINT_NODE_MAP = parseAccessPointNodes(ACCESS_POINT_NODES_TEXT);
 
-// ── 第 1 步：收集各入口点的 server 地址（入口机地址）──
-// 遍历所有节点，通过节点名匹配映射表：
-//   如果"香港 01"在映射表里对应"香港优化"，
-//   就把"香港 01"的 server 地址记下来，当作"香港优化"入口点的入口机地址
-//
-// 结果存入 ACCESS_POINT_SERVERS，形如：
-//   { "香港优化": "152.175.13.85", "新加坡GCP": "34.126.136.25", ... }
-//
-// 注意：同一个入口点只记录第一次出现的 server（不覆盖）
-//   比如新加坡 02 和 03 都映射到"香港优化"，只有 02 的 server 会被记录
-const ACCESS_POINT_SERVERS = {};
-for (const proxy of proxies) {
-  if (!proxy?.name) continue;
-  // 先去掉节点名里可能已有的入口点后缀
-  const baseName = getBaseName(proxy.name);
-  // 尝试用"区域+编号"格式匹配映射表（如"香港 01"）
-  let nodeKey = getNodeKey(baseName);
-  // 如果没匹配上，用去掉后缀的名字直接匹配（用于"实验 美国"这种无编号节点）
-  if (!nodeKey) nodeKey = baseName;
-  // 在映射表里查这个节点对应哪个入口点
-  const ap = ACCESS_POINT_NODE_MAP[nodeKey];
-  if (!ap) continue;                    // 不在映射表里 → 跳过
-  if (SKIP_MARKERS.has(ap)) continue;   // 标记为"仅原始线路"等 → 跳过
-  if (SKIP_CF && isCF(proxy)) continue; // CF 节点 → 跳过
-  if (!proxy.server) continue;          // 没有 server → 跳过
-  // 第一次出现才记录，后面不覆盖
-  if (!ACCESS_POINT_SERVERS[ap]) {
-    ACCESS_POINT_SERVERS[ap] = proxy.server;
+// 【优化①②】原版是两轮独立循环（第 1 步收集入口机、第 2 步节点分类），
+// 每轮都重复调用 getBaseName / getRegionFromName / getNodeNumber 跑正则。
+// 现在合并为单轮遍历，每个节点的元数据只计算一次并缓存在 proxyMetaCache：
+//   baseName：去掉入口点后缀的干净节点名
+//   region  ：区域名（识别不出为 null）
+//   number  ：节点编号（区域识别不出时无意义，默认 0）
+//   nodeKey ：映射表查找键（识别不出时回退为 baseName）
+//   cf      ：是否 CF 节点（SKIP_CF=false 时恒为 false，跳过检测）
+const proxyMetaCache = new Map();
+function getProxyMeta(proxy) {
+  let meta = proxyMetaCache.get(proxy);
+  if (meta === undefined) {
+    const baseName = getBaseName(proxy.name);
+    const region = getRegionFromName(baseName);
+    let nodeKey = baseName;
+    let number = 0;
+    if (region) {
+      const rawKey = getNodeKey(baseName);
+      if (rawKey) nodeKey = rawKey;
+      number = getNodeNumber(baseName) ?? 0;
+    }
+    meta = {
+      baseName, region, number, nodeKey,
+      cf: SKIP_CF ? isCF(proxy) : false
+    };
+    proxyMetaCache.set(proxy, meta);
   }
+  return meta;
 }
 
-// ── 第 2 步：把节点分成两类 ──
-// targetNodes   = 能参与中转生成的节点（有区域归属、有入口组、不是CF）
-// untouchedNodes = 不能参与中转的节点（如基础版、CF节点、未识别区域的节点）
-//   这些节点原样保留，最后追加到输出列表末尾
+// ── 第 1+2 步（合并单轮遍历）：收集入口机地址 & 节点分类 ──
+//
+// 第 1 步语义（保持不变）：通过节点名匹配映射表收集各入口点的 server 地址（入口机地址）
+//   结果存入 ACCESS_POINT_SERVERS，形如：
+//     { "香港优化": "152.175.13.85", "新加坡GCP": "34.126.136.25", ... }
+//   注意：同一个入口点只记录第一次出现的 server（不覆盖）
+//
+// 第 2 步语义（保持不变）：把节点分成两类
+//   targetNodes    = 能参与中转生成的节点（有区域归属、有入口组、不是CF）
+//   untouchedNodes = 不能参与中转的节点（如基础版、CF节点、未识别区域的节点）
+//                    这些节点原样保留，最后追加到输出列表末尾
+const ACCESS_POINT_SERVERS = {};
 const targetNodes = [];
 const untouchedNodes = [];
 
 for (const proxy of proxies) {
-  if (!proxy) continue;
-  const region = getBaseRegion(proxy);  // 识别这个节点属于哪个区域
-  if (!region || !REGION_AP_SETS[region] ||
-      (SKIP_CF && isCF(proxy))) {
+  if (!proxy) continue;                      // null/undefined 元素 → 原版两轮循环都直接跳过，保持一致
+  if (!proxy.name) { untouchedNodes.push(proxy); continue; }
+  const meta = getProxyMeta(proxy);
+
+  // ── 第 1 步逻辑：入口机收集 ──
+  // 在映射表里查这个节点对应哪个入口点
+  const ap = ACCESS_POINT_NODE_MAP[meta.nodeKey];
+  if (ap) {                                  // 不在映射表里 → 跳过
+    if (!SKIP_MARKERS.has(ap)                // 标记为"仅原始线路"等 → 跳过
+        && !meta.cf                          // CF 节点 → 跳过
+        && proxy.server) {                   // 没有 server → 跳过
+      // 第一次出现才记录，后面不覆盖
+      if (!ACCESS_POINT_SERVERS[ap]) {
+        ACCESS_POINT_SERVERS[ap] = proxy.server;
+      }
+    }
+  }
+
+  // ── 第 2 步逻辑：节点分类 ──
+  if (!meta.region || !REGION_AP_SETS[meta.region] || meta.cf) {
     // 区域识别不了 / 该区域没有入口组配置 / 是CF节点 → 不参与中转
     untouchedNodes.push(proxy);
     continue;
   }
   // 参与中转：记录节点对象、区域、编号（编号用于排序）
   targetNodes.push({
-    proxy, region,
-    number: getNodeNumber(getBaseName(proxy.name)) ?? 0
+    proxy, region: meta.region,
+    number: meta.number
   });
 }
 
@@ -462,7 +496,7 @@ targetNodes.sort((a, b) =>
 //
 // 比如：香港 01（落地机 152.175.13.85）× 新加坡AWS（入口机 aws-sg...）
 //   → 新节点：名字="香港 01 - 新加坡AWS"，server=aws-sg...
-//   你连这个节点时，流量先进 aws-sg 入口机，再转发到香港 01 落地机
+//   你连这个新节点时，流量先进 aws-sg 入口机，再转发到香港 01 落地机
 const generatedNodes = [];
 
 // 安全检查：SORT_MODE 只能是 1 或 2
@@ -470,21 +504,27 @@ if (SORT_MODE !== 1 && SORT_MODE !== 2) {
   throw new Error(`SORT_MODE 必须是 1 或 2，当前值：${SORT_MODE}`);
 }
 
+// 【优化③】浅拷贝生成新节点：新节点只改顶层标量字段 server 和 name，
+// 嵌套对象（如 ws-opts / reality-opts）与原节点共享引用；原节点在生成后
+// 不再被修改，Sub-Store 序列化输出与深拷贝完全一致，省去每节点一次 JSON 往返。
+function cloneProxyWithRelay(proxy, server, name) {
+  const np = { ...proxy };
+  np.server = server;   // ★ 关键：把 server 换成入口机地址
+  np.name = name;       // ★ 关键：名字加上入口点后缀
+  return np;
+}
+
 // SORT_MODE=1：按节点优先生成
 // 外层遍历排序后的目标节点，内层遍历该节点所在区域可用的入口点
 // 效果：香港01-入口A, 香港01-入口B, 香港02-入口A, 香港02-入口B...
 function generateForNode(item) {
   const { proxy, region } = item;
-  const baseName = getBaseName(proxy.name);  // 去掉可能已有的后缀，拿到干净节点名
+  const baseName = getProxyMeta(proxy).baseName;  // 去掉可能已有的后缀，拿到干净节点名（缓存）
   for (const ap of ACCESS_POINT_ORDER) {      // 遍历所有入口点（按配置顺序）
     if (!regionSupportsAccessPoint(region, ap)) continue;  // 该区域不支持这个入口 → 跳过
     const server = ACCESS_POINT_SERVERS[ap];                 // 拿到这个入口点的入口机地址
     if (!server) continue;                                   // 没有入口机地址 → 跳过（可能源节点不存在）
-    // 深拷贝原节点，改 server 和名字
-    const np = JSON.parse(JSON.stringify(proxy));
-    np.server = server;                      // ★ 关键：把 server 换成入口机地址
-    np.name = `${baseName} - ${ap}`;         // ★ 关键：名字加上入口点后缀
-    generatedNodes.push(np);
+    generatedNodes.push(cloneProxyWithRelay(proxy, server, `${baseName} - ${ap}`));
   }
 }
 
@@ -496,11 +536,8 @@ function generateForAccessPoint(ap) {
   if (!server) return;
   for (const item of targetNodes) {
     if (!regionSupportsAccessPoint(item.region, ap)) continue;
-    const baseName = getBaseName(item.proxy.name);
-    const np = JSON.parse(JSON.stringify(item.proxy));
-    np.server = server;
-    np.name = `${baseName} - ${ap}`;
-    generatedNodes.push(np);
+    const baseName = getProxyMeta(item.proxy).baseName;  // 缓存
+    generatedNodes.push(cloneProxyWithRelay(item.proxy, server, `${baseName} - ${ap}`));
   }
 }
 
