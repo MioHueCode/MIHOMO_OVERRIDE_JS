@@ -647,9 +647,9 @@ function buildConfig(config) {
       kw: [ "广电", "cbn", "cbnnet", "chinabroadcast", "china broadcast" ]
     } ],
     carrierIcons: {
-      "移动": EXTERNAL_URLS.cdn.jsdelivrFastly + "/mini@master/Color/10086.png",
-      "联通": EXTERNAL_URLS.cdn.jsdelivrFastly + "/mini@master/Color/10010.png",
-      "电信": EXTERNAL_URLS.cdn.jsdelivrFastly + "/mini@master/Color/10000.png",
+      "移动": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10086.png",
+      "联通": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10010.png",
+      "电信": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10000.png",
       "广电": EXTERNAL_URLS.cdn.iconify + "tabler:router.svg?color=%23722ED1"
     },
     carrierEmoji: {
@@ -762,29 +762,26 @@ function buildConfig(config) {
   const cleanProxies = [], allProxyNames = [], residentialProxyNames = [], dedicatedProxyNames = [], multiplierProxyNames = [], streamingProxyNames = [], proxyHostnames = new Set, seenProxyNames = new Set;
   // 剔除 server/sni/servername 带非法字符（如订阅源脏数据中出现的 "+"）的节点，
   // 避免这类字段被内核校验拒绝导致整份配置导入失败。
-  for (let i = 0; i < config.proxies.length; i++) {
+    for (let i = 0; i < config.proxies.length; i++) {
     const proxy = config.proxies[i], proxyName = proxy && proxy.name;
     proxyName && isRealProxyName(proxyName) && !seenProxyNames.has(proxyName) && isValidProxyServerField(proxy && proxy.server) && isValidOptionalProxyDomainField(proxy && proxy.sni) && isValidOptionalProxyDomainField(proxy && proxy.servername) && isValidProxyPort(proxy && proxy.port) && (seenProxyNames.add(proxyName), 
-    // Cloudflare/Anycast 中转节点：优先 IPv4 解析（CF 双栈入口 v4 通常更稳），并关 TFO 避免 CF 边缘抖动。
-    CF_ANYCAST_NAME_RE.test(proxyName) && (void 0 === proxy["ip-version"] && (proxy["ip-version"] = "ipv4-prefer"), 
-    void 0 === proxy.tfo && (proxy.tfo = !1)), 
     // IPv6-only 节点：入口只有 AAAA 记录，直接声明走 v6，省掉 dual 模式下白等一轮 A 查询。
-    IPV6_ONLY_NAME_RE.test(proxyName) && void 0 === proxy["ip-version"] && (proxy["ip-version"] = "ipv6"), 
-    // anytls：补空闲会话保活三参数（检查间隔 30s / 空闲超时 60s / 最小空闲会话 2），避免长连接被中间设备回收后反复重连。
+    CF_ANYCAST_NAME_RE.test(proxyName) && (void 0 === proxy["ip-version"] && (proxy["ip-version"] = "ipv4-prefer"), 
+    void 0 === proxy.tfo && (proxy.tfo = !1)), IPV6_ONLY_NAME_RE.test(proxyName) && void 0 === proxy["ip-version"] && (proxy["ip-version"] = "ipv6"), 
     "anytls" === proxy.type && (
-    void 0 === proxy["idle-session-check-interval"] && (proxy["idle-session-check-interval"] = 30), 
-    void 0 === proxy["idle-session-timeout"] && (proxy["idle-session-timeout"] = 60), 
-    void 0 === proxy["min-idle-session"] && (proxy["min-idle-session"] = 2)), 
     // Hysteria2：基于 QUIC，禁用 GSO/ECN 兼容性问题已在全局 experimental 处理。
     // 这里补两项：1) 允许 0-RTT/连接迁移前的快速重连；2) 若订阅带端口跳跃(ports)则保留 hop-interval
     // 兜底为 30s。不动 up/down —— 那是机场按套餐标定的 Brutal 速率，改高会触发过度发包导致丢包变慢。
-    "hysteria2" === proxy.type && (void 0 === proxy["fast-open"] && (proxy["fast-open"] = !0), 
-    proxy.ports && void 0 === proxy["hop-interval"] && (proxy["hop-interval"] = 30)), 
+    void 0 === proxy["idle-session-check-interval"] && (proxy["idle-session-check-interval"] = 30), 
+    void 0 === proxy["idle-session-timeout"] && (proxy["idle-session-timeout"] = 60), 
+    void 0 === proxy["min-idle-session"] && (proxy["min-idle-session"] = 2)), 
     // VLESS：这批是 Cloudflare xhttp 中转（network=xhttp）。补 tfo=false 避免 CF 边缘 TFO 抖动，
     // 并统一 client-fingerprint=chrome 让 TLS 指纹稳定通过 CF 前置校验。不改 network/servername/
     // xhttp-opts 等回源关键字段，避免破坏 CDN 匹配。
-    "vless" === proxy.type && (void 0 === proxy.tfo && (proxy.tfo = !1), void 0 === proxy["client-fingerprint"] && (proxy["client-fingerprint"] = "chrome")), 
+    "hysteria2" === proxy.type && (void 0 === proxy["fast-open"] && (proxy["fast-open"] = !0), 
+    proxy.ports && void 0 === proxy["hop-interval"] && (proxy["hop-interval"] = 30)), 
     // TLS 1.3 强制：对所有 TLS 节点统一声明 tls13-ciphers，排除 TLS 1.2 旧套件，防止降级攻击与协议歧义。
+    "vless" === proxy.type && (void 0 === proxy.tfo && (proxy.tfo = !1), void 0 === proxy["client-fingerprint"] && (proxy["client-fingerprint"] = "chrome")), 
     "vless" !== proxy.type && "trojan" !== proxy.type && "shadowsocks" !== proxy.type || proxy.tls && !proxy.tls["tls13-ciphers"] && (proxy.tls["tls13-ciphers"] = "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256"), 
     cleanProxies.push(proxy), allProxyNames.push(proxyName), isHostname(proxy.server) && proxyHostnames.add(String(proxy.server).trim().toLowerCase()), 
     isHostname(proxy.servername) && proxyHostnames.add(String(proxy.servername).trim().toLowerCase()), 
