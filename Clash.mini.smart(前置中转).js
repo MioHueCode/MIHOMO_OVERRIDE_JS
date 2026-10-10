@@ -648,9 +648,9 @@ function buildConfig(config) {
       kw: [ "广电", "cbn", "cbnnet", "chinabroadcast", "china broadcast" ]
     } ],
     carrierIcons: {
-      "移动": EXTERNAL_URLS.cdn.jsdelivrFastly + "/mini@master/Color/10086.png",
-      "联通": EXTERNAL_URLS.cdn.jsdelivrFastly + "/mini@master/Color/10010.png",
-      "电信": EXTERNAL_URLS.cdn.jsdelivrFastly + "/mini@master/Color/10000.png",
+      "移动": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10086.png",
+      "联通": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10010.png",
+      "电信": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10000.png",
       "广电": EXTERNAL_URLS.cdn.iconify + "tabler:router.svg?color=%23722ED1"
     },
     carrierEmoji: {
@@ -767,29 +767,26 @@ function buildConfig(config) {
   }
   // 剔除 server/sni/servername 带非法字符（如订阅源脏数据中出现的 "+"）的节点，
   // 避免这类字段被内核校验拒绝导致整份配置导入失败。
-  for (let i = 0; i < config.proxies.length; i++) {
+    for (let i = 0; i < config.proxies.length; i++) {
     const proxy = config.proxies[i], proxyName = proxy && proxy.name;
     proxyName && isRealProxyName(proxyName) && !seenProxyNames.has(proxyName) && isValidProxyServerField(proxy && proxy.server) && isValidOptionalProxyDomainField(proxy && proxy.sni) && isValidOptionalProxyDomainField(proxy && proxy.servername) && isValidProxyPort(proxy && proxy.port) && (seenProxyNames.add(proxyName), 
-    // Cloudflare/Anycast 中转节点：优先 IPv4 解析（CF 双栈入口 v4 通常更稳），并关 TFO 避免 CF 边缘抖动。
-    CF_ANYCAST_NAME_RE.test(proxyName) && (void 0 === proxy["ip-version"] && (proxy["ip-version"] = "ipv4-prefer"), 
-    void 0 === proxy.tfo && (proxy.tfo = !1)), 
     // IPv6-only 节点：入口只有 AAAA 记录，直接声明走 v6，省掉 dual 模式下白等一轮 A 查询。
-    IPV6_ONLY_NAME_RE.test(proxyName) && void 0 === proxy["ip-version"] && (proxy["ip-version"] = "ipv6"), 
-    // anytls：补空闲会话保活三参数（检查间隔 30s / 空闲超时 60s / 最小空闲会话 2），避免长连接被中间设备回收后反复重连。
+    CF_ANYCAST_NAME_RE.test(proxyName) && (void 0 === proxy["ip-version"] && (proxy["ip-version"] = "ipv4-prefer"), 
+    void 0 === proxy.tfo && (proxy.tfo = !1)), IPV6_ONLY_NAME_RE.test(proxyName) && void 0 === proxy["ip-version"] && (proxy["ip-version"] = "ipv6"), 
     "anytls" === proxy.type && (
-    void 0 === proxy["idle-session-check-interval"] && (proxy["idle-session-check-interval"] = 30), 
-    void 0 === proxy["idle-session-timeout"] && (proxy["idle-session-timeout"] = 60), 
-    void 0 === proxy["min-idle-session"] && (proxy["min-idle-session"] = 2)), 
     // Hysteria2：基于 QUIC，禁用 GSO/ECN 兼容性问题已在全局 experimental 处理。
     // 这里补两项：1) 允许 0-RTT/连接迁移前的快速重连；2) 若订阅带端口跳跃(ports)则保留 hop-interval
     // 兜底为 30s。不动 up/down —— 那是机场按套餐标定的 Brutal 速率，改高会触发过度发包导致丢包变慢。
-    "hysteria2" === proxy.type && (void 0 === proxy["fast-open"] && (proxy["fast-open"] = !0), 
-    proxy.ports && void 0 === proxy["hop-interval"] && (proxy["hop-interval"] = 30)), 
+    void 0 === proxy["idle-session-check-interval"] && (proxy["idle-session-check-interval"] = 30), 
+    void 0 === proxy["idle-session-timeout"] && (proxy["idle-session-timeout"] = 60), 
+    void 0 === proxy["min-idle-session"] && (proxy["min-idle-session"] = 2)), 
     // VLESS：这批是 Cloudflare xhttp 中转（network=xhttp）。补 tfo=false 避免 CF 边缘 TFO 抖动，
     // 并统一 client-fingerprint=chrome 让 TLS 指纹稳定通过 CF 前置校验。不改 network/servername/
     // xhttp-opts 等回源关键字段，避免破坏 CDN 匹配。
-    "vless" === proxy.type && (void 0 === proxy.tfo && (proxy.tfo = !1), void 0 === proxy["client-fingerprint"] && (proxy["client-fingerprint"] = "chrome")), 
+    "hysteria2" === proxy.type && (void 0 === proxy["fast-open"] && (proxy["fast-open"] = !0), 
+    proxy.ports && void 0 === proxy["hop-interval"] && (proxy["hop-interval"] = 30)), 
     // TLS 1.3 强制：对所有 TLS 节点统一声明 tls13-ciphers，排除 TLS 1.2 旧套件，防止降级攻击与协议歧义。
+    "vless" === proxy.type && (void 0 === proxy.tfo && (proxy.tfo = !1), void 0 === proxy["client-fingerprint"] && (proxy["client-fingerprint"] = "chrome")), 
     "vless" !== proxy.type && "trojan" !== proxy.type && "shadowsocks" !== proxy.type || proxy.tls && !proxy.tls["tls13-ciphers"] && (proxy.tls["tls13-ciphers"] = "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256"), 
     cleanProxies.push(proxy), 
     // 机场专用前置中转节点（如 🇨🇳 南京移动）：
@@ -1048,6 +1045,10 @@ function buildConfig(config) {
   }
   function makeSmartGroup(name, icon, nodes, interval, tolerance, options = {}) {
     const sampleRate = void 0 !== options.sampleRate ? options.sampleRate : .3, proxies = ensureGroupList(nodes, []);
+    const health = normalizeHealthOptions(options, {
+      interval: interval || 300,
+      tolerance: tolerance || 150
+    });
     return !proxies.length || 1 === proxies.length && "DIRECT" === proxies[0] ? null : {
       name: name,
       type: "smart",
@@ -1060,6 +1061,12 @@ function buildConfig(config) {
       "expected-rtt": options.expectedRtt || 200,
       "policy-priority": "string" == typeof options.policyPriority ? options.policyPriority : "",
       "type-priority": "string" == typeof options.typePriority ? options.typePriority : "",
+      url: health.url,
+      interval: health.interval,
+      tolerance: health.tolerance,
+      timeout: health.timeout,
+      "max-failed-times": health.maxFailedTimes,
+      lazy: health.lazy,
       proxies: proxies
     };
   }
@@ -1455,11 +1462,11 @@ function buildConfig(config) {
   } ], fallbackGroupArtifacts = collectNamedGroups([ makeSmartGroup("智能兜底", iconMap.fallbackFinal, autoFallbackNodes, 0, 0, {
     timeout: 3e3,
     maxFailedTimes: 3,
-    lazy: !0
+    lazy: !1
   }), ...REGION_FAILOVER_DEFS.map(def => makeSmartGroup(def.name, def.icon, regionFallbackNodeMap[def.name] && regionFallbackNodeMap[def.name].length ? regionFallbackNodeMap[def.name] : [ "智能兜底" ], 0, 0, {
     timeout: 5e3,
     maxFailedTimes: 5,
-    lazy: !0
+    lazy: !1
   })), ...SPECIAL_FALLBACK_DEFS.map(def => "YouTube无广节点优先组" === def.name ? function(name, icon, list, extraDefaults = [ "智能选择" ], options = {}) {
     const proxies = ensureGroupList(list, extraDefaults);
     if (!proxies.length || 1 === proxies.length && "DIRECT" === proxies[0]) return null;
@@ -1814,7 +1821,9 @@ function buildConfig(config) {
     name: "下载专用组",
     icon: iconMap.download || iconMap.fallback,
     choices: downloadGroupChoices
-  }, ...UTILITY_GROUP_PRESET_DEFS ]), autoGroup = makeSmartGroup("智能选择", iconMap.auto, allProxyNames) || {
+  }, ...UTILITY_GROUP_PRESET_DEFS ]), autoGroup = makeSmartGroup("智能选择", iconMap.auto, allProxyNames, 0, 0, {
+    lazy: !1
+  }) || {
     name: "智能选择",
     type: "select",
     icon: iconMap.auto,
@@ -1822,7 +1831,7 @@ function buildConfig(config) {
   }, homeSmartGroup = makeSmartGroup("家宽智能选择", iconMap.flare, usableChoices(homeSmartChoices.length ? homeSmartChoices : [ "智能兜底" ]), 0, 0, {
     timeout: 5e3,
     maxFailedTimes: 5,
-    lazy: !0
+    lazy: !1
   }), chainTransitChoices = sanitizeUiChoiceList([ globalDedicatedGroup ? "全球专线" : null, lowMultiplierGroup ? "低倍率节点" : null ].filter(Boolean), 
   // 出口候选顺序：全球家宽 → 地区家宽节点 → 家宽智能选择 → 智能兜底 → 地区节点组 → 特征组 → 真实节点
   // 出口 IP 直接决定风控判定，家宽/住宅 IP 排最前以最大化落地清白度。
