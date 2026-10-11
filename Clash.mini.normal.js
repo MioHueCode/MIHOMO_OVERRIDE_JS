@@ -647,9 +647,9 @@ function buildConfig(config) {
       kw: [ "广电", "cbn", "cbnnet", "chinabroadcast", "china broadcast" ]
     } ],
     carrierIcons: {
-      "移动": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10086.png",
-      "联通": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10010.png",
-      "电信": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10000.png",
+      "移动": EXTERNAL_URLS.cdn.jsdelivrFastly + "/mini@master/Color/10086.png",
+      "联通": EXTERNAL_URLS.cdn.jsdelivrFastly + "/mini@master/Color/10010.png",
+      "电信": EXTERNAL_URLS.cdn.jsdelivrFastly + "/mini@master/Color/10000.png",
       "广电": EXTERNAL_URLS.cdn.iconify + "tabler:router.svg?color=%23722ED1"
     },
     carrierEmoji: {
