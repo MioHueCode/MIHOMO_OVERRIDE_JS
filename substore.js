@@ -421,9 +421,9 @@ for (const proxy of proxies) {
       && !meta.cf
       && !meta.untouched
       && proxy.server) {
-    // ★ 入口机 = 地址 + 端口 整台机器，只存 server 会导致端口沿用落地节点（错误）
+    // ★ 入口机 = 地址 + 端口 + 完整 proxy（pbk/sni 必须匹配入口机）
     if (!ENTRY_SERVERS[ap]) {
-      ENTRY_SERVERS[ap] = { server: proxy.server, port: proxy.port };
+      ENTRY_SERVERS[ap] = { server: proxy.server, port: proxy.port, proxy: proxy };
     }
   }
 
@@ -486,15 +486,19 @@ if (SORT_MODE !== 1 && SORT_MODE !== 2) {
   throw new Error(`SORT_MODE 必须是 1 或 2，当前值：${SORT_MODE}`);
 }
 
-// 浅拷贝生成新节点（只改顶层 server/port/name，嵌套对象共享引用，序列化结果一致）
-// ★ 必须同时替换 port：同一组节点 host 相同、仅端口不同，只换 server 会连到错的端口
+// ★ 以入口点节点的协议参数为基础（type/pbk/sni 必须匹配入口机）
+//   sid 保留落地节点的（reality 路由用）
+//   入口机可能是 vless-reality 或 anytls，协议不同时只换 server 会握手失败
 function cloneProxyWithRelay(proxy, entry, name) {
-  const np = { ...proxy };
+  const base = entry.proxy ? entry.proxy : proxy;
+  const np = { ...base };
   np.server = entry.server;                              // ★ 换成入口机地址
   if (entry.port !== null && entry.port !== undefined) {
     np.port = entry.port;                                // ★ 换成入口机端口
   }
   np.name = name;                                        // ★ 名字加入口点后缀
+  // ★ 保留落地节点的 sid（reality 路由用；anytls 无 sid 不受影响）
+  if (proxy.sid) np.sid = proxy.sid;
   return np;
 }
 
