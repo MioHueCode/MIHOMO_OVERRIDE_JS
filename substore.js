@@ -87,16 +87,16 @@ const ENTRY_NODE_TEXT = `
 台湾 02:台湾HiNet
 台湾 03:(实验性)特殊入口
 
-新加坡 01:日本AWS
-新加坡 02:(IPv6)日本优化
-新加坡 03:(IPv6)日本AWS
+新加坡 01:新加坡优化
+新加坡 02:新加坡AWS
+新加坡 03:日本AWS
 
 美国 01:美国优化
 美国 02:日本软银
-美国 03:(IPv6)新加坡AWS
+美国 03:(IPv6)日本优化
 
-意大利 01:香港优化
-印度 01:日本优化
+意大利 01:(IPv6)日本AWS
+印度 01:(IPv6)新加坡AWS
 泰国 01:日本优化
 澳洲 01:日本优化
 墨西哥 01:日本优化
@@ -432,14 +432,14 @@ for (const proxy of proxies) {
     untouchedNodes.push(proxy);
     continue;
   }
-  targetNodes.push({ proxy, region: meta.region, number: meta.number });
+  targetNodes.push({ proxy, region: meta.region, number: meta.number, baseName: meta.baseName, nodeKey: meta.nodeKey });
 }
 
 // ── 第 2.5 步：解析每个入口点的入口机地址（手动 > 采集 > 兜底）──
 // 兜底：入口点名为"XX优化"且找不到入口机时，借用"XX 01"节点的 server
 const nodeKeyServerMap = new Map();   // "香港 01" → { server, port }
 for (const item of targetNodes) {
-  const key = getProxyMeta(item.proxy).nodeKey;
+  const key = item.nodeKey;
   if (key && item.proxy.server && !nodeKeyServerMap.has(key)) {
     nodeKeyServerMap.set(key, { server: item.proxy.server, port: item.proxy.port });
   }
@@ -501,11 +501,12 @@ function cloneProxyWithRelay(proxy, entry, name) {
 
 // SORT_MODE=1：节点优先
 function generateForNode(item) {
-  const { proxy, region } = item;
-  const baseName = getProxyMeta(proxy).baseName;
-  for (const ap of REGION_ENTRY_LISTS[region]) {   // 按该区域页面上的入口顺序
+  const { proxy, region, baseName } = item;
+  const list = REGION_ENTRY_LISTS[region];
+  for (let i = 0, len = list.length; i < len; i++) {
+    const ap = list[i];
     const entry = RESOLVED_ENTRY_SERVERS[ap];
-    if (!entry) continue;                          // 没有入口机 → 跳过该列
+    if (!entry) continue;
     generatedNodes.push(cloneProxyWithRelay(proxy, entry, `${baseName} - ${ap}`));
   }
 }
@@ -514,10 +515,11 @@ function generateForNode(item) {
 function generateForAccessPoint(ap) {
   const entry = RESOLVED_ENTRY_SERVERS[ap];
   if (!entry) return;
-  for (const item of targetNodes) {
-    if (!regionSupportsAccessPoint(item.region, ap)) continue;
-    const baseName = getProxyMeta(item.proxy).baseName;
-    generatedNodes.push(cloneProxyWithRelay(item.proxy, entry, `${baseName} - ${ap}`));
+  const len = targetNodes.length;
+  for (let i = 0; i < len; i++) {
+    const item = targetNodes[i];
+    if (!REGION_AP_SETS[item.region]?.has(ap)) continue;
+    generatedNodes.push(cloneProxyWithRelay(item.proxy, entry, `${item.baseName} - ${ap}`));
   }
 }
 
