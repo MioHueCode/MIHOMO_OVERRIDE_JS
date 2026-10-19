@@ -486,19 +486,20 @@ if (SORT_MODE !== 1 && SORT_MODE !== 2) {
   throw new Error(`SORT_MODE 必须是 1 或 2，当前值：${SORT_MODE}`);
 }
 
-// ★ 以入口点节点的协议参数为基础（type/pbk/sni 必须匹配入口机）
-//   sid 保留落地节点的（reality 路由用）
-//   入口机可能是 vless-reality 或 anytls，协议不同时只换 server 会握手失败
+// ★ 以落地节点的协议参数为基础（pbk/sid/sni/uuid 全部保留落地节点的）
+//   只换 server+port 为入口机地址
+//   原理：Reality 中转 = 客户端用落地节点的 pbk/sid 连接入口机
+//   入口机不认识该 sid → 将原始 TLS 流转发给落地节点 → 落地节点处理 Reality 握手
+//   如果改用入口机的 pbk，入口机会认出自己的密钥 → 检查 sid 不匹配 →
+//   回退到真实网站而非转发给落地节点 → 连接失败
+//   （实测：只有 entry=landing 时 sid 匹配才通，正是此 bug 的表现）
 function cloneProxyWithRelay(proxy, entry, name) {
-  const base = entry.proxy ? entry.proxy : proxy;
-  const np = { ...base };
-  np.server = entry.server;                              // ★ 换成入口机地址
+  const np = { ...proxy };                               // ★ 以落地节点为基础（保留全部协议参数）
+  np.server = entry.server;                              // ★ 只换 server 为入口机地址
   if (entry.port !== null && entry.port !== undefined) {
-    np.port = entry.port;                                // ★ 换成入口机端口
+    np.port = entry.port;                                // ★ 换 port 为入口机端口
   }
   np.name = name;                                        // ★ 名字加入口点后缀
-  // ★ 保留落地节点的 sid（reality 路由用；anytls 无 sid 不受影响）
-  if (proxy.sid) np.sid = proxy.sid;
   return np;
 }
 
