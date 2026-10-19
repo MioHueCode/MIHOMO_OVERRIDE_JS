@@ -115,8 +115,14 @@ function main(config) {
     label: "日本优化",
     key: [ "日本优化" ]
   }, {
-    label: "日本GCP",
-    key: [ "日本gcp", "日本 gcp" ]
+    label: "日本GCP A",
+    key: [ "日本gcp a", "日本 gcp a", "日本GCP A" ]
+  }, {
+    label: "日本GCP B",
+    key: [ "日本gcp b", "日本 gcp b", "日本GCP B" ]
+  }, {
+    label: "美国优化",
+    key: [ "美国优化" ]
   }, {
     label: "日本AWS",
     key: [ "日本aws", "日本 aws" ]
