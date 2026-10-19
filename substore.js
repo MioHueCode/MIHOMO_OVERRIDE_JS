@@ -87,16 +87,16 @@ const ENTRY_NODE_TEXT = `
 台湾 02:台湾HiNet
 台湾 03:(实验性)特殊入口
 
-新加坡 01:日本AWS
-新加坡 02:(IPv6)日本优化
-新加坡 03:(IPv6)日本AWS
+新加坡 01:新加坡优化
+新加坡 02:新加坡AWS
+新加坡 03:日本AWS
 
 美国 01:美国优化
 美国 02:日本软银
-美国 03:(IPv6)新加坡AWS
+美国 03:(IPv6)日本优化
 
-意大利 01:香港优化
-印度 01:日本优化
+意大利 01:(IPv6)日本AWS
+印度 01:(IPv6)新加坡AWS
 泰国 01:日本优化
 澳洲 01:日本优化
 墨西哥 01:日本优化
@@ -421,7 +421,10 @@ for (const proxy of proxies) {
       && !meta.cf
       && !meta.untouched
       && proxy.server) {
-    if (!ENTRY_SERVERS[ap]) ENTRY_SERVERS[ap] = proxy.server;
+    // ★ 入口机 = 地址 + 端口 整台机器，只存 server 会导致端口沿用落地节点（错误）
+    if (!ENTRY_SERVERS[ap]) {
+      ENTRY_SERVERS[ap] = { server: proxy.server, port: proxy.port };
+    }
   }
 
   // ── 节点分类 ──
@@ -434,20 +437,23 @@ for (const proxy of proxies) {
 
 // ── 第 2.5 步：解析每个入口点的入口机地址（手动 > 采集 > 兜底）──
 // 兜底：入口点名为"XX优化"且找不到入口机时，借用"XX 01"节点的 server
-const nodeKeyServerMap = new Map();   // "香港 01" → server
+const nodeKeyServerMap = new Map();   // "香港 01" → { server, port }
 for (const item of targetNodes) {
   const key = getProxyMeta(item.proxy).nodeKey;
   if (key && item.proxy.server && !nodeKeyServerMap.has(key)) {
-    nodeKeyServerMap.set(key, item.proxy.server);
+    nodeKeyServerMap.set(key, { server: item.proxy.server, port: item.proxy.port });
   }
 }
 
 function resolveEntryServer(ap) {
   // ① 手动指定优先
-  if (MANUAL_ENTRY_SERVERS[ap]) return MANUAL_ENTRY_SERVERS[ap];
-  // ② 从订阅采集
+  if (MANUAL_ENTRY_SERVERS[ap]) {
+    const v = MANUAL_ENTRY_SERVERS[ap];
+    return typeof v === "string" ? { server: v, port: null } : v;
+  }
+  // ② 从订阅采集（含端口）
   if (ENTRY_SERVERS[ap]) return ENTRY_SERVERS[ap];
-  // ③ 兜底： "XX优化" → 借 "XX 01" 的 server
+  // ③ 兜底： "XX优化" → 借 "XX 01" 的 server+port
   if (ENABLE_ENTRY_SERVER_FALLBACK) {
     const m = /^(.+?)优化$/.exec(ap);
     if (m) {
@@ -459,11 +465,11 @@ function resolveEntryServer(ap) {
   return null;
 }
 
-// 预解析所有入口点的最终入口机地址
+// 预解析所有入口点的最终入口机（server + port）
 const RESOLVED_ENTRY_SERVERS = {};
 for (const ap of ACCESS_POINT_ORDER) {
-  const server = resolveEntryServer(ap);
-  if (server) RESOLVED_ENTRY_SERVERS[ap] = server;
+  const ep = resolveEntryServer(ap);
+  if (ep && ep.server) RESOLVED_ENTRY_SERVERS[ap] = ep;
 }
 
 // ── 第 3 步：目标节点排序（区域顺序 → 编号）──
@@ -480,11 +486,15 @@ if (SORT_MODE !== 1 && SORT_MODE !== 2) {
   throw new Error(`SORT_MODE 必须是 1 或 2，当前值：${SORT_MODE}`);
 }
 
-// 浅拷贝生成新节点（只改顶层 server / name，嵌套对象共享引用，序列化结果一致）
-function cloneProxyWithRelay(proxy, server, name) {
+// 浅拷贝生成新节点（只改顶层 server/port/name，嵌套对象共享引用，序列化结果一致）
+// ★ 必须同时替换 port：同一组节点 host 相同、仅端口不同，只换 server 会连到错的端口
+function cloneProxyWithRelay(proxy, entry, name) {
   const np = { ...proxy };
-  np.server = server;   // ★ 换成入口机地址
-  np.name = name;       // ★ 名字加入口点后缀
+  np.server = entry.server;                              // ★ 换成入口机地址
+  if (entry.port !== null && entry.port !== undefined) {
+    np.port = entry.port;                                // ★ 换成入口机端口
+  }
+  np.name = name;                                        // ★ 名字加入口点后缀
   return np;
 }
 
@@ -493,20 +503,20 @@ function generateForNode(item) {
   const { proxy, region } = item;
   const baseName = getProxyMeta(proxy).baseName;
   for (const ap of REGION_ENTRY_LISTS[region]) {   // 按该区域页面上的入口顺序
-    const server = RESOLVED_ENTRY_SERVERS[ap];
-    if (!server) continue;                          // 没有入口机 → 跳过该列
-    generatedNodes.push(cloneProxyWithRelay(proxy, server, `${baseName} - ${ap}`));
+    const entry = RESOLVED_ENTRY_SERVERS[ap];
+    if (!entry) continue;                          // 没有入口机 → 跳过该列
+    generatedNodes.push(cloneProxyWithRelay(proxy, entry, `${baseName} - ${ap}`));
   }
 }
 
 // SORT_MODE=2：入口点优先
 function generateForAccessPoint(ap) {
-  const server = RESOLVED_ENTRY_SERVERS[ap];
-  if (!server) return;
+  const entry = RESOLVED_ENTRY_SERVERS[ap];
+  if (!entry) return;
   for (const item of targetNodes) {
     if (!regionSupportsAccessPoint(item.region, ap)) continue;
     const baseName = getProxyMeta(item.proxy).baseName;
-    generatedNodes.push(cloneProxyWithRelay(item.proxy, server, `${baseName} - ${ap}`));
+    generatedNodes.push(cloneProxyWithRelay(item.proxy, entry, `${baseName} - ${ap}`));
   }
 }
 
