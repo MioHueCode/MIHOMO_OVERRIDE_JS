@@ -486,19 +486,16 @@ if (SORT_MODE !== 1 && SORT_MODE !== 2) {
   throw new Error(`SORT_MODE 必须是 1 或 2，当前值：${SORT_MODE}`);
 }
 
-// ★ 中转机制（TCP 端口转发）：
-//   入口机在落地节点的 port 上运行 TCP 转发，把流量转发到落地节点的 server:port。
-//   客户端用落地节点的 pbk/sid/sni 连接 入口机地址:落地port，
-//   TLS 握手穿透到落地节点，由落地节点处理 Reality。
-//   因此：只换 server（→入口机地址），保留落地节点的 port 和全部协议参数。
-//   ★ 不能换 port！换了 port 就会连到入口机自己的 VLESS 服务，
-//     pbk 不匹配 → 回退到真实网站 → 连接失败。
-//   （实测：换 server+port 后只有 entry=landing 通，因为那时 server/port 都没变）
+// ★ 中转机制（已验证入口机不转发未识别TLS）：
+//   入口机是独立的 VLESS/Reality 服务，只接受自己的 pbk/sid。
+//   若客户端用落地节点的 pbk/sid 连接入口机，入口机不认识 → 回退到真实网站。
+//   因此：中转节点必须使用入口机的全部参数（server/port/pbk/sid/sni），
+//   只是名字上标注落地节点 + 入口点，用于组织和选择。
+//   这是"入口机全参数复制"方案：功能上等同于直接用入口机节点，但名字更清晰。
 function cloneProxyWithRelay(proxy, entry, name) {
-  const np = { ...proxy };                               // ★ 以落地节点为基础（保留全部协议参数含 port）
-  np.server = entry.server;                              // ★ 只换 server 为入口机地址
-  // ★ 不换 port！保留落地节点的 port，入口机在该 port 上做 TCP 转发
-  np.name = name;                                        // ★ 名字加入口点后缀
+  // ★ 以入口机为基础，全参数复制（server/port/pbk/sid/sni 都来自入口机）
+  const np = { ...entry.proxy };                         // ★ 复制入口机的完整代理对象
+  np.name = name;                                        // ★ 只改名字，标注落地节点 + 入口点
   return np;
 }
 
