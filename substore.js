@@ -486,19 +486,18 @@ if (SORT_MODE !== 1 && SORT_MODE !== 2) {
   throw new Error(`SORT_MODE 必须是 1 或 2，当前值：${SORT_MODE}`);
 }
 
-// ★ 以落地节点的协议参数为基础（pbk/sid/sni/uuid 全部保留落地节点的）
-//   只换 server+port 为入口机地址
-//   原理：Reality 中转 = 客户端用落地节点的 pbk/sid 连接入口机
-//   入口机不认识该 sid → 将原始 TLS 流转发给落地节点 → 落地节点处理 Reality 握手
-//   如果改用入口机的 pbk，入口机会认出自己的密钥 → 检查 sid 不匹配 →
-//   回退到真实网站而非转发给落地节点 → 连接失败
-//   （实测：只有 entry=landing 时 sid 匹配才通，正是此 bug 的表现）
+// ★ 中转机制（TCP 端口转发）：
+//   入口机在落地节点的 port 上运行 TCP 转发，把流量转发到落地节点的 server:port。
+//   客户端用落地节点的 pbk/sid/sni 连接 入口机地址:落地port，
+//   TLS 握手穿透到落地节点，由落地节点处理 Reality。
+//   因此：只换 server（→入口机地址），保留落地节点的 port 和全部协议参数。
+//   ★ 不能换 port！换了 port 就会连到入口机自己的 VLESS 服务，
+//     pbk 不匹配 → 回退到真实网站 → 连接失败。
+//   （实测：换 server+port 后只有 entry=landing 通，因为那时 server/port 都没变）
 function cloneProxyWithRelay(proxy, entry, name) {
-  const np = { ...proxy };                               // ★ 以落地节点为基础（保留全部协议参数）
+  const np = { ...proxy };                               // ★ 以落地节点为基础（保留全部协议参数含 port）
   np.server = entry.server;                              // ★ 只换 server 为入口机地址
-  if (entry.port !== null && entry.port !== undefined) {
-    np.port = entry.port;                                // ★ 换 port 为入口机端口
-  }
+  // ★ 不换 port！保留落地节点的 port，入口机在该 port 上做 TCP 转发
   np.name = name;                                        // ★ 名字加入口点后缀
   return np;
 }
