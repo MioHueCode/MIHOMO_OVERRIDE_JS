@@ -650,7 +650,7 @@ function buildConfig(config) {
       "移动": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10086.png",
       "联通": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10010.png",
       "电信": EXTERNAL_URLS.cdn.jsdelivrFastly + "Orz-3/mini@master/Color/10000.png",
-      "广电": EXTERNAL_URLS.cdn.iconify + "tabler:router.svg?color=%23722ED1"
+      "广电": qIcon("Cellular")
     },
     carrierEmoji: {
       "移动": "📱",
@@ -1111,53 +1111,42 @@ function buildConfig(config) {
     "拉美地区": qIcon("America_Map"),
     "非洲": qIcon("Africa_Map"),
     "其它地区": qIcon("World_Map")
-  }, homeRegionIconMap = {
-    "香港": "https://api.iconify.design/circle-flags:hk.svg",
-    "台湾": "https://api.iconify.design/circle-flags:tw.svg",
-    "日本": "https://api.iconify.design/circle-flags:jp.svg",
-    "新加坡": "https://api.iconify.design/circle-flags:sg.svg",
-    "美国": "https://api.iconify.design/circle-flags:us.svg",
-    "韩国": "https://api.iconify.design/circle-flags:kr.svg",
-    "俄罗斯": "https://api.iconify.design/circle-flags:ru.svg",
-    "欧盟": "https://api.iconify.design/circle-flags:eu.svg",
-    "东南亚": qIcon("Asia_Map"),
-    "加拿大": "https://api.iconify.design/circle-flags:ca.svg",
-    "拉美地区": qIcon("America_Map"),
-    "非洲": qIcon("Africa_Map"),
-    "其它地区": qIcon("World_Map")
-  }, iconMap = {
+  }, homeRegionIconMap = Object.assign({}, regionIconMap), iconMap = {
     rocket: qIcon("Rocket"),
     auto: qIcon("Auto"),
     select: qIcon("Static"),
     balance: qIcon("Round_Robin"),
+    balanceHash: "https://raw.githubusercontent.com/Semporia/Hand-Painted-icon/master/Universal/Auto_Speed.png",
+    balancePoll: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Speedtest.png",
     direct: qIcon("Direct"),
-    final: "https://api.iconify.design/tabler:fish.svg?color=%2306b6d4",
-    global: "https://api.iconify.design/tabler:logout-2.svg?color=%230ea5e9",
+    final: qIcon("Final"),
+    global: qIcon("Global"),
     fallback: qIcon("Available"),
-    fallbackFinal: "https://api.iconify.design/tabler:parachute.svg?color=%233b82f6",
-    flare: "https://api.iconify.design/tabler:flame-filled.svg?color=%2300d1b2",
-    lowMultiplier: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b",
-    highMultiplier: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23ef4444",
-    normalMultiplier: "https://api.iconify.design/tabler:gauge-filled.svg?color=%2310b981",
+    fallbackFinal: qIcon("Final_1"),
+    flare: "https://raw.githubusercontent.com/Semporia/Hand-Painted-icon/master/Accommodation/Hotel.png",
+    lowMultiplier: qIcon("Speedtest"),
+    highMultiplier: qIcon("Speedtest"),
+    normalMultiplier: qIcon("Speedtest"),
     multiplier: qIcon("Filter"),
-    home: "https://api.iconify.design/tabler:home-filled.svg",
+    home: EXTERNAL_URLS.icons.miniColor + "Personal.png",
     youtube: qIcon("YouTube"),
     youtubeFallback: qIcon("Streaming"),
     tiktok: qIcon("TikTok"),
-    meta: "https://api.iconify.design/simple-icons:meta.svg?color=%231877F2",
-    twitter: "https://api.iconify.design/logos:twitter.svg?color=%231DA1F2",
+    meta: "https://raw.githubusercontent.com/AIsouler/MyClash/main/Icons/png/Meta.png",
+    twitter: qIcon("Twitter"),
     telegram: qIcon("Telegram"),
-    translate: "https://api.iconify.design/simple-icons:googletranslate.svg?color=%234285F4",
+    translate: EXTERNAL_URLS.icons.miniColor + "translate.png",
     google: qIcon("Google_Search"),
-    playstore: "https://api.iconify.design/logos:google-play-icon.svg",
+    playstore: "https://raw.githubusercontent.com/Semporia/Hand-Painted-icon/master/Google_Suite/PlayStore.png",
+    playstoreDedicated: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Google.png",
     microsoft: qIcon("Microsoft"),
-    bing: "https://api.iconify.design/simple-icons:microsoftbing.svg?color=%2300837D",
+    bing: EXTERNAL_URLS.icons.miniColor + "Bing.png",
     apple: qIcon("Apple"),
     cloudflare: qIcon("Cloudflare"),
     github: qIcon("GitHub"),
     ai: qIcon("AI"),
-    claude: "https://api.iconify.design/simple-icons:claude.svg?color=%23D97757",
-    gemini: "https://api.iconify.design/logos:google-gemini.svg",
+    claude: qIcon("AI"),
+    gemini: qIcon("AI"),
     fcm: EXTERNAL_URLS.icons.fcm,
     streaming: qIcon("Netflix"),
     streamingGlobal: qIcon("Media"),
@@ -1167,20 +1156,20 @@ function buildConfig(config) {
     discord: qIcon("Discord"),
     niconico: qIcon("niconico"),
     taiwanMedia: qIcon("Bahamut"),
-    dedicated: "https://api.iconify.design/tabler:train.svg?color=%230ea5e9",
+    dedicated: qIcon("IEPL"),
     privacy: qIcon("Lock"),
-    payment: "https://api.iconify.design/tabler:credit-card.svg?color=%23f59e0b",
+    payment: qIcon("PayPal"),
     personalMedia: qIcon("Emby"),
-    news: "https://api.iconify.design/simple-icons:bbc.svg?color=%230068BD",
-    social: "https://api.iconify.design/simple-icons:reddit.svg?color=%23FF4500",
-    reddit: "https://api.iconify.design/simple-icons:reddit.svg",
+    news: qIcon("BBC_iPlayer"),
+    social: "https://raw.githubusercontent.com/Semporia/Hand-Painted-icon/master/Social_Media/Reddit.png",
+    reddit: EXTERNAL_URLS.icons.miniColor + "Instagram.png",
     china: qIcon("China_Map"),
     russia: qIcon("Russia"),
     jpkr: qIcon("AbemaTV"),
     game: qIcon("Game"),
     download: qIcon("Download"),
     adblock: qIcon("Advertising"),
-    decentralized: "https://api.iconify.design/simple-icons:ethereum.svg?color=%23627EEA",
+    decentralized: "https://raw.githubusercontent.com/Semporia/Hand-Painted-icon/master/Social_Media/Diaspora.png",
     riskControl: "https://mihomo.echs.top/img/Hand-Painted-icon/Google_Suite/Account.png"
   }, regionAutoOrder = [ "香港", "台湾", "日本", "新加坡", "美国", "韩国", "欧盟", "加拿大", "俄罗斯", "东南亚", "拉美地区", "非洲", "其它地区" ], regionCatalog = regionAutoOrder.reduce((acc, regionName) => {
     // 地区自动组：改为静态节点列表 url-test（而非 include-all + filter 动态匹配），
@@ -1480,14 +1469,14 @@ function buildConfig(config) {
     lazy: !1
   }, loadBalanceGroupArtifacts = collectNamedGroups([ makeLoadBalanceGroup("负载均衡", iconMap.balance, ensureGroupList(allProxyNames, []), Object.assign({}, LOAD_BALANCE_HEALTH, {
     strategy: "consistent-hashing"
-  })), makeLoadBalanceGroup("下载散列组", iconMap.balance, ensureGroupList(regionAutoNames, []), Object.assign({}, LOAD_BALANCE_HEALTH, {
+  })), makeLoadBalanceGroup("下载散列组", iconMap.balanceHash, ensureGroupList(regionAutoNames, []), Object.assign({}, LOAD_BALANCE_HEALTH, {
     strategy: "consistent-hashing"
-  })), makeLoadBalanceGroup("下载轮询组", iconMap.balance, ensureGroupList(regionAutoNames, []), Object.assign({}, LOAD_BALANCE_HEALTH, {
+  })), makeLoadBalanceGroup("下载轮询组", iconMap.balancePoll, ensureGroupList(regionAutoNames, []), Object.assign({}, LOAD_BALANCE_HEALTH, {
     strategy: "round-robin"
   })), 
   // 特殊聚合组：转为 url-test（隐藏）+ select（可见，包含url-test名+真实节点）模式
   // 倍率聚合：先按识别出的倍率值排序，再派生低倍率节点池。
-  makeLoadBalanceGroup("谷歌商店专用", iconMap.playstore, ensureGroupList(playStoreBalanceChoices, []), playStoreLoadBalanceOptions) ]), loadBalanceGroups = loadBalanceGroupArtifacts.groups, loadBalanceNames = loadBalanceGroupArtifacts.names, multiplierProxyEntries = multiplierProxyNames.map(name => ({
+  makeLoadBalanceGroup("谷歌商店专用", iconMap.playstoreDedicated, ensureGroupList(playStoreBalanceChoices, []), playStoreLoadBalanceOptions) ]), loadBalanceGroups = loadBalanceGroupArtifacts.groups, loadBalanceNames = loadBalanceGroupArtifacts.names, multiplierProxyEntries = multiplierProxyNames.map(name => ({
     name: name,
     info: getMultiplierSortInfo(name)
   }));
@@ -1507,7 +1496,7 @@ function buildConfig(config) {
   const globalHomeGroup = globalHomeAuto && globalHomeNodes.length ? {
     name: "🏡全球家宽",
     type: "select",
-    icon: iconMap.home,
+    icon: "https://raw.githubusercontent.com/Semporia/Hand-Painted-icon/master/Accommodation/Free_Wifi.png",
     proxies: buildChoiceList([ "🏡全球家宽自动" ], globalHomeNodes)
   } : null, globalDedicatedAuto = globalDedicatedNodes.length ? makeUrlTestGroup("全球专线自动", iconMap.dedicated, globalDedicatedNodes, 600, 200) : null;
   globalDedicatedAuto && (globalDedicatedAuto.hidden = !0);
@@ -1542,7 +1531,7 @@ function buildConfig(config) {
   // 识别逻辑见 CARRIER_CLASSIFIER；无匹配节点时整组不生成，不污染 UI。
   // 三网优化组：与四大运营商优化组平行，smart(hidden) + select(visible) 双层
     if (tripleNetNodes.length) {
-    const tnAutoName = "💠三网优化自动", tnSelName = "💠三网优化", tnIcon = EXTERNAL_URLS.cdn.iconify + "tabler:world.svg?color=%230EA5E9", tnAuto = makeUrlTestGroup(tnAutoName, tnIcon, tripleNetNodes, 600, 200);
+    const tnAutoName = "💠三网优化自动", tnSelName = "💠三网优化", tnIcon = qIcon("Global"), tnAuto = makeUrlTestGroup(tnAutoName, tnIcon, tripleNetNodes, 600, 200);
     tnAuto && (tnAuto.hidden = !0, carrierAutoGroups.push(tnAuto), carrierGroups.push({
       name: tnSelName,
       type: "select",
@@ -1773,7 +1762,7 @@ function buildConfig(config) {
     extraDefaults: [ "REJECT-DROP" ]
   }, {
     name: "跟踪分析",
-    icon: qIcon("Reject"),
+    icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AdBlack.png",
     choices: [ "REJECT", "自动选择" ],
     extraDefaults: [ "REJECT" ]
   }, {
@@ -1783,7 +1772,7 @@ function buildConfig(config) {
     extraDefaults: [ "REJECT" ]
   }, {
     name: "受限网站",
-    icon: "https://api.iconify.design/mdi:shield-lock-outline.svg?color=%23e67e22",
+    icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Bypass.png",
     choices: MAIN_CHOICE_POOLS.finalFallback
   }, {
     name: "漏网之鱼",
@@ -1815,7 +1804,7 @@ function buildConfig(config) {
   [ "自动选择", "自动兜底" ], regionAutoNames, regionManualNames.filter(name => !String(name).includes("家宽"))), chainExitChoices = sanitizeUiChoiceList([ "家宽故障转移", globalHomeGroup ? "🏡全球家宽" : null, globalHomeAuto ? "🏡全球家宽自动" : null ].filter(Boolean), regionHomeManualNames, [ "家宽故障转移", "自动兜底" ], regionManualNames.filter(name => !regionHomeManualNames.includes(name)), [ globalStreamingGroup ? "全球流媒体" : null, globalDedicatedGroup ? "全球专线" : null, highMultiplierGroup ? "高倍率节点" : null, lowMultiplierGroup ? "低倍率节点" : null ].filter(Boolean), allProxyNames), chainGroups = [ chainTransitChoices.length ? {
     name: "🪜链式中转",
     type: "fallback",
-    icon: "https://api.iconify.design/tabler:git-branch.svg?color=%23f59e0b",
+    icon: qIcon("LinkCube"),
     proxies: chainTransitChoices,
     url: TEST_URL,
     interval: 300,
@@ -1825,7 +1814,7 @@ function buildConfig(config) {
   } : null, chainExitChoices.length ? {
     name: "🔗链式出口",
     type: "select",
-    icon: "https://api.iconify.design/tabler:logout-2.svg?color=%230ea5e9",
+    icon: qIcon("Server"),
     override: {
       "dialer-proxy": "🪜链式中转"
     },
@@ -1839,19 +1828,19 @@ function buildConfig(config) {
     CORE_AUTO_GROUPS.push({
     name: "通过",
     type: "select",
-    icon: "https://api.iconify.design/tabler:world-download.svg?color=%2322c55e",
+    icon: "https://raw.githubusercontent.com/Semporia/Hand-Painted-icon/master/Universal/Available.png",
     hidden: !0,
     proxies: ensureGroupList([ "节点选择" ], [ "DIRECT" ])
   }, {
     name: "拒绝",
     type: "select",
-    icon: "https://api.iconify.design/tabler:world-off.svg?color=%23ef4444",
+    icon: qIcon("Reject"),
     hidden: !0,
     proxies: [ "REJECT", "REJECT-DROP" ]
   }, {
     name: "QUIC控制",
     type: "select",
-    icon: "https://api.iconify.design/tabler:world-www.svg?color=%2306b6d4",
+    icon: qIcon("WiFi"),
     proxies: [ "通过", "拒绝" ]
   }), CORE_AUTO_GROUPS.push(makeSelectGroup("全球手动", iconMap.select, allProxyNames, []));
   const CORE_FAILOVER_GROUPS = [];
