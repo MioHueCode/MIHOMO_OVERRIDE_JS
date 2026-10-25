@@ -100,6 +100,9 @@ function main(config) {
     label: "台湾HiNet",
     key: [ "台湾hinet", "台湾 hinet" ]
   }, {
+    label: "台湾优化",
+    key: [ "台湾优化" ]
+  }, {
     label: "(实验性)特殊入口",
     key: [ "(实验性)特殊入口", "实验性)特殊入口" ]
   }, {
@@ -111,6 +114,9 @@ function main(config) {
   }, {
     label: "(IPv6)新加坡AWS",
     key: [ "(ipv6)新加坡aws", "(ipv6) 新加坡aws" ]
+  }, {
+    label: "新加坡优化",
+    key: [ "新加坡优化" ]
   }, {
     label: "日本优化",
     key: [ "日本优化" ]
