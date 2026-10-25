@@ -130,6 +130,9 @@ function main(config) {
   }, {
     label: "日本软银",
     key: [ "日本软银", "日本软银" ]
+  }, {
+    label: "美国优化",
+    key: [ "美国优化" ]
   } ], SUF = ENTRIES.map(function(e) {
     return " - " + e.label;
   }).sort(function(a, b) {
