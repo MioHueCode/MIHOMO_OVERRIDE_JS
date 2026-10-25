@@ -43,10 +43,13 @@
 //   ├─ 改排序模式          → 改 SORT_MODE
 //   └─ 改 CF 节点跳过      → 改 SKIP_CF
 //
-// 【运行环境】
-//   Sub-Store 脚本操作器（Script Operator）
-//   Sub-Store 会把订阅里解析出的节点数组注入到全局变量 `proxies`
-//   脚本最后 `return` 一个新数组，Sub-Store 用它替换原订阅输出
+// 【运行环境】（v1.1 双环境适配）
+//   ① Sub-Store 脚本操作器：官方约定是定义 operator(proxies, targetPlatform, context)
+//      函数并返回新节点数组（旧版"裸代码 + 顶层 return"写法在 Sub-Store 中不会被执行）
+//   ② Mihomo 覆写脚本（Mihomo Party / Clash Verge Rev）：约定是定义 main(config)
+//      函数并返回修改后的 config。旧版顶层 return 在此环境是语法错误，
+//      覆写加载即失败（SyntaxError: Illegal return statement）→ 整份订阅损坏 → 全部超时
+//   两种环境的入口都收敛到 processProxies(proxies)，中转逻辑完全共用
 //
 // 【性能说明】
 //   ① 每个节点的 基础名/区域/编号/查找键/CF标记 只计算一次，缓存在 proxyMetaCache
@@ -57,6 +60,10 @@
 //
 // ============================================================
 
+
+// ── 主处理函数：两种运行环境的统一入口 ─────────────────
+// Sub-Store 注入节点数组；Mihomo 覆写从 config.proxies 取节点数组
+function processProxies(proxies) {
 
 // ── 配置区 ─────────────────────────────────────────────────
 // 下面全是你可以改的配置项，改完不需要动后面的代码逻辑
@@ -529,4 +536,20 @@ if (SORT_MODE === 1) {
 }
 
 // ── 第 5 步：输出（中转节点在前，保留节点在后）──
-return [...generatedNodes, ...untouchedNodes];
+  return [...generatedNodes, ...untouchedNodes];
+}
+
+// ════════════════════════════════════════════════════════════
+// 环境适配层：同一份中转逻辑，按宿主约定暴露入口
+// ════════════════════════════════════════════════════════════
+
+// Sub-Store 脚本操作器（官方约定：operator 函数，返回新节点数组）
+function operator(proxies, targetPlatform, context) {
+  return processProxies(proxies || []);
+}
+
+// Mihomo 覆写脚本（Mihomo Party / Clash Verge Rev 约定：main(config)，返回 config）
+function main(config) {
+  config.proxies = processProxies(config.proxies || []);
+  return config;
+}
