@@ -595,7 +595,12 @@ function originalMain(config) {
     cnAppDnsPolicy["+." + d] = directDns;
   });
   const originDns = config.dns || {}, appendDirectTag = val => "string" == typeof val ? val.split("#")[0] + "#直接连接" : val, formatDnsValues = dnsValue => Array.isArray(dnsValue) ? dnsValue.map(appendDirectTag) : appendDirectTag(dnsValue);
-  let finalProxyServerNameserver = proxyDns;
+  // ★ 修复超时死锁：proxy-server-nameserver 用于解析"代理节点域名"，
+  //   默认值原来是 proxyDns（#代理DNS 组的 Google/Quad9 DoH）——DoH 请求本身
+  //   要走代理组，而代理组要连节点，连节点又要先解析节点域名 → 循环依赖，
+  //   冷启动/代理中断时全部节点解析失败 → 表现为"订阅脚本处理后全部超时"。
+  //   节点域名解析永远不应该依赖代理本身，改为直连 DoH（阿里/腾讯），与 Mihomo 官方推荐一致。
+  let finalProxyServerNameserver = directDns;
   const originPsn = originDns["proxy-server-nameserver"];
   let finalProxyServerNameserverPolicy;
   null != originPsn && "" !== originPsn && (!Array.isArray(originPsn) || originPsn.length > 0) && (finalProxyServerNameserver = formatDnsValues(originPsn));
