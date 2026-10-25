@@ -98,6 +98,9 @@ function main(config) {
     label: "台湾HiNet",
     key: [ "台湾hinet", "台湾 hinet" ]
   }, {
+    label: "台湾优化",
+    key: [ "台湾优化" ]
+  }, {
     label: "(实验性)特殊入口",
     key: [ "(实验性)特殊入口", "实验性)特殊入口" ]
   }, {
@@ -109,6 +112,9 @@ function main(config) {
   }, {
     label: "(IPv6)新加坡AWS",
     key: [ "(ipv6)新加坡aws", "(ipv6) 新加坡aws" ]
+  }, {
+    label: "新加坡优化",
+    key: [ "新加坡优化" ]
   }, {
     label: "日本优化",
     key: [ "日本优化" ]
@@ -221,11 +227,8 @@ function main(config) {
     label: "电信",
     kw: [ "电信", "ctcc", "chinatelecom", "china telecom" ]
   }, {
-    label: "日本软银",
-    key: [ "日本软银", "日本软银" ]
-  }, {
-    label: "美国优化",
-    key: [ "美国优化" ]
+    label: "广电",
+    kw: [ "广电", "cbn", "cbnnet", "chinabroadcast", "china broadcast" ]
   } ];
   function matchCarriers(name) {
     for (var c = lc(strip(name)), found = [], k = 0; k < CARRIERS.length; k++) for (var w = 0; w < CARRIERS[k].kw.length; w++) if (c.indexOf(CARRIERS[k].kw[w]) >= 0) {
@@ -602,7 +605,12 @@ function originalMain(config) {
     cnAppDnsPolicy["+." + d] = directDns;
   });
   const originDns = config.dns || {}, appendDirectTag = val => "string" == typeof val ? val.split("#")[0] + "#直接连接" : val, formatDnsValues = dnsValue => Array.isArray(dnsValue) ? dnsValue.map(appendDirectTag) : appendDirectTag(dnsValue);
-  let finalProxyServerNameserver = proxyDns;
+  // ★ 修复超时死锁：proxy-server-nameserver 用于解析"代理节点域名"，
+  //   默认值原来是 proxyDns（#代理DNS 组的 Google/Quad9 DoH）——DoH 请求本身
+  //   要走代理组，而代理组要连节点，连节点又要先解析节点域名 → 循环依赖，
+  //   冷启动/代理中断时全部节点解析失败 → 表现为"订阅脚本处理后全部超时"。
+  //   节点域名解析永远不应该依赖代理本身，改为直连 DoH（阿里/腾讯），与 Mihomo 官方推荐一致。
+  let finalProxyServerNameserver = directDns;
   const originPsn = originDns["proxy-server-nameserver"];
   let finalProxyServerNameserverPolicy;
   null != originPsn && "" !== originPsn && (!Array.isArray(originPsn) || originPsn.length > 0) && (finalProxyServerNameserver = formatDnsValues(originPsn));
