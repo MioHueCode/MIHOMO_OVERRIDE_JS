@@ -444,11 +444,12 @@ for (const proxy of proxies) {
 
 // ── 第 2.5 步：解析每个入口点的入口机地址（手动 > 采集 > 兜底）──
 // 兜底：入口点名为"XX优化"且找不到入口机时，借用"XX 01"节点的 server
-const nodeKeyServerMap = new Map();   // "香港 01" → { server, port }
+const nodeKeyServerMap = new Map();   // "香港 01" → { server, port, proxy }
 for (const item of targetNodes) {
   const key = getProxyMeta(item.proxy).nodeKey;
   if (key && item.proxy.server && !nodeKeyServerMap.has(key)) {
-    nodeKeyServerMap.set(key, { server: item.proxy.server, port: item.proxy.port });
+    // ★ 保存完整 proxy：兜底时入口机参数必须完整（server/port/pbk/sid/sni 一致）
+    nodeKeyServerMap.set(key, { server: item.proxy.server, port: item.proxy.port, proxy: item.proxy });
   }
 }
 
@@ -549,7 +550,55 @@ function operator(proxies, targetPlatform, context) {
 }
 
 // Mihomo 覆写脚本（Mihomo Party / Clash Verge Rev 约定：main(config)，返回 config）
+// ★ 覆写环境的关键：只替换 proxies 不够——proxy-groups 里按名字引用的节点
+//   （如"香港 01"）在输出数组里已不存在，Mihomo 加载时直接报错，表现为全部超时。
+//   因此这里把每个组里失效的节点引用替换为"<组名> - <入口点名>"形式的中转节点名；
+//   同时保留原落地节点数组供 groups 引用兜底（use/generated 名单重建也兼容）。
 function main(config) {
-  config.proxies = processProxies(config.proxies || []);
+  const out = processProxies(config.proxies || []);
+  config.proxies = out;
+
+  // 输出节点名集合
+  const outNames = new Set(out.map(p => p.name));
+  const relayNames = out.filter(p => p.name.includes(" - ")).map(p => p.name);
+  const builtin = new Set(["DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE"]);
+  const groupNames = new Set(Array.isArray(config["proxy-groups"]) ? config["proxy-groups"].map(g => g.name) : []);
+
+  if (Array.isArray(config["proxy-groups"])) {
+    // ★ 区域识别不依赖 processProxies 内部的 getRegionFromName（作用域不可达），
+    //   改为直接从输出节点名提取：中转节点名形如
+    //   "[高级] 🇭🇰 香港 01 - 香港优化" → 取 " - " 前的 baseName，再去掉末尾编号 → 区域词
+    //   同一失效引用与中转节点的 baseName 前缀相同即视为同区域。
+    const baseOf = n => {
+      const m = /^(.*) - (.+)$/.exec(n);
+      return m ? m[1] : null;
+    };
+    const regionOf = n => {
+      const base = baseOf(n) || n;
+      // 去掉末尾编号（"香港 01" -> "香港"），容忍 emoji/前缀
+      const m = /^(.*\D)\s*\d+$/.exec(base.trim());
+      return (m ? m[1] : base).trim();
+    };
+    const regionByRelay = {};
+    for (const n of relayNames) regionByRelay[n] = regionOf(n);
+    for (const g of config["proxy-groups"]) {
+      if (!Array.isArray(g.proxies)) continue;
+      const fixed = [];
+      for (const ref of g.proxies) {
+        if (outNames.has(ref) || builtin.has(ref) || groupNames.has(ref)) { fixed.push(ref); continue; }
+        // 失效引用：按区域词前缀匹配（"[高级] 🇭🇰 香港 01" 的区域词是 "香港"）
+        const m = /^(.*\D)\s*\d+$/.exec(String(ref).trim());
+        const refRegion = (m ? m[1] : String(ref)).trim();
+        // 区域词匹配：取引用名最后出现的区域词（如 "香港"）与中转节点区域词比对
+        const regionWord = refRegion.split(/\s+/).pop();
+        const rep = relayNames.find(n => {
+          const w = regionByRelay[n].split(/\s+/).pop();
+          return w === regionWord;
+        });
+        fixed.push(rep || ref);
+      }
+      g.proxies = fixed;
+    }
+  }
   return config;
 }
