@@ -65,34 +65,37 @@ const ENTRY_NODE_TEXT = `
 巴西 01:日本优化
 `;
 
-// ── 2. 各区域的"默认优化入口"（排在该区域入口列表第一位）──
-const REGION_DEFAULT_ENTRY = {
-  "香港":    "香港优化",
-  "台湾":    "台湾优化",
-  "新加坡":  "新加坡优化",
-  "日本":    "日本优化",
-  "美国":    "美国优化",
-  "意大利":  "香港优化",
-  "印度":    "日本优化",
-  "泰国":    "日本优化",
-  "澳洲":    "日本优化",
-  "墨西哥":  "日本优化",
-  "巴西":    "日本优化"
+// ── 2/3/6 合并：各区域允许的接入点清单（对照官网"接入点切换"下拉，默认入口第一位）──
+// 说明：
+//   · 不再使用共享组全量放开（那会导致全交叉生成），每个区域只生成清单内的入口；
+//   · IPv6 入口（(IPv6)日本优化 / (IPv6)日本AWS / (IPv6)新加坡AWS）已全部排除；
+//   · 意大利/泰国等"其它地区"官网当前给的是 IPv6 入口，排除后回落到其原有默认入口。
+const REGION_ALLOWED_ENTRIES = {
+  // 官网"香港节点"组：默认香港优化，可选新加坡AWS / 台湾HiNet
+  "香港":    ["香港优化", "新加坡AWS", "台湾HiNet"],
+  // 官网"台湾节点"组：默认台湾优化，可选台湾HiNet / (实验性)特殊入口
+  "台湾":    ["台湾优化", "台湾HiNet", "(实验性)特殊入口"],
+  // 官网"新加坡节点"组：默认新加坡优化，可选日本AWS / 新加坡GCP
+  "新加坡":  ["新加坡优化", "日本AWS", "新加坡GCP"],
+  // 官网"日本节点"组：默认日本优化，可选日本GCP A / 日本GCP B
+  "日本":    ["日本优化", "日本GCP A", "日本GCP B"],
+  // 官网"美国节点"组：默认美国优化，可选日本软银
+  "美国":    ["美国优化", "日本软银"],
+  // 其它地区：官网当前只提供 IPv6 入口（已排除），回落到原默认
+  "意大利":  ["香港优化"],
+  "印度":    ["日本优化"],
+  "泰国":    ["日本优化"],
+  "澳洲":    ["日本优化"],
+  "墨西哥":  ["日本优化"],
+  "巴西":    ["日本优化"]
 };
 
-// ── 3. 共享入口组 ──
-const SHARED_ENTRY_GROUPS = {
-  HK_TW_SG: [
-    "新加坡GCP", "新加坡AWS", "台湾HiNet",
-    "(实验性)特殊入口",
-    "日本AWS",
-    "(IPv6)日本优化", "(IPv6)日本AWS", "(IPv6)新加坡AWS"
-  ],
-  ZJ: [
-    "日本GCP A", "日本GCP B", "日本AWS", "日本软银",
-    "(IPv6)日本优化", "(IPv6)日本AWS", "(IPv6)新加坡AWS"
-  ]
-};
+// 兼容引用：以下常量已被 REGION_ALLOWED_ENTRIES 取代，保留空结构防止外部引用报错
+const REGION_DEFAULT_ENTRY = Object.fromEntries(
+  Object.entries(REGION_ALLOWED_ENTRIES).map(([r, l]) => [r, l[0]])
+);
+const SHARED_ENTRY_GROUPS = {};
+const REGION_ACCESS_GROUP = {};
 
 // ── 4. 区域别名表 ──
 const REGION_ALIASES = {
@@ -115,20 +118,7 @@ const REGION_ORDER = [
   "意大利", "印度", "泰国", "澳洲", "墨西哥", "巴西"
 ];
 
-// ── 6. 区域 → 共享入口组映射 ──
-const REGION_ACCESS_GROUP = {
-  "香港":   "HK_TW_SG",
-  "台湾":   "HK_TW_SG",
-  "新加坡": "HK_TW_SG",
-  "意大利": "HK_TW_SG",
-  "日本":   "ZJ",
-  "美国":   "ZJ",
-  "印度":   "ZJ",
-  "泰国":   "ZJ",
-  "澳洲":   "ZJ",
-  "墨西哥": "ZJ",
-  "巴西":   "ZJ"
-};
+// （原第 6 节"区域 → 共享入口组映射"已并入 REGION_ALLOWED_ENTRIES，不再需要）
 
 // ── 7. 排序模式 ──
 // 1 = 按节点优先（香港 01 的所有入口 → 香港 02 的所有入口…）
@@ -263,31 +253,24 @@ function stripEntrySuffixes(name) {
 }
 
 // ── 由配置派生的入口点结构 ──
-// ALL_ACCESS_POINTS：所有入口点名（默认项 + 共享组，去重保序）
+// ALL_ACCESS_POINTS：所有出现的入口点名（各区域清单去重保序 + 手动指定）
 const ALL_ACCESS_POINTS = (() => {
   const seen = new Set();
   const list = [];
   const push = ap => { if (ap && !SKIP_MARKERS.has(ap) && !seen.has(ap)) { seen.add(ap); list.push(ap); } };
-  for (const region of REGION_ORDER) push(REGION_DEFAULT_ENTRY[region]);
-  for (const group of Object.keys(SHARED_ENTRY_GROUPS)) {
-    for (const ap of SHARED_ENTRY_GROUPS[group]) push(ap);
+  for (const region of REGION_ORDER) {
+    for (const ap of (REGION_ALLOWED_ENTRIES[region] || [])) push(ap);
   }
   for (const ap of Object.keys(MANUAL_ENTRY_SERVERS)) push(ap);
   return list;
 })();
 
-// 每个区域的入口列表：[默认项, ...所在共享组的其余项]（过滤跳过标记）
+// 每个区域的入口列表：直接取显式清单（默认项已在清单第一位），过滤跳过标记
 const REGION_ENTRY_LISTS = (() => {
   const lists = {};
   for (const region of REGION_ORDER) {
-    const group = SHARED_ENTRY_GROUPS[REGION_ACCESS_GROUP[region]] || [];
-    const ordered = [];
-    const def = REGION_DEFAULT_ENTRY[region];
-    if (def && !SKIP_MARKERS.has(def)) ordered.push(def);
-    for (const ap of group) {
-      if (!SKIP_MARKERS.has(ap) && ap !== def) ordered.push(ap);
-    }
-    lists[region] = ordered;
+    lists[region] = (REGION_ALLOWED_ENTRIES[region] || [])
+      .filter(ap => ap && !SKIP_MARKERS.has(ap));
   }
   return lists;
 })();
