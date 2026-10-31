@@ -606,7 +606,11 @@ function originalMain(config) {
   //   要走代理组，而代理组要连节点，连节点又要先解析节点域名 → 循环依赖，
   //   冷启动/代理中断时全部节点解析失败 → 表现为"订阅脚本处理后全部超时"。
   //   节点域名解析永远不应该依赖代理本身，改为直连 DoH（阿里/腾讯），与 Mihomo 官方推荐一致。
-  let finalProxyServerNameserver = directDns;
+  // ★ 分层兜底：原订阅带机场自家 DoH 时优先保留；经 Sub-Store URI 链路转换的
+  //   订阅不带 dns 段，此时注入机场自家 DoH（NOWHERE_BACKEND_DNS，直连）为第一
+  //   优先，公共 DoH（directDns）兜底——token 失效时仍可解析，不会全挂。
+  const NOWHERE_BACKEND_DNS = "https://dns-resolve.nowhere-backend.xyz/dns-query/a9e09e225e08d7caa10001ac#直接连接";
+  let finalProxyServerNameserver = [NOWHERE_BACKEND_DNS, ...directDns];
   const originPsn = originDns["proxy-server-nameserver"];
   let finalProxyServerNameserverPolicy;
   null != originPsn && "" !== originPsn && (!Array.isArray(originPsn) || originPsn.length > 0) && (finalProxyServerNameserver = formatDnsValues(originPsn));
