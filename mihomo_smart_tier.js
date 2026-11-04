@@ -610,7 +610,7 @@ function originalMain(config) {
   //   "+.nowhere-backend.xyz"（全部入口机域名）强制走机场私有 DoH（直连），
   //   其余节点域名走公共 DoH 兜底。私有 DoH 若故障/换 token，公共 DoH 接管，
   //   不会全挂。原订阅自带 psn/policy 时仍原样保留（不覆盖）。
-  const NOWHERE_BACKEND_DNS = "https://dns-resolve.nowhere-backend.xyz/dns-query/a9e09e225e08d7caa10001ac#直接连接";
+  const NOWHERE_BACKEND_DNS = "https://domestic-dns.114514.nowhere-backend.xyz/dns-query/a9e09e225e08d7caa10001ac#直接连接";
   let finalProxyServerNameserver = directDns;
   let finalProxyServerNameserverPolicy = {
     "+.nowhere-backend.xyz": [NOWHERE_BACKEND_DNS, ...directDns]
