@@ -613,7 +613,7 @@ function originalMain(config) {
   // ★ 分层兜底 v2：与 smart 版一致——用 proxy-server-nameserver-policy 精准分流，
   //   "+.nowhere-backend.xyz" 强制走机场私有 DoH（直连），其余走公共 DoH 兜底。
   //   原订阅自带 psn/policy 时仍原样保留（不覆盖）。
-  const NOWHERE_BACKEND_DNS = "https://dns-resolve.nowhere-backend.xyz/dns-query/a9e09e225e08d7caa10001ac#直接连接";
+  const NOWHERE_BACKEND_DNS = "https://domestic-dns.114514.nowhere-backend.xyz/dns-query/a9e09e225e08d7caa10001ac#直接连接";
   let finalProxyServerNameserver = directDns;
   let finalProxyServerNameserverPolicy = {
     "+.nowhere-backend.xyz": [NOWHERE_BACKEND_DNS, ...directDns]
