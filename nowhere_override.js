@@ -320,7 +320,8 @@ function processProxies(proxies) {
         || (SKIP_CF && isCF(proxy)) || isUntouchedByName(name)) {
       untouchedNodes.push(proxy);
     } else {
-      targetNodes.push({ proxy, region, number: getNodeNumber(name) || 0 });
+      const tier = name.indexOf("[高级]") >= 0 ? "高级" : (name.indexOf("[基础]") >= 0 ? "基础" : "");
+      targetNodes.push({ proxy, region, number: getNodeNumber(name) || 0, tier });
     }
   }
 
@@ -511,13 +512,20 @@ function main(config) {
   const allNames = (config.proxies || []).map(p => p.name);
   const relayNames = allNames.filter(n => String(n).includes(" - "));
   const entryNames = [...new Set(relayNames.map(n => String(n).split(" - ").slice(1).join(" - ")))];
+  const entryDisp = e => e + ".入口";           // 香港优化 → 香港优化.入口
+  const tierDisp = t => t + ".线路";            // 高级 → 高级.线路 / 基础 → 基础.线路
   const regionWords = [...new Set(allNames.map(regionWordOf).filter(Boolean))];
-  const byRegion = {}, byEntry = {};
+  const byRegion = {}, byEntry = {}, byTier = { "高级": [], "基础": [] };
+  for (const n of allNames) {
+    if (String(n).indexOf("[基础]") >= 0) byTier["基础"].push(n);
+  }
   for (const n of relayNames) {
     const w = regionWordOf(n);
     (byRegion[w] = byRegion[w] || []).push(n);
     const e = String(n).split(" - ").slice(1).join(" - ");
     (byEntry[e] = byEntry[e] || []).push(n);
+    const t = String(n).indexOf("[高级]") >= 0 ? "高级" : "基础";
+    byTier[t].push(n);
   }
   const newGroups = [];
   const seen = new Set();
@@ -552,18 +560,20 @@ function main(config) {
       const fsBuiltins = proxies.filter(p => p === "DIRECT" || p === "REJECT" || p === "PASS" || p === "COMPATIBLE");
       out.proxies = ["Proxies", "智能选择", "最低延迟",
         ...regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean),
-        ...entryNames.map(e => "入口·" + e), ...fsBuiltins];
+        ...["高级.线路", "基础.线路"].filter(t => byTier[t.replace(".线路","")] && byTier[t.replace(".线路","")].length),
+        ...entryNames.map(e => entryDisp(e)), ...fsBuiltins];
       out.__done = true;
     }
     // 含 DIRECT/REJECT 的业务组：DIRECT 保持在原订阅中的相对位置，其它引用按统一顺序重排
     if (hasBuiltin && !isRegion && !out.__done) {
       const builtins = proxies.filter(p => p === "DIRECT" || p === "REJECT" || p === "PASS" || p === "COMPATIBLE");
       const regionRefs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
-      const entryRefs = entryNames.map(e => "入口·" + e);
+      const tierRefs = ["高级.线路", "基础.线路"].filter(t => byTier[t.replace(".线路","")] && byTier[t.replace(".线路","")].length);
+      const entryRefs = entryNames.map(e => entryDisp(e));
       const refs = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...entryRefs].filter(x => proxies.includes(x));
       // 其余（如 Bilibili）：DIRECT 保持原订阅第一位置
       out.proxies = [...builtins, "Proxies", "智能选择", "最低延迟",
-        ...regionRefs, ...entryRefs];
+        ...regionRefs, ...tierRefs, ...entryRefs];
       out.__done = true;
     }
     if (out.__done) { delete out.__done; }
@@ -576,8 +586,9 @@ function main(config) {
     } else if (!hasBuiltin && g.name !== "Proxies") {
       // Final/Steam：原订阅成员放第一，再接统一引用链；其余业务组：Proxies 打头 → 智能选择 → 最低延迟 → 地区组 → 入口组
       const regionRefs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
-      const entryRefs = entryNames.map(e => "入口·" + e);
-      out.proxies = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...entryRefs];
+      const tierRefs = ["高级.线路", "基础.线路"].filter(t => byTier[t.replace(".线路","")] && byTier[t.replace(".线路","")].length);
+      const entryRefs = entryNames.map(e => entryDisp(e));
+      out.proxies = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...tierRefs, ...entryRefs];
     } else if (g.name === "Proxies") {
       out.type = "select";
       const regionRefs = [];
@@ -585,8 +596,9 @@ function main(config) {
         const ab = REGION_ABBR[w];
         if (ab && !regionRefs.includes(ab.abbr)) regionRefs.push(ab.abbr);
       }
-      const entryRefs = entryNames.map(e => "入口·" + e);
-      out.proxies = ["智能选择", "最低延迟", ...regionRefs, ...entryRefs];
+      const tierRefs = ["高级.线路", "基础.线路"].filter(t => byTier[t.replace(".线路","")] && byTier[t.replace(".线路","")].length);
+      const entryRefs = entryNames.map(e => entryDisp(e));
+      out.proxies = ["智能选择", "最低延迟", ...regionRefs, ...tierRefs, ...entryRefs];
     }
     if (!out.icon) {
       const byAbbr = REGION_ABBR_LIST.find(a => a.abbr === g.name);
@@ -611,12 +623,19 @@ function main(config) {
     }
   }
 
-  // 3d) 入口组（隐藏智能 + 可见 select，成员=经该入口全部中转）
+  // 3d) 层级组（高级/基础，隐藏智能 + 可见 select）+ 入口组；命名：层级/入口做后缀
+  for (const t of ["高级", "基础"]) {
+    const mem = byTier[t] || [];
+    if (!mem.length) continue;
+    pushG(anchorSmart(tierDisp(t) + "·智能", mem.slice(), ICON("airport")));
+    pushG({ name: tierDisp(t), type: "select",
+      proxies: [tierDisp(t) + "·智能", ...mem], icon: ICON("airport") });
+  }
   for (const e of entryNames) {
     const mem = byEntry[e] || [];
-    pushG(anchorSmart("入口·" + e + "·智能", mem.slice(), ICON("airport")));
-    pushG({ name: "入口·" + e, type: "select",
-      proxies: ["入口·" + e + "·智能", ...mem], icon: ICON("airport") });
+    pushG(anchorSmart(entryDisp(e) + "·智能", mem.slice(), ICON("airport")));
+    pushG({ name: entryDisp(e), type: "select",
+      proxies: [entryDisp(e) + "·智能", ...mem], icon: ICON("airport") });
   }
 
   // 3e) 组顺序：智能选择/最低延迟 在最前，地区组连排，入口组殿后
@@ -630,13 +649,15 @@ function main(config) {
   // 业务组（原订阅组中非地区的）
   for (const g of newGroups.slice()) {
     if (g.hidden) continue;
-    const isEntry = g.name.startsWith("入口·") && !g.name.endsWith("·智能");
+    const isEntry = g.name.endsWith(".入口");
+    const isTier = g.name === "高级.线路" || g.name === "基础.线路";
     const isRegion = regionAbbrs.includes(g.name);
-    if (!isEntry && !isRegion) ordered.push(g);
+    if (!isEntry && !isTier && !isRegion) ordered.push(g);
   }
   // （业务组已按原订阅顺序追加：Proxies 已在最前，其余业务组随后）
   for (const g of regionTop) { ordered.push(g); const sub = take(g.name + "·智能"); if (sub) ordered.push(sub); }
-  for (const e of entryNames) { const g = take("入口·" + e); if (g) ordered.push(g); const sub = take("入口·" + e + "·智能"); if (sub) ordered.push(sub); }
+  for (const t of ["高级", "基础"]) { const g = take(tierDisp(t)); if (g) ordered.push(g); const sub = take(tierDisp(t) + "·智能"); if (sub) ordered.push(sub); }
+  for (const e of entryNames) { const g = take(entryDisp(e)); if (g) ordered.push(g); const sub = take(entryDisp(e) + "·智能"); if (sub) ordered.push(sub); }
   for (const g of newGroups) { if (!ordered.some(x => x.name === g.name)) ordered.push(g); }
   config["proxy-groups"] = ordered;
   return config;
