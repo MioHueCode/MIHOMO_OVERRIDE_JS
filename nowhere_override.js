@@ -545,7 +545,7 @@ function main(config) {
     }
     if (!extra.length && byRegion[g.name]) extra = [...byRegion[g.name]];
     const newProxies = extra.length ? [...proxies, ...extra] : proxies.slice();
-    const isRegion = !!(gAbbr || byRegion[g.name] || extra.length);
+    const isRegion = g.name !== "Proxies" && !!(gAbbr || byRegion[g.name] || extra.length);
     const out = Object.assign({}, g, { proxies: newProxies });
     // 含 DIRECT/REJECT 的业务组：DIRECT 保持在原订阅中的相对位置，其它引用按统一顺序重排
     if (hasBuiltin && !isRegion) {
