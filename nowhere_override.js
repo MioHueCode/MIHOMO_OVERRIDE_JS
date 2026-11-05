@@ -687,6 +687,41 @@ function main(config) {
     grp.proxies = grp.proxies.map(n => (typeof n === "string" && renameMapGlobal[n]) ? renameMapGlobal[n] : n);
   }
   config["proxy-groups"] = ordered;
+
+  // ── 8) 规则注入：Telegram IP 外部规则集 + 直连 + 进程规则 ──
+  var rules = Array.isArray(config.rules) ? config.rules.slice() : ["MATCH,Proxies"];
+  var injected = [];
+  // 1. 进程规则（最前）：YouTube/Telegram 第三方客户端走代理
+  injected.push("PROCESS-NAME,com.google.android.youtube,Proxies");
+  injected.push("PROCESS-NAME,org.telegram.messenger,Proxies");
+  injected.push("PROCESS-NAME,org.telegram.plus,Proxies");
+  injected.push("PROCESS-NAME,nekox,Proxies");
+  // 2. Telegram IP 段外部规则集（GEOIP telegram 经典网段 + RS 规则）
+  injected.push("RULE-SET,telegramip,Proxies");
+  injected.push("GEOIP,TELEGRAM,Proxies,no-resolve");
+  // 3. 直连兜底补充：国内大厂域名与私有网段
+  injected.push("GEOSITE,CN,DIRECT");
+  injected.push("GEOIP,LAN,DIRECT,no-resolve");
+  injected.push("GEOIP,PRIVATE,DIRECT,no-resolve");
+  // 插入到原 rules 末尾的 MATCH 之前
+  var matchIdx = -1;
+  for (var ri = 0; ri < rules.length; ri++) {
+    if (typeof rules[ri] === "string" && rules[ri].indexOf("MATCH") === 0) { matchIdx = ri; break; }
+  }
+  if (matchIdx >= 0) rules.splice.apply(rules, [matchIdx, 0].concat(injected));
+  else rules = injected.concat(rules);
+  config.rules = rules;
+
+  // 4) rule-providers（Telegram IP 段外部规则集）
+  var providers = config["rule-providers"] = config["rule-providers"] || {};
+  providers["telegramip"] = {
+    type: "http",
+    behavior: "ipcidr",
+    format: "text",
+    url: "https://core.telegram.org/resources/cidr.txt",
+    path: "./ruleset/telegramip.txt",
+    interval: 86400
+  };
   return config;
 }
 
