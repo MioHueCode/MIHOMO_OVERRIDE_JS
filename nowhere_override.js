@@ -462,11 +462,28 @@ function main(config) {
     config.dns = JSON.parse(JSON.stringify(AIRPORT_DNS));
   }
 
-  // 3) 分组照抄原订阅，仅 select → smart（含 DIRECT/REJECT 的组保留 select）
-  //    地区组（HK/JP/SG/TW/US 等）按区域词追加该地区全部中转节点
-  //    区域词识别：节点名去掉 " - 接入点" 后缀、去掉末尾编号后的词（如 香港/日本）
+  // 3) 分组改造：
+  //    ① 原订阅组保留并 select→smart（含 DIRECT/REJECT 的组保留 select）
+  //    ② 地区组追加该区域全部中转节点；组名改英文缩写（HK/JP/SG/TW/US/IT/IN/AU/MX/BR/TH）
+  //    ③ 新增：每个入口点的入口组（入口·xxx）
+  //    ④ 新增：最低延迟组（url-test 全节点）
+  //    ⑤ 全部组带图标（Koolson/Qure + flagcdn）
+  const ICON = n => "https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/" + n + ".png";
+  const FLAG = c => "https://flagcdn.com/w320/" + c + ".png";
+  const REGION_ABBR = {
+    "香港": { abbr: "HK", icon: ICON("Hong_Kong") },
+    "日本": { abbr: "JP", icon: ICON("Japan") },
+    "台湾": { abbr: "TW", icon: ICON("Taiwan") },
+    "新加坡": { abbr: "SG", icon: ICON("Singapore") },
+    "美国": { abbr: "US", icon: ICON("United_States") },
+    "意大利": { abbr: "IT", icon: FLAG("it") },
+    "印度": { abbr: "IN", icon: FLAG("in") },
+    "泰国": { abbr: "TH", icon: FLAG("th") },
+    "澳洲": { abbr: "AU", icon: FLAG("au") },
+    "墨西哥": { abbr: "MX", icon: FLAG("mx") },
+    "巴西": { abbr: "BR", icon: FLAG("br") }
+  };
   const regionWordOf = n => {
-    // 中转节点名 "[高级] 🇭🇰 香港 01 - 香港优化" → 落地名 "[高级] 🇭🇰 香港 01" → 去编号 → "香港"
     const s = String(n);
     const m = /^(.+?)\s*\d+\s*-\s/.exec(s);
     if (m) {
@@ -474,43 +491,93 @@ function main(config) {
       const m2 = /^(.*\D)\s*\d+$/.exec(base);
       return (m2 ? m2[1] : base).trim();
     }
-    // 原节点/组名：去末尾编号取区域词（多词入口名场景由中转分支处理）
     const base = stripEntrySuffixes(s.replace(/\s*#\d+$/, ""));
     const m2b = /^(.*\D)\s*\d+$/.exec(base);
     return (m2b ? m2b[1] : base).trim();
   };
-  const relayNames = (config.proxies || []).filter(p => String(p.name).includes(" - ")).map(p => p.name);
-  const relayByRegionWord = {};
+  const allNames = (config.proxies || []).map(p => p.name);
+  const relayNames = allNames.filter(n => String(n).includes(" - "));
+  // 入口点名集合（" - " 后缀）
+  const entryNames = [...new Set(relayNames.map(n => String(n).split(" - ").slice(1).join(" - ")))];
+  // 区域词集合
+  const regionWords = [...new Set(allNames.map(regionWordOf).filter(Boolean))];
+  // 中转节点按区域词/入口点归类
+  const byRegion = {}, byEntry = {};
   for (const n of relayNames) {
     const w = regionWordOf(n);
-    if (w && !relayByRegionWord[w]) relayByRegionWord[w] = n;
+    (byRegion[w] = byRegion[w] || []).push(n);
+    const e = String(n).split(" - ").slice(1).join(" - ");
+    (byEntry[e] = byEntry[e] || []).push(n);
   }
   const groups = (config["proxy-groups"] || []).map(g => {
     const proxies = g.proxies || [];
     const hasBuiltin = proxies.some(
       p => p === "DIRECT" || p === "REJECT" || p === "PASS" || p === "COMPATIBLE"
     );
-    // 地区组：组名是区域词（或引用里含区域词）且组内引用了原节点 → 追加该区域全部中转节点
+    // 地区组（组名或成员引用区域词）
     let extra = [];
-    const refsRegionWord = proxies.map(regionWordOf).filter(Boolean);
-    for (const w of refsRegionWord) {
-      if (relayByRegionWord[w]) {
-        for (const rn of relayNames) {
-          if (regionWordOf(rn) === w && !extra.includes(rn)) extra.push(rn);
-        }
-      }
+    const gAbbr = REGION_ABBR[g.name];
+    for (const w of proxies.map(regionWordOf).filter(Boolean)) {
+      if (byRegion[w]) for (const rn of byRegion[w]) if (!extra.includes(rn)) extra.push(rn);
     }
-    if (extra.length) {
-      const merged = [...proxies, ...extra];
-      if (g.type === "select" && !hasBuiltin)
-        return Object.assign({}, g, { type: "smart", strategy: "sticky-sessions", proxies: merged });
-      return Object.assign({}, g, { proxies: merged });
-    }
+    // 组名本身就是区域词（如 "香港"）的情况
+    if (!extra.length && byRegion[g.name]) extra = [...byRegion[g.name]];
+    const newProxies = extra.length ? [...proxies, ...extra] : proxies;
+    const out = Object.assign({}, g, newProxies.length ? { proxies: newProxies } : {});
     if (g.type === "select" && !hasBuiltin) {
-      return Object.assign({}, g, { type: "smart", strategy: "sticky-sessions" });
+      out.type = "smart";
+      out.strategy = "sticky-sessions";
     }
-    return g;
+    if (!out.icon) {
+      // 组名可能是中文区域词或英文缩写（HK/JP/...）
+      const byAbbr = Object.values(REGION_ABBR).find(a => a.abbr === g.name);
+      if (gAbbr) out.icon = gAbbr.icon;
+      else if (byAbbr) out.icon = byAbbr.icon;
+      else if (g.name === "Proxies") out.icon = ICON("Global");
+      else out.icon = ICON("Static");
+    }
+    return out;
   });
+  // 3a) 入口组（每个入口点一个组，成员=经该入口的全部中转节点）
+  for (const e of entryNames) {
+    groups.push({
+      name: "入口·" + e,
+      type: "select",
+      proxies: byEntry[e],
+      icon: ICON("Airport")
+    });
+  }
+  // 3b) 地区组缺失补建（原订阅没有的地区，如 意大利/印度/泰国/澳洲/墨西哥/巴西）
+  for (const w of regionWords) {
+    const ab = REGION_ABBR[w];
+    if (!ab) continue;
+    if (!groups.some(g => g.name === ab.abbr)) {
+      groups.push({
+        name: ab.abbr,
+        type: "smart",
+        strategy: "sticky-sessions",
+        proxies: byRegion[w] || [],
+        icon: ab.icon
+      });
+    }
+  }
+  // 3c) 最低延迟组（url-test，全部中转+原高级节点）
+  const fastCandidates = (config.proxies || []).map(p => p.name);
+  groups.push({
+    name: "⏱ 最低延迟",
+    type: "url-test",
+    url: "http://www.gstatic.com/generate_204",
+    interval: 300,
+    tolerance: 50,
+    proxies: fastCandidates,
+    icon: ICON("Speedtest")
+  });
+  // 3d) Proxies 组补最低延迟/入口组引用（如果存在 Proxies 组）
+  const proxyTop = groups.find(g => g.name === "Proxies");
+  if (proxyTop && Array.isArray(proxyTop.proxies)) {
+    const fast = groups.find(g => g.name === "⏱ 最低延迟");
+    if (fast && !proxyTop.proxies.includes(fast.name)) proxyTop.proxies.unshift(fast.name);
+  }
   config["proxy-groups"] = groups;
   return config;
 }
