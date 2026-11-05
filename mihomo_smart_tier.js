@@ -1,4 +1,6 @@
 // mihomo_smart_tier.js
+// ⚠️ 与 nowhere_override.js 互斥：两者都挂会互相覆盖分组结构。
+//    使用 nowhere_override.js（all-in-one）时，请停用本脚本。
 // 节点不走 proxy-providers，全部写入 proxies，组用显式节点列表引用
 // 结构: main() 增强逻辑 + originalMain() 原版
 function main(config) {
