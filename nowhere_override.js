@@ -545,7 +545,7 @@ function main(config) {
     }
     if (!extra.length && byRegion[g.name]) extra = [...byRegion[g.name]];
     const newProxies = extra.length ? [...proxies, ...extra] : proxies.slice();
-    const isRegion = g.name !== "Proxies" && !!(gAbbr || byRegion[g.name] || extra.length);
+    const isRegion = g.name !== "Proxies" && g.name !== "Final" && g.name !== "Steam" && !!(gAbbr || byRegion[g.name] || extra.length);
     const out = Object.assign({}, g, { proxies: newProxies });
     // 含 DIRECT/REJECT 的业务组：DIRECT 保持在原订阅中的相对位置，其它引用按统一顺序重排
     if (hasBuiltin && !isRegion) {
@@ -565,10 +565,13 @@ function main(config) {
       out.type = "select";
       out.proxies = [g.name + "·智能", ...newProxies];
     } else if (!hasBuiltin && g.name !== "Proxies") {
-      // 业务组：Proxies 打头 → 智能选择 → 最低延迟 → 地区组 → 入口组（统一引用顺序）
+      // Final/Steam：原订阅成员放第一，再接统一引用链；其余业务组：Proxies 打头 → 智能选择 → 最低延迟 → 地区组 → 入口组
       const regionRefs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
       const entryRefs = entryNames.map(e => "入口·" + e);
-      out.proxies = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...entryRefs];
+      const chain = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...entryRefs];
+      out.proxies = (g.name === "Final" || g.name === "Steam")
+        ? [...proxies.slice(), ...chain]
+        : chain;
     } else if (g.name === "Proxies") {
       out.type = "select";
       const regionRefs = [];
