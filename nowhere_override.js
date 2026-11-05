@@ -553,8 +553,15 @@ function main(config) {
       const regionRefs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
       const entryRefs = entryNames.map(e => "入口·" + e);
       const refs = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...entryRefs].filter(x => proxies.includes(x));
-      out.proxies = [...builtins, "Proxies", "智能选择", "最低延迟",
-        ...regionRefs, ...entryRefs];
+      if (g.name === "Final" || g.name === "Steam") {
+        // Final/Steam：Proxies 第一，DIRECT 系列挪到最后
+        out.proxies = ["Proxies", "智能选择", "最低延迟",
+          ...regionRefs, ...entryRefs, ...builtins];
+      } else {
+        // 其余（如 Bilibili）：DIRECT 保持原订阅第一位置
+        out.proxies = [...builtins, "Proxies", "智能选择", "最低延迟",
+          ...regionRefs, ...entryRefs];
+      }
       out.__done = true;
     }
     if (out.__done) { delete out.__done; }
@@ -568,10 +575,7 @@ function main(config) {
       // Final/Steam：原订阅成员放第一，再接统一引用链；其余业务组：Proxies 打头 → 智能选择 → 最低延迟 → 地区组 → 入口组
       const regionRefs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
       const entryRefs = entryNames.map(e => "入口·" + e);
-      const chain = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...entryRefs];
-      out.proxies = (g.name === "Final" || g.name === "Steam")
-        ? [...proxies.slice(), ...chain]
-        : chain;
+      out.proxies = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...entryRefs];
     } else if (g.name === "Proxies") {
       out.type = "select";
       const regionRefs = [];
