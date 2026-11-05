@@ -410,6 +410,17 @@ function processProxies(proxies) {
   // KEEP_ORIGINAL_NODES=true  → 中转节点在前 + 全部原节点在后
   // KEEP_ORIGINAL_NODES=false → 中转节点在前 + 未参与中转的节点在后
   const originalOutput = KEEP_ORIGINAL_NODES ? proxies : untouchedNodes;
+  // 未参与中转的节点统一加后缀 .直连（与 .入口/.线路 命名风格一致）
+  const untouchedNameSet = new Set(untouchedNodes.map(p => p && p.name));
+  for (let oi = 0; oi < originalOutput.length; oi++) {
+    const p = originalOutput[oi];
+    if (!p || typeof p.name !== "string" || !untouchedNameSet.has(p.name) || p.name.endsWith(".直连")) continue;
+    let nn = p.name + ".直连";
+    let i = 2;
+    while (usedNames.has(nn)) { nn = p.name + ".直连" + i; i++; }
+    originalOutput[oi] = Object.assign({}, p, { name: nn });
+    usedNames.add(nn);
+  }
   const out = [...generatedNodes, ...originalOutput];
 
   // 自检日志
