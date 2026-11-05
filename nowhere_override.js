@@ -551,13 +551,13 @@ function main(config) {
       out.proxies = ["智能选择", ...proxies.filter(x => x !== "智能选择")];
     } else if (g.name === "Proxies") {
       out.type = "select";
-      const regionRefs = newProxies.filter(x => Object.values(REGION_ABBR).some(a => a.abbr === x));
-      // 补全全部地区缩写（欧洲及其它地区组也纳入）
+      const regionRefs = [];
       for (const w of regionWords) {
         const ab = REGION_ABBR[w];
         if (ab && !regionRefs.includes(ab.abbr)) regionRefs.push(ab.abbr);
       }
-      out.proxies = ["智能选择", "最低延迟", ...regionRefs];
+      const entryRefs = entryNames.map(e => "入口·" + e);
+      out.proxies = ["智能选择", "最低延迟", ...regionRefs, ...entryRefs];
     }
     if (!out.icon) {
       const byAbbr = Object.values(REGION_ABBR).find(a => a.abbr === g.name);
@@ -593,7 +593,8 @@ function main(config) {
   // 3e) 组顺序：智能选择/最低延迟 在最前，地区组连排，入口组殿后
   const ordered = [];
   const take = n => { const i = newGroups.findIndex(g => g.name === n); if (i >= 0) return newGroups.splice(i, 1)[0]; return null; };
-  for (const n of ["智能选择", "最低延迟"]) { const g = take(n); if (g) ordered.push(g); }
+  // Proxies 永远第一，随后智能选择/最低延迟
+  for (const n of ["Proxies", "智能选择", "最低延迟"]) { const g = take(n); if (g) ordered.push(g); }
   const regionAbbrs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
   const regionTop = [];
   for (const ab of regionAbbrs) { const g = take(ab); if (g) regionTop.push(g); }
@@ -604,6 +605,7 @@ function main(config) {
     const isRegion = regionAbbrs.includes(g.name);
     if (!isEntry && !isRegion) ordered.push(g);
   }
+  // （业务组已按原订阅顺序追加：Proxies 已在最前，其余业务组随后）
   for (const g of regionTop) { ordered.push(g); const sub = take(g.name + "·智能"); if (sub) ordered.push(sub); }
   for (const e of entryNames) { const g = take("入口·" + e); if (g) ordered.push(g); const sub = take("入口·" + e + "·智能"); if (sub) ordered.push(sub); }
   for (const g of newGroups) { if (!ordered.some(x => x.name === g.name)) ordered.push(g); }
