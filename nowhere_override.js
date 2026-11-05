@@ -540,15 +540,31 @@ function main(config) {
     const newProxies = extra.length ? [...proxies, ...extra] : proxies.slice();
     const isRegion = !!(gAbbr || byRegion[g.name] || extra.length);
     const out = Object.assign({}, g, { proxies: newProxies });
-    if (isRegion) {
+    // 含 DIRECT/REJECT 的业务组：DIRECT 保持在原订阅中的相对位置，其它引用按统一顺序重排
+    if (hasBuiltin && !isRegion) {
+      const builtins = proxies.filter(p => p === "DIRECT" || p === "REJECT" || p === "PASS" || p === "COMPATIBLE");
+      const regionRefs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
+      const entryRefs = entryNames.map(e => "入口·" + e);
+      const refs = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...entryRefs].filter(x => proxies.includes(x));
+      const others = proxies.filter(p => !builtins.includes(p) && !refs.includes(p));
+      const dirPos = proxies.findIndex(p => builtins.includes(p));
+      const before = refs.slice(0, dirPos);
+      const after = refs.slice(dirPos);
+      out.proxies = [...before, ...builtins, ...after, ...others];
+      out.__done = true;
+    }
+    if (out.__done) { delete out.__done; }
+    else if (isRegion) {
       // 地区组：select（可见），组内前插本组隐藏智能 + 全局智能选择
       const sub = anchorSmart(g.name + "·智能", newProxies.slice(), gAbbr ? gAbbr.icon : (Object.values(REGION_ABBR).find(a=>a.abbr===g.name)||{}).icon);
       pushG(sub);
       out.type = "select";
       out.proxies = [g.name + "·智能", ...newProxies];
     } else if (!hasBuiltin && g.name !== "Proxies") {
-      // 业务组：select，前插智能选择（成员是组名引用，保持原样）
-      out.proxies = ["智能选择", ...proxies.filter(x => x !== "智能选择")];
+      // 业务组：Proxies 打头 → 智能选择 → 最低延迟 → 地区组 → 入口组（统一引用顺序）
+      const regionRefs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
+      const entryRefs = entryNames.map(e => "入口·" + e);
+      out.proxies = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...entryRefs];
     } else if (g.name === "Proxies") {
       out.type = "select";
       const regionRefs = [];
