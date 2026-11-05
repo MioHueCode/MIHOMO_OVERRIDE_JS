@@ -468,32 +468,36 @@ function main(config) {
   //    ③ 新增：每个入口点的入口组（入口·xxx）
   //    ④ 新增：最低延迟组（url-test 全节点）
   //    ⑤ 全部组带图标（Koolson/Qure + flagcdn）
-  const ICON = n => "https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/" + n + ".png";
-  const FLAG = c => "https://flagcdn.com/w320/" + c + ".png";
+  // 彩色圆形图标：Orz-3/mini Color（业务/功能），国旗缺失时用 HatScripts/circle-flags（圆形SVG）
+  const ICON = n => "https://cdn.jsdelivr.net/gh/Orz-3/mini@master/Color/" + n + ".png";
+  const FLAG = c => "https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/" + c + ".svg";
   const REGION_ABBR = {
-    "香港": { abbr: "HK", icon: ICON("Hong_Kong") },
-    "日本": { abbr: "JP", icon: ICON("Japan") },
-    "台湾": { abbr: "TW", icon: ICON("Taiwan") },
-    "新加坡": { abbr: "SG", icon: ICON("Singapore") },
-    "美国": { abbr: "US", icon: ICON("United_States") },
+    "香港": { abbr: "HK", icon: ICON("HK") },
+    "日本": { abbr: "JP", icon: ICON("JP") },
+    "台湾": { abbr: "TW", icon: ICON("TW") },
+    "新加坡": { abbr: "SG", icon: ICON("SG") },
+    "美国": { abbr: "US", icon: ICON("US") },
     "意大利": { abbr: "IT", icon: FLAG("it") },
     "印度": { abbr: "IN", icon: FLAG("in") },
-    "泰国": { abbr: "TH", icon: FLAG("th") },
-    "澳洲": { abbr: "AU", icon: FLAG("au") },
+    "泰国": { abbr: "TH", icon: ICON("TH") },
+    "澳洲": { abbr: "AU", icon: ICON("AU") },
     "墨西哥": { abbr: "MX", icon: FLAG("mx") },
     "巴西": { abbr: "BR", icon: FLAG("br") }
   };
+  // 业务/功能组彩色图标（Orz-3 mini Color）
+  const SERVICE_ICONS = {
+    "Proxies": "Global", "⏱ 最低延迟": "Speedtest", "🚀 智能选择": "Auto",
+    "YouTube": "YouTube", "Disney": "DisneyPlus", "Hbomax": "HBO", "Netflix": "Netflix",
+    "Bahamut": "Bahamut", "Bilibili": "bilibili", "Spotify": "Spotify", "Steam": "Steam",
+    "Telegram": "Telegram", "Google": "Google", "Microsoft": "Microsoft",
+    "OpenAI": "OpenAI", "PayPal": "Paypal", "Apple": "Apple", "Final": "Final"
+  };
   const regionWordOf = n => {
+    // 中转节点取 " - " 前的落地名；直接在完整串里找已知区域词（容忍 emoji/[高级] 前缀）
     const s = String(n);
-    const m = /^(.+?)\s*\d+\s*-\s/.exec(s);
-    if (m) {
-      const base = m[1].trim();
-      const m2 = /^(.*\D)\s*\d+$/.exec(base);
-      return (m2 ? m2[1] : base).trim();
-    }
-    const base = stripEntrySuffixes(s.replace(/\s*#\d+$/, ""));
-    const m2b = /^(.*\D)\s*\d+$/.exec(base);
-    return (m2b ? m2b[1] : base).trim();
+    const body = s.includes(" - ") ? s.split(" - ")[0] : s;
+    for (const w of REGION_ORDER) if (body.includes(w)) return w;
+    return "";
   };
   const allNames = (config.proxies || []).map(p => p.name);
   const relayNames = allNames.filter(n => String(n).includes(" - "));
@@ -529,12 +533,11 @@ function main(config) {
       out.strategy = "sticky-sessions";
     }
     if (!out.icon) {
-      // 组名可能是中文区域词或英文缩写（HK/JP/...）
       const byAbbr = Object.values(REGION_ABBR).find(a => a.abbr === g.name);
       if (gAbbr) out.icon = gAbbr.icon;
       else if (byAbbr) out.icon = byAbbr.icon;
-      else if (g.name === "Proxies") out.icon = ICON("Global");
-      else out.icon = ICON("Static");
+      else if (SERVICE_ICONS[g.name]) out.icon = ICON(SERVICE_ICONS[g.name]);
+      else out.icon = ICON("Global");
     }
     return out;
   });
@@ -544,7 +547,7 @@ function main(config) {
       name: "入口·" + e,
       type: "select",
       proxies: byEntry[e],
-      icon: ICON("Airport")
+      icon: ICON("airport")
     });
   }
   // 3b) 地区组缺失补建（原订阅没有的地区，如 意大利/印度/泰国/澳洲/墨西哥/巴西）
@@ -578,6 +581,23 @@ function main(config) {
     const fast = groups.find(g => g.name === "⏱ 最低延迟");
     if (fast && !proxyTop.proxies.includes(fast.name)) proxyTop.proxies.unshift(fast.name);
   }
+  // 4) 节点规范化排序：区域（香港→日本→台湾→新加坡→美国→欧洲及其它）→
+  //    原节点编号在前 → 中转按入口点固定顺序 → 落地编号，列表一目了然
+  const regionIdx = n => { const w = regionWordOf(n); const i = REGION_ORDER.indexOf(w); return i === -1 ? 99 : i; };
+  const entryIdx = n => {
+    if (!String(n).includes(" - ")) return -1;
+    const e = String(n).split(" - ").slice(1).join(" - ");
+    const i = ALL_ACCESS_POINTS.indexOf(e);
+    return i === -1 ? 90 : i;
+  };
+  const numOf = n => { const m = /(\d+)\s*(?:-\s|$)/.exec(String(n)); return m ? +m[1] : 999; };
+  config.proxies = out.slice().sort((a, b) => {
+    const ra = regionIdx(a.name), rb = regionIdx(b.name);
+    if (ra !== rb) return ra - rb;
+    const ea = entryIdx(a.name), eb = entryIdx(b.name);
+    if (ea !== eb) return ea - eb;
+    return numOf(a.name) - numOf(b.name);
+  });
   config["proxy-groups"] = groups;
   return config;
 }
