@@ -545,14 +545,19 @@ function main(config) {
       const sub = anchorSmart(g.name + "·智能", newProxies.slice(), gAbbr ? gAbbr.icon : (Object.values(REGION_ABBR).find(a=>a.abbr===g.name)||{}).icon);
       pushG(sub);
       out.type = "select";
-      out.proxies = [g.name + "·智能", "智能选择", "最低延迟", ...newProxies];
+      out.proxies = [g.name + "·智能", ...newProxies];
     } else if (!hasBuiltin && g.name !== "Proxies") {
       // 业务组：select，前插智能选择（成员是组名引用，保持原样）
       out.proxies = ["智能选择", ...proxies.filter(x => x !== "智能选择")];
     } else if (g.name === "Proxies") {
       out.type = "select";
       const regionRefs = newProxies.filter(x => Object.values(REGION_ABBR).some(a => a.abbr === x));
-      out.proxies = ["智能选择", "最低延迟", ...regionRefs, ...newProxies.filter(x => !regionRefs.includes(x))];
+      // 补全全部地区缩写（欧洲及其它地区组也纳入）
+      for (const w of regionWords) {
+        const ab = REGION_ABBR[w];
+        if (ab && !regionRefs.includes(ab.abbr)) regionRefs.push(ab.abbr);
+      }
+      out.proxies = ["智能选择", "最低延迟", ...regionRefs];
     }
     if (!out.icon) {
       const byAbbr = Object.values(REGION_ABBR).find(a => a.abbr === g.name);
@@ -582,7 +587,7 @@ function main(config) {
     const mem = byEntry[e] || [];
     pushG(anchorSmart("入口·" + e + "·智能", mem.slice(), ICON("airport")));
     pushG({ name: "入口·" + e, type: "select",
-      proxies: ["入口·" + e + "·智能", "智能选择", ...mem], icon: ICON("airport") });
+      proxies: ["入口·" + e + "·智能", ...mem], icon: ICON("airport") });
   }
 
   // 3e) 组顺序：智能选择/最低延迟 在最前，地区组连排，入口组殿后
