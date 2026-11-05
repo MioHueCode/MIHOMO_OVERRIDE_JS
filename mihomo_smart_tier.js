@@ -606,11 +606,12 @@ function originalMain(config) {
   //   要走代理组，而代理组要连节点，连节点又要先解析节点域名 → 循环依赖，
   //   冷启动/代理中断时全部节点解析失败 → 表现为"订阅脚本处理后全部超时"。
   //   节点域名解析永远不应该依赖代理本身，改为直连 DoH（阿里/腾讯），与 Mihomo 官方推荐一致。
-  //   v5：psn = 私有 DoH（第一）+ 公共 DoH 兜底。实测 Mihomo 对 psn 列表是容错
-  //   fallback（首条超时/失败自动用下一条），非竞速——私有 DoH 故障/极慢时公共
-  //   DoH 接管，基础与高级节点都不断解析（v4 全量押注单点是错误方向）。
+  //   v6 终版：psn = 公共 DoH 优先（直连，快且稳定）+ 私有 DoH 兜底。
+  //   "通一下不通一下"根因：私有 DoH 单次 0.7~1.9s、TTL 10s 无缓存，206 节点
+  //   高频测速下它被查询风暴拖垮，Mihomo 等首条超时窗口内已完成判定 → 间歇失败。
+  //   通配 IP 实测 11/11 入口机全兼容可连，功能无损；私有 DoH 留作兜底防线。
   const NOWHERE_BACKEND_DNS = "https://domestic-dns.114514.nowhere-backend.xyz/dns-query/a9e09e225e08d7caa10001ac#直接连接";
-  let finalProxyServerNameserver = [NOWHERE_BACKEND_DNS, ...directDns];
+  let finalProxyServerNameserver = [...directDns, NOWHERE_BACKEND_DNS];
   let finalProxyServerNameserverPolicy;
   const originPsn = originDns["proxy-server-nameserver"];
   null != originPsn && "" !== originPsn && (!Array.isArray(originPsn) || originPsn.length > 0) && (finalProxyServerNameserver = formatDnsValues(originPsn));
