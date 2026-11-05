@@ -547,21 +547,23 @@ function main(config) {
     const newProxies = extra.length ? [...proxies, ...extra] : proxies.slice();
     const isRegion = g.name !== "Proxies" && g.name !== "Final" && g.name !== "Steam" && !!(gAbbr || byRegion[g.name] || extra.length);
     const out = Object.assign({}, g, { proxies: newProxies });
+    // Final/Steam：策略组不含真实节点，Proxies 第一 + 统一链（有 DIRECT 则挪末尾）
+    if ((g.name === "Final" || g.name === "Steam") && !isRegion) {
+      const fsBuiltins = proxies.filter(p => p === "DIRECT" || p === "REJECT" || p === "PASS" || p === "COMPATIBLE");
+      out.proxies = ["Proxies", "智能选择", "最低延迟",
+        ...regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean),
+        ...entryNames.map(e => "入口·" + e), ...fsBuiltins];
+      out.__done = true;
+    }
     // 含 DIRECT/REJECT 的业务组：DIRECT 保持在原订阅中的相对位置，其它引用按统一顺序重排
-    if (hasBuiltin && !isRegion) {
+    if (hasBuiltin && !isRegion && !out.__done) {
       const builtins = proxies.filter(p => p === "DIRECT" || p === "REJECT" || p === "PASS" || p === "COMPATIBLE");
       const regionRefs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
       const entryRefs = entryNames.map(e => "入口·" + e);
       const refs = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...entryRefs].filter(x => proxies.includes(x));
-      if (g.name === "Final" || g.name === "Steam") {
-        // Final/Steam：Proxies 第一，DIRECT 系列挪到最后
-        out.proxies = ["Proxies", "智能选择", "最低延迟",
-          ...regionRefs, ...entryRefs, ...builtins];
-      } else {
-        // 其余（如 Bilibili）：DIRECT 保持原订阅第一位置
-        out.proxies = [...builtins, "Proxies", "智能选择", "最低延迟",
-          ...regionRefs, ...entryRefs];
-      }
+      // 其余（如 Bilibili）：DIRECT 保持原订阅第一位置
+      out.proxies = [...builtins, "Proxies", "智能选择", "最低延迟",
+        ...regionRefs, ...entryRefs];
       out.__done = true;
     }
     if (out.__done) { delete out.__done; }
