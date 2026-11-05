@@ -93,12 +93,17 @@ const REGION_ACCESS_GROUP = {
 };
 
 // 兼容派生：每个区域的完整可切换入口清单 = [默认项, ...共享组其余项]
-const REGION_ALLOWED_ENTRIES = Object.fromEntries(
-  Object.entries(REGION_DEFAULT_ENTRY).map(([region, def]) => {
-    const group = SHARED_ENTRY_GROUPS[REGION_ACCESS_GROUP[region]] || [];
-    return [region, [def, ...group.filter(ap => ap !== def)]];
-  })
-);
+const REGION_ALLOWED_ENTRIES = {};
+for (var _rk in REGION_DEFAULT_ENTRY) {
+  if (!REGION_DEFAULT_ENTRY.hasOwnProperty(_rk)) continue;
+  var _def = REGION_DEFAULT_ENTRY[_rk];
+  var _grp = SHARED_ENTRY_GROUPS[REGION_ACCESS_GROUP[_rk]] || [];
+  var _arr = [_def];
+  for (var _i = 0; _i < _grp.length; _i++) {
+    if (_grp[_i] !== _def) _arr.push(_grp[_i]);
+  }
+  REGION_ALLOWED_ENTRIES[_rk] = _arr;
+}
 
 // ── 4. 区域别名表 ──
 const REGION_ALIASES = {
@@ -481,6 +486,8 @@ function main(config) {
     "墨西哥": { abbr: "MX", icon: FLAG("mx") },
     "巴西": { abbr: "BR", icon: FLAG("br") }
   };
+  var REGION_ABBR_LIST = [];
+  for (var _rk in REGION_ABBR) if (REGION_ABBR.hasOwnProperty(_rk)) REGION_ABBR_LIST.push(REGION_ABBR[_rk]);
   const SERVICE_ICONS = {
     "Proxies": "Global", "最低延迟": "Speedtest", "智能选择": "Auto",
     "YouTube": "YouTube", "Disney": "DisneyPlus", "Hbomax": "HBO", "Netflix": "Netflix",
@@ -553,7 +560,7 @@ function main(config) {
     if (out.__done) { delete out.__done; }
     else if (isRegion) {
       // 地区组：select（可见），组内前插本组隐藏智能 + 全局智能选择
-      const sub = anchorSmart(g.name + "·智能", newProxies.slice(), gAbbr ? gAbbr.icon : (Object.values(REGION_ABBR).find(a=>a.abbr===g.name)||{}).icon);
+      const sub = anchorSmart(g.name + "·智能", newProxies.slice(), gAbbr ? gAbbr.icon : (REGION_ABBR_LIST.find(a=>a.abbr===g.name)||{}).icon);
       pushG(sub);
       out.type = "select";
       out.proxies = [g.name + "·智能", ...newProxies];
@@ -573,7 +580,7 @@ function main(config) {
       out.proxies = ["智能选择", "最低延迟", ...regionRefs, ...entryRefs];
     }
     if (!out.icon) {
-      const byAbbr = Object.values(REGION_ABBR).find(a => a.abbr === g.name);
+      const byAbbr = REGION_ABBR_LIST.find(a => a.abbr === g.name);
       if (gAbbr) out.icon = gAbbr.icon;
       else if (byAbbr) out.icon = byAbbr.icon;
       else if (SERVICE_ICONS[g.name]) out.icon = ICON(SERVICE_ICONS[g.name]);
