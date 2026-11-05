@@ -462,13 +462,10 @@ function main(config) {
     config.dns = JSON.parse(JSON.stringify(AIRPORT_DNS));
   }
 
-  // 3) 分组改造：
-  //    ① 原订阅组保留并 select→smart（含 DIRECT/REJECT 的组保留 select）
-  //    ② 地区组追加该区域全部中转节点；组名改英文缩写（HK/JP/SG/TW/US/IT/IN/AU/MX/BR/TH）
-  //    ③ 新增：每个入口点的入口组（入口·xxx）
-  //    ④ 新增：最低延迟组（url-test 全节点）
-  //    ⑤ 全部组带图标（Koolson/Qure + flagcdn）
-  // 彩色圆形图标：Orz-3/mini Color（业务/功能），国旗缺失时用 HatScripts/circle-flags（圆形SVG）
+  // 3) 分组改造（参考 mihomo_smart_tier 分级组逻辑）：
+  //    每个地区/入口组 = 隐藏 smart（该组节点智能优选，排最前）+ 可见 select（第一项是隐藏smart，其余节点）
+  //    所有策略组第一项都是"智能选择"（全局 smart）或组内隐藏 smart；另有最低延迟组。
+  //    组顺序：智能选择 → 最低延迟 → Proxies → 业务组 → 地区组(全部连排) → 入口组
   const ICON = n => "https://cdn.jsdelivr.net/gh/Orz-3/mini@master/Color/" + n + ".png";
   const FLAG = c => "https://raw.githubusercontent.com/HatScripts/circle-flags/gh-pages/flags/" + c + ".svg";
   const REGION_ABBR = {
@@ -484,16 +481,21 @@ function main(config) {
     "墨西哥": { abbr: "MX", icon: FLAG("mx") },
     "巴西": { abbr: "BR", icon: FLAG("br") }
   };
-  // 业务/功能组彩色图标（Orz-3 mini Color）
   const SERVICE_ICONS = {
-    "Proxies": "Global", "⏱ 最低延迟": "Speedtest", "🚀 智能选择": "Auto",
+    "Proxies": "Global", "最低延迟": "Speedtest", "智能选择": "Auto",
     "YouTube": "YouTube", "Disney": "DisneyPlus", "Hbomax": "HBO", "Netflix": "Netflix",
     "Bahamut": "Bahamut", "Bilibili": "bilibili", "Spotify": "Spotify", "Steam": "Steam",
     "Telegram": "Telegram", "Google": "Google", "Microsoft": "Microsoft",
     "OpenAI": "OpenAI", "PayPal": "Paypal", "Apple": "Apple", "Final": "Final"
   };
+  // 隐藏 smart 组构造（smart_tier 同款参数）
+  const anchorSmart = (name, proxies, icon) => ({
+    name, type: "smart", strategy: "sticky-sessions", uselightgbm: true,
+    collectdata: false, "sample-rate": "1", "prefer-asn": false,
+    "policy-priority": "", "type-priority": "", "include-all-providers": false,
+    "empty-fallback": "REJECT", hidden: true, proxies, icon
+  });
   const regionWordOf = n => {
-    // 中转节点取 " - " 前的落地名；直接在完整串里找已知区域词（容忍 emoji/[高级] 前缀）
     const s = String(n);
     const body = s.includes(" - ") ? s.split(" - ")[0] : s;
     for (const w of REGION_ORDER) if (body.includes(w)) return w;
@@ -501,11 +503,8 @@ function main(config) {
   };
   const allNames = (config.proxies || []).map(p => p.name);
   const relayNames = allNames.filter(n => String(n).includes(" - "));
-  // 入口点名集合（" - " 后缀）
   const entryNames = [...new Set(relayNames.map(n => String(n).split(" - ").slice(1).join(" - ")))];
-  // 区域词集合
   const regionWords = [...new Set(allNames.map(regionWordOf).filter(Boolean))];
-  // 中转节点按区域词/入口点归类
   const byRegion = {}, byEntry = {};
   for (const n of relayNames) {
     const w = regionWordOf(n);
@@ -513,24 +512,47 @@ function main(config) {
     const e = String(n).split(" - ").slice(1).join(" - ");
     (byEntry[e] = byEntry[e] || []).push(n);
   }
+  const newGroups = [];
+  const seen = new Set();
+  const pushG = g => { if (!seen.has(g.name)) { seen.add(g.name); newGroups.push(g); } };
+
+  // 3a) 全局智能选择（所有节点）+ 最低延迟
+  const smartAll = { name: "智能选择", type: "smart", strategy: "sticky-sessions",
+    proxies: allNames.slice(), icon: ICON("Auto") };
+  const fastAll = { name: "最低延迟", type: "url-test",
+    url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50,
+    proxies: allNames.slice(), icon: ICON("Speedtest") };
+  pushG(smartAll); pushG(fastAll);
+
+  // 3b) 原订阅组：地区组(成员含区域词)追加中转 + select→smart + 前插智能选择/最低延迟
+  //     业务组(select)保留结构但组内前插智能选择，type 改 select（用户要求 proxies 组改 select 由地区组承担智能）
   const groups = (config["proxy-groups"] || []).map(g => {
     const proxies = g.proxies || [];
     const hasBuiltin = proxies.some(
       p => p === "DIRECT" || p === "REJECT" || p === "PASS" || p === "COMPATIBLE"
     );
-    // 地区组（组名或成员引用区域词）
     let extra = [];
     const gAbbr = REGION_ABBR[g.name];
     for (const w of proxies.map(regionWordOf).filter(Boolean)) {
       if (byRegion[w]) for (const rn of byRegion[w]) if (!extra.includes(rn)) extra.push(rn);
     }
-    // 组名本身就是区域词（如 "香港"）的情况
     if (!extra.length && byRegion[g.name]) extra = [...byRegion[g.name]];
-    const newProxies = extra.length ? [...proxies, ...extra] : proxies;
-    const out = Object.assign({}, g, newProxies.length ? { proxies: newProxies } : {});
-    if (g.type === "select" && !hasBuiltin) {
-      out.type = "smart";
-      out.strategy = "sticky-sessions";
+    const newProxies = extra.length ? [...proxies, ...extra] : proxies.slice();
+    const isRegion = !!(gAbbr || byRegion[g.name] || extra.length);
+    const out = Object.assign({}, g, { proxies: newProxies });
+    if (isRegion) {
+      // 地区组：select（可见），组内前插本组隐藏智能 + 全局智能选择
+      const sub = anchorSmart(g.name + "·智能", newProxies.slice(), gAbbr ? gAbbr.icon : (Object.values(REGION_ABBR).find(a=>a.abbr===g.name)||{}).icon);
+      pushG(sub);
+      out.type = "select";
+      out.proxies = [g.name + "·智能", "智能选择", "最低延迟", ...newProxies];
+    } else if (!hasBuiltin && g.name !== "Proxies") {
+      // 业务组：select，前插智能选择（成员是组名引用，保持原样）
+      out.proxies = ["智能选择", ...proxies.filter(x => x !== "智能选择")];
+    } else if (g.name === "Proxies") {
+      out.type = "select";
+      const regionRefs = newProxies.filter(x => Object.values(REGION_ABBR).some(a => a.abbr === x));
+      out.proxies = ["智能选择", "最低延迟", ...regionRefs, ...newProxies.filter(x => !regionRefs.includes(x))];
     }
     if (!out.icon) {
       const byAbbr = Object.values(REGION_ABBR).find(a => a.abbr === g.name);
@@ -541,66 +563,52 @@ function main(config) {
     }
     return out;
   });
-  // 3a) 入口组（每个入口点一个组，成员=经该入口的全部中转节点）
-  for (const e of entryNames) {
-    groups.push({
-      name: "入口·" + e,
-      type: "select",
-      proxies: byEntry[e],
-      icon: ICON("airport")
-    });
-  }
-  // 3b) 地区组缺失补建（原订阅没有的地区，如 意大利/印度/泰国/澳洲/墨西哥/巴西）
+  for (const g of groups) pushG(g);
+
+  // 3c) 地区组缺失补建（意大利/印度/泰国/澳洲/墨西哥/巴西 等，同样隐藏smart+select）
   for (const w of regionWords) {
     const ab = REGION_ABBR[w];
     if (!ab) continue;
-    if (!groups.some(g => g.name === ab.abbr)) {
-      groups.push({
-        name: ab.abbr,
-        type: "smart",
-        strategy: "sticky-sessions",
-        proxies: byRegion[w] || [],
-        icon: ab.icon
-      });
+    if (!seen.has(ab.abbr)) {
+      const mem = byRegion[w] || [];
+      pushG(anchorSmart(ab.abbr + "·智能", mem.slice(), ab.icon));
+      pushG({ name: ab.abbr, type: "select",
+        proxies: [ab.abbr + "·智能", "智能选择", "最低延迟", ...mem], icon: ab.icon });
     }
   }
-  // 3c) 最低延迟组（url-test，全部中转+原高级节点）
-  const fastCandidates = (config.proxies || []).map(p => p.name);
-  groups.push({
-    name: "⏱ 最低延迟",
-    type: "url-test",
-    url: "http://www.gstatic.com/generate_204",
-    interval: 300,
-    tolerance: 50,
-    proxies: fastCandidates,
-    icon: ICON("Speedtest")
-  });
-  // 3d) Proxies 组补最低延迟/入口组引用（如果存在 Proxies 组）
-  const proxyTop = groups.find(g => g.name === "Proxies");
-  if (proxyTop && Array.isArray(proxyTop.proxies)) {
-    const fast = groups.find(g => g.name === "⏱ 最低延迟");
-    if (fast && !proxyTop.proxies.includes(fast.name)) proxyTop.proxies.unshift(fast.name);
+
+  // 3d) 入口组（隐藏智能 + 可见 select，成员=经该入口全部中转）
+  for (const e of entryNames) {
+    const mem = byEntry[e] || [];
+    pushG(anchorSmart("入口·" + e + "·智能", mem.slice(), ICON("airport")));
+    pushG({ name: "入口·" + e, type: "select",
+      proxies: ["入口·" + e + "·智能", "智能选择", ...mem], icon: ICON("airport") });
   }
-  // 4) 节点规范化排序：区域（香港→日本→台湾→新加坡→美国→欧洲及其它）→
-  //    原节点编号在前 → 中转按入口点固定顺序 → 落地编号，列表一目了然
-  const regionIdx = n => { const w = regionWordOf(n); const i = REGION_ORDER.indexOf(w); return i === -1 ? 99 : i; };
-  const entryIdx = n => {
-    if (!String(n).includes(" - ")) return -1;
-    const e = String(n).split(" - ").slice(1).join(" - ");
-    const i = ALL_ACCESS_POINTS.indexOf(e);
-    return i === -1 ? 90 : i;
-  };
-  const numOf = n => { const m = /(\d+)\s*(?:-\s|$)/.exec(String(n)); return m ? +m[1] : 999; };
-  config.proxies = out.slice().sort((a, b) => {
-    const ra = regionIdx(a.name), rb = regionIdx(b.name);
-    if (ra !== rb) return ra - rb;
-    const ea = entryIdx(a.name), eb = entryIdx(b.name);
-    if (ea !== eb) return ea - eb;
-    return numOf(a.name) - numOf(b.name);
-  });
-  config["proxy-groups"] = groups;
+
+  // 3e) 组顺序：智能选择/最低延迟 在最前，地区组连排，入口组殿后
+  const ordered = [];
+  const take = n => { const i = newGroups.findIndex(g => g.name === n); if (i >= 0) return newGroups.splice(i, 1)[0]; return null; };
+  for (const n of ["智能选择", "最低延迟"]) { const g = take(n); if (g) ordered.push(g); }
+  const regionAbbrs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
+  const regionTop = [];
+  for (const ab of regionAbbrs) { const g = take(ab); if (g) regionTop.push(g); }
+  // 业务组（原订阅组中非地区的）
+  for (const g of newGroups.slice()) {
+    if (g.hidden) continue;
+    const isEntry = g.name.startsWith("入口·") && !g.name.endsWith("·智能");
+    const isRegion = regionAbbrs.includes(g.name);
+    if (!isEntry && !isRegion) ordered.push(g);
+  }
+  for (const g of regionTop) { ordered.push(g); const sub = take(g.name + "·智能"); if (sub) ordered.push(sub); }
+  for (const e of entryNames) { const g = take("入口·" + e); if (g) ordered.push(g); const sub = take("入口·" + e + "·智能"); if (sub) ordered.push(sub); }
+  for (const g of newGroups) { if (!ordered.some(x => x.name === g.name)) ordered.push(g); }
+  config["proxy-groups"] = ordered;
   return config;
 }
+
+// （占位：后续逻辑已被上移）
+
+// （旧排序段已由 v3.4 新组逻辑取代）
 
 // Sub-Store Script Operator 兼容入口
 function operator(proxies) {
