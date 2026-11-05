@@ -610,14 +610,11 @@ function originalMain(config) {
   const originDns = config.dns || {}, appendDirectTag = val => "string" == typeof val ? val.split("#")[0] + "#直接连接" : val, formatDnsValues = dnsValue => Array.isArray(dnsValue) ? dnsValue.map(appendDirectTag) : appendDirectTag(dnsValue);
   // ★ 修复超时死锁：proxy-server-nameserver 用于解析"代理节点域名"，
   //   节点域名解析永远不应该依赖代理本身，改为直连 DoH（阿里/腾讯），与 Mihomo 官方推荐一致。
-  // ★ 分层兜底 v2：与 smart 版一致——用 proxy-server-nameserver-policy 精准分流，
-  //   其余走公共 DoH 兜底。v3：policy 严格只走私有 DoH（去除竞速兜底）。
-  //   原订阅自带 psn/policy 时仍原样保留（不覆盖）。
+  // ★ 分层兜底：v4 完全对齐机场 a707f29f 原版——不用 policy 分流，psn 全量
+  //   走私有 DoH（无竞速、无兜底）；TTL仅10s无缓存收益，慢是机场设计代价。
   const NOWHERE_BACKEND_DNS = "https://domestic-dns.114514.nowhere-backend.xyz/dns-query/a9e09e225e08d7caa10001ac#直接连接";
-  let finalProxyServerNameserver = directDns;
-  let finalProxyServerNameserverPolicy = {
-    "+.nowhere-backend.xyz": [NOWHERE_BACKEND_DNS]
-  };
+  let finalProxyServerNameserver = [NOWHERE_BACKEND_DNS];
+  let finalProxyServerNameserverPolicy;
   const originPsn = originDns["proxy-server-nameserver"];
   null != originPsn && "" !== originPsn && (!Array.isArray(originPsn) || originPsn.length > 0) && (finalProxyServerNameserver = formatDnsValues(originPsn));
   const originPolicy = originDns["proxy-server-nameserver-policy"];
