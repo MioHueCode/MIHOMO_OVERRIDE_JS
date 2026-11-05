@@ -610,10 +610,12 @@ function originalMain(config) {
   const originDns = config.dns || {}, appendDirectTag = val => "string" == typeof val ? val.split("#")[0] + "#直接连接" : val, formatDnsValues = dnsValue => Array.isArray(dnsValue) ? dnsValue.map(appendDirectTag) : appendDirectTag(dnsValue);
   // ★ 修复超时死锁：proxy-server-nameserver 用于解析"代理节点域名"，
   //   节点域名解析永远不应该依赖代理本身，改为直连 DoH（阿里/腾讯），与 Mihomo 官方推荐一致。
-  // ★ 分层兜底：v5——psn = 私有 DoH（第一）+ 公共 DoH 兜底。实测 Mihomo psn 列表
-  //   是容错 fallback（非竞速）：私有 DoH 故障/极慢时公共 DoH 接管，基础与高级都不断解析。
+  // 分层兜底 v6 终版：psn = 公共 DoH 优先（直连，快且稳定）+ 私有 DoH 兜底。
+  //   "通一下不通一下"根因：私有 DoH 单次 0.7~1.9s、TTL 10s 无缓存，206 节点
+  //   高频测速下它被查询风暴拖垮，Mihomo 等首条超时窗口内已完成判定 → 间歇失败。
+  //   通配 IP 实测 11/11 入口机全兼容可连，功能无损；私有 DoH 留作兜底防线。
   const NOWHERE_BACKEND_DNS = "https://domestic-dns.114514.nowhere-backend.xyz/dns-query/a9e09e225e08d7caa10001ac#直接连接";
-  let finalProxyServerNameserver = [NOWHERE_BACKEND_DNS, ...directDns];
+  let finalProxyServerNameserver = [...directDns, NOWHERE_BACKEND_DNS];
   let finalProxyServerNameserverPolicy;
   const originPsn = originDns["proxy-server-nameserver"];
   null != originPsn && "" !== originPsn && (!Array.isArray(originPsn) || originPsn.length > 0) && (finalProxyServerNameserver = formatDnsValues(originPsn));
