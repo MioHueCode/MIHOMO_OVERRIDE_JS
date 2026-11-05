@@ -607,13 +607,13 @@ function originalMain(config) {
   //   冷启动/代理中断时全部节点解析失败 → 表现为"订阅脚本处理后全部超时"。
   //   节点域名解析永远不应该依赖代理本身，改为直连 DoH（阿里/腾讯），与 Mihomo 官方推荐一致。
   // ★ 分层兜底 v2：改用 proxy-server-nameserver-policy 精准分流——
-  //   "+.nowhere-backend.xyz"（全部入口机域名）强制走机场私有 DoH（直连），
-  //   其余节点域名走公共 DoH 兜底。私有 DoH 若故障/换 token，公共 DoH 接管，
-  //   不会全挂。原订阅自带 psn/policy 时仍原样保留（不覆盖）。
+  //   v3：去掉公共 DoH 兜底——Mihomo 同组 DNS 并发竞速快者胜，公共 DoH 的
+  //   通配 IP 经常抢先应答，手机直连网络下时好时坏。改为严格只走私有 DoH，
+  //   与机场原版行为完全一致。
   const NOWHERE_BACKEND_DNS = "https://domestic-dns.114514.nowhere-backend.xyz/dns-query/a9e09e225e08d7caa10001ac#直接连接";
   let finalProxyServerNameserver = directDns;
   let finalProxyServerNameserverPolicy = {
-    "+.nowhere-backend.xyz": [NOWHERE_BACKEND_DNS, ...directDns]
+    "+.nowhere-backend.xyz": [NOWHERE_BACKEND_DNS]
   };
   const originPsn = originDns["proxy-server-nameserver"];
   null != originPsn && "" !== originPsn && (!Array.isArray(originPsn) || originPsn.length > 0) && (finalProxyServerNameserver = formatDnsValues(originPsn));
