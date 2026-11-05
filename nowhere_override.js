@@ -463,11 +463,49 @@ function main(config) {
   }
 
   // 3) 分组照抄原订阅，仅 select → smart（含 DIRECT/REJECT 的组保留 select）
+  //    地区组（HK/JP/SG/TW/US 等）按区域词追加该地区全部中转节点
+  //    区域词识别：节点名去掉 " - 接入点" 后缀、去掉末尾编号后的词（如 香港/日本）
+  const regionWordOf = n => {
+    // 中转节点名 "[高级] 🇭🇰 香港 01 - 香港优化" → 落地名 "[高级] 🇭🇰 香港 01" → 去编号 → "香港"
+    const s = String(n);
+    const m = /^(.+?)\s*\d+\s*-\s/.exec(s);
+    if (m) {
+      const base = m[1].trim();
+      const m2 = /^(.*\D)\s*\d+$/.exec(base);
+      return (m2 ? m2[1] : base).trim();
+    }
+    // 原节点/组名：去末尾编号取区域词（多词入口名场景由中转分支处理）
+    const base = stripEntrySuffixes(s.replace(/\s*#\d+$/, ""));
+    const m2b = /^(.*\D)\s*\d+$/.exec(base);
+    return (m2b ? m2b[1] : base).trim();
+  };
+  const relayNames = (config.proxies || []).filter(p => String(p.name).includes(" - ")).map(p => p.name);
+  const relayByRegionWord = {};
+  for (const n of relayNames) {
+    const w = regionWordOf(n);
+    if (w && !relayByRegionWord[w]) relayByRegionWord[w] = n;
+  }
   const groups = (config["proxy-groups"] || []).map(g => {
     const proxies = g.proxies || [];
     const hasBuiltin = proxies.some(
       p => p === "DIRECT" || p === "REJECT" || p === "PASS" || p === "COMPATIBLE"
     );
+    // 地区组：组名是区域词（或引用里含区域词）且组内引用了原节点 → 追加该区域全部中转节点
+    let extra = [];
+    const refsRegionWord = proxies.map(regionWordOf).filter(Boolean);
+    for (const w of refsRegionWord) {
+      if (relayByRegionWord[w]) {
+        for (const rn of relayNames) {
+          if (regionWordOf(rn) === w && !extra.includes(rn)) extra.push(rn);
+        }
+      }
+    }
+    if (extra.length) {
+      const merged = [...proxies, ...extra];
+      if (g.type === "select" && !hasBuiltin)
+        return Object.assign({}, g, { type: "smart", strategy: "sticky-sessions", proxies: merged });
+      return Object.assign({}, g, { proxies: merged });
+    }
     if (g.type === "select" && !hasBuiltin) {
       return Object.assign({}, g, { type: "smart", strategy: "sticky-sessions" });
     }
