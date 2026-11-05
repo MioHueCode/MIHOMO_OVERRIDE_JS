@@ -546,11 +546,8 @@ function main(config) {
       const regionRefs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
       const entryRefs = entryNames.map(e => "入口·" + e);
       const refs = ["Proxies", "智能选择", "最低延迟", ...regionRefs, ...entryRefs].filter(x => proxies.includes(x));
-      const others = proxies.filter(p => !builtins.includes(p) && !refs.includes(p));
-      const dirPos = proxies.findIndex(p => builtins.includes(p));
-      const before = refs.slice(0, dirPos);
-      const after = refs.slice(dirPos);
-      out.proxies = [...before, ...builtins, ...after, ...others];
+      out.proxies = [...builtins, "Proxies", "智能选择", "最低延迟",
+        ...regionRefs, ...entryRefs];
       out.__done = true;
     }
     if (out.__done) { delete out.__done; }
