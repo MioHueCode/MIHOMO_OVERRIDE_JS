@@ -692,14 +692,21 @@ function main(config) {
   var rules = Array.isArray(config.rules) ? config.rules.slice() : ["MATCH,Proxies"];
   var injected = [];
   // 1. 进程规则（最前）：YouTube/Telegram 第三方客户端走代理
+  // YouTube 官方 + Morphe（第三方 YouTube）
   injected.push("PROCESS-NAME,com.google.android.youtube,Proxies");
+  injected.push("PROCESS-NAME,app.morphe.android.youtube,Proxies");
+  // Telegram 官方 + 第三方（AyuGram/exteraGram/Turrit/Group）
   injected.push("PROCESS-NAME,org.telegram.messenger,Proxies");
-  injected.push("PROCESS-NAME,org.telegram.plus,Proxies");
-  injected.push("PROCESS-NAME,nekox,Proxies");
+  injected.push("PROCESS-NAME,com.radolyn.ayugram,Proxies");
+  injected.push("PROCESS-NAME,com.exteragram.messenger,Proxies");
+  injected.push("PROCESS-NAME,org.telegram.group,Proxies");
+  injected.push("PROCESS-NAME,turrit,Proxies");
   // 2. Telegram IP 段外部规则集（GEOIP telegram 经典网段 + RS 规则）
   injected.push("RULE-SET,telegramip,Proxies");
   injected.push("GEOIP,TELEGRAM,Proxies,no-resolve");
-  // 3. 直连兜底补充：国内大厂域名与私有网段
+  // 3. GFW 外部规则集 → Final（被墙域名走代理兜底）
+  injected.push("RULE-SET,gfw,Proxies");
+  // 4. 直连兜底补充：国内域名与私有网段
   injected.push("GEOSITE,CN,DIRECT");
   injected.push("GEOIP,LAN,DIRECT,no-resolve");
   injected.push("GEOIP,PRIVATE,DIRECT,no-resolve");
@@ -714,6 +721,14 @@ function main(config) {
 
   // 4) rule-providers（Telegram IP 段外部规则集）
   var providers = config["rule-providers"] = config["rule-providers"] || {};
+  providers["gfw"] = {
+    type: "http",
+    behavior: "domain",
+    format: "yaml",
+    url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/gfw.txt",
+    path: "./ruleset/gfw.txt",
+    interval: 86400
+  };
   providers["telegramip"] = {
     type: "http",
     behavior: "ipcidr",
