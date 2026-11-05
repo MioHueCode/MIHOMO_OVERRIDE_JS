@@ -614,11 +614,9 @@ function originalMain(config) {
   //   节点域名解析永远不应该依赖代理本身，改为直连 DoH（阿里/腾讯），与 Mihomo 官方推荐一致。
   // 分层兜底 v3（实测可用版）：psn = 公共 DoH 直连；policy 将 +.nowhere-backend.xyz
   //   精准锁定到私有 DoH（严格唯一，无竞速无兜底）。
-  const NOWHERE_BACKEND_DNS = "https://domestic-dns.114514.nowhere-backend.xyz/dns-query/a9e09e225e08d7caa10001ac#直接连接";
+  // v4：去掉机场私有 DoH，统一使用通用公共 DoH（阿里/腾讯，直连）
   let finalProxyServerNameserver = directDns;
-  let finalProxyServerNameserverPolicy = {
-    "+.nowhere-backend.xyz": [NOWHERE_BACKEND_DNS]
-  };
+  let finalProxyServerNameserverPolicy;
   const originPsn = originDns["proxy-server-nameserver"];
   null != originPsn && "" !== originPsn && (!Array.isArray(originPsn) || originPsn.length > 0) && (finalProxyServerNameserver = formatDnsValues(originPsn));
   const originPolicy = originDns["proxy-server-nameserver-policy"];
