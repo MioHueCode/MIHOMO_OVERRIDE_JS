@@ -1,4 +1,6 @@
 // mihomo_normal_tier.js
+// ⚠️ 与 nowhere_override.js 互斥：两者都挂会互相覆盖分组结构。
+//    使用 nowhere_override.js（all-in-one）时，请停用本脚本。
 // normal 版：故障转移(fallback) + url-test 自动层，不依赖 ML
 // 结构: main() 增强逻辑 + originalMain() 原版（与 smart 版共用 originalMain）
 function main(config) {
