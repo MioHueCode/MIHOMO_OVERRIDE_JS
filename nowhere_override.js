@@ -410,18 +410,28 @@ function processProxies(proxies) {
   // KEEP_ORIGINAL_NODES=true  → 中转节点在前 + 全部原节点在后
   // KEEP_ORIGINAL_NODES=false → 中转节点在前 + 未参与中转的节点在后
   const originalOutput = KEEP_ORIGINAL_NODES ? proxies : untouchedNodes;
-  // 未参与中转的节点统一加后缀 .直连（与 .入口/.线路 命名风格一致）
+  // 未参与中转的节点统一加后缀 .原始（与 .入口/.线路 命名风格一致）
   const untouchedNameSet = new Set(untouchedNodes.map(p => p && p.name));
   for (let oi = 0; oi < originalOutput.length; oi++) {
     const p = originalOutput[oi];
-    if (!p || typeof p.name !== "string" || !untouchedNameSet.has(p.name) || p.name.endsWith(".直连")) continue;
-    let nn = p.name + ".直连";
+    if (!p || typeof p.name !== "string" || !untouchedNameSet.has(p.name) || p.name.endsWith(".原始")) continue;
+    let nn = p.name + ".原始";
     let i = 2;
-    while (usedNames.has(nn)) { nn = p.name + ".直连" + i; i++; }
+    while (usedNames.has(nn)) { nn = p.name + ".原始" + i; i++; }
     originalOutput[oi] = Object.assign({}, p, { name: nn });
     usedNames.add(nn);
   }
   const out = [...generatedNodes, ...originalOutput];
+
+  // 组引用同步：所有 .原始 改名映射，替换各组里的旧成员名（防止悬空引用）
+  renameMapGlobal = {};
+  for (let oi = 0; oi < originalOutput.length; oi++) {
+    const p = originalOutput[oi];
+    if (p && typeof p.name === "string" && p.name.endsWith(".原始")) {
+      const orig = p.name.slice(0, -".原始".length).replace(/\.原始\d+$/, "");
+      renameMapGlobal[orig] = p.name;
+    }
+  }
 
   // 自检日志
   console.log(`[substore.js v2.0] 输入 ${stats.total} | 参与中转 ${stats.targets} | 保留 ${stats.untouched} | ` +
@@ -463,6 +473,7 @@ const AIRPORT_DNS = {
 const ENTRY_NODE_MAP = parseEntryNodes(ENTRY_NODE_TEXT);
 
 // ── Mihomo 覆写入口 ──
+var renameMapGlobal = {};
 function main(config) {
   // 1) 节点生成（substore v2.0 同款逻辑，带幂等保护：
   //    输入若已是转换后订阅（节点名含 " - 接入点" 后缀占比>30%）则跳过生成，
@@ -670,6 +681,12 @@ function main(config) {
   for (const t of ["高级", "基础"]) { const g = take(tierDisp(t)); if (g) ordered.push(g); const sub = take(tierDisp(t) + "·智能"); if (sub) ordered.push(sub); }
   for (const e of entryNames) { const g = take(entryDisp(e)); if (g) ordered.push(g); const sub = take(entryDisp(e) + "·智能"); if (sub) ordered.push(sub); }
   for (const g of newGroups) { if (!ordered.some(x => x.name === g.name)) ordered.push(g); }
+  // 应用 .原始 改名到全部组引用
+  const hasRename = Object.keys(renameMapGlobal).length > 0;
+  for (const grp of ordered) {
+    if (!hasRename || !Array.isArray(grp.proxies)) continue;
+    grp.proxies = grp.proxies.map(n => (typeof n === "string" && renameMapGlobal[n]) ? renameMapGlobal[n] : n);
+  }
   config["proxy-groups"] = ordered;
   return config;
 }
