@@ -531,7 +531,7 @@ function main(config) {
     return "";
   };
   const allNames = (config.proxies || []).map(p => p.name);
-  const relayNames = allNames.filter(n => String(n).includes(" - "));
+  const relayNames = allNames.filter(n => String(n).includes(" - ") && !String(n).endsWith(" - 原始"));
   const entryNames = [...new Set(relayNames.map(n => String(n).split(" - ").slice(1).join(" - ")))];
   const entryDisp = e => e + ".入口";           // 香港优化 → 香港优化.入口
   const tierDisp = t => t + ".线路";            // 高级 → 高级.线路 / 基础 → 基础.线路
