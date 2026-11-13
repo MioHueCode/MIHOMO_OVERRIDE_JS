@@ -696,6 +696,10 @@ function main(config) {
     if (!hasRename || !Array.isArray(grp.proxies)) continue;
     grp.proxies = grp.proxies.map(n => (typeof n === "string" && renameMapGlobal[n]) ? renameMapGlobal[n] : n);
   }
+  // LightGBM 模型自动更新（smart 组 uselightgbm 依赖模型，与 mini/smart_tier 同款配置）
+  config["lgbm-auto-update"] = !0;
+  config["lgbm-update-interval"] = 72;
+  config["lgbm-url"] = config["lgbm-url"] || "https://github.com/vernesong/mihomo/releases/download/LightGBM-Model/Model-large.bin";
   config["proxy-groups"] = ordered;
 
   // ── 8) 规则注入：Telegram IP 外部规则集 + 直连 + 进程规则 ──
