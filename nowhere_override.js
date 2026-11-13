@@ -723,6 +723,8 @@ function main(config) {
   injected.push("DOMAIN-SUFFIX,nimg.jp,Niconico");
   injected.push("DOMAIN-SUFFIX,dmc.nico,Niconico");
   injected.push("PROCESS-NAME,com.ss.android.ugc.trill,TikTok");
+  // Niconico 安卓客户端
+  injected.push("PROCESS-NAME,jp.nicovideo.android,Niconico");
   // Telegram 官方 + 第三方（AyuGram/exteraGram/Turrit/Group）
   injected.push("PROCESS-NAME,org.telegram.messenger,Proxies");
   injected.push("PROCESS-NAME,com.radolyn.ayugram,Proxies");
