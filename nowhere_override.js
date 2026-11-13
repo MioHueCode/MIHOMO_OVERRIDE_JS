@@ -659,21 +659,26 @@ function main(config) {
       proxies: [entryDisp(e) + "·智能", ...mem], icon: ICON("airport") });
   }
 
-  // 3d+) TikTok 组（原订阅无此组时新建，标准引用链）
+  // 3d+) TikTok / Niconico 组（原订阅无此组时新建，标准引用链）
+  var stdChain = function() {
+    return ["Proxies", "智能选择", "最低延迟",
+      ...regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean),
+      ...["高级.线路", "基础.线路"].filter(t => byTier[t.replace(".线路","")] && byTier[t.replace(".线路","")].length),
+      ...entryNames.map(e => entryDisp(e))];
+  };
   if (!newGroups.some(g => g.name === "TikTok")) {
-    pushG({ name: "TikTok", type: "select",
-      proxies: ["Proxies", "智能选择", "最低延迟",
-        ...regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean),
-        ...["高级.线路", "基础.线路"].filter(t => byTier[t.replace(".线路","")] && byTier[t.replace(".线路","")].length),
-        ...entryNames.map(e => entryDisp(e))],
-      icon: ICON("TikTok") });
+    pushG({ name: "TikTok", type: "select", proxies: stdChain(), icon: ICON("TikTok") });
+  }
+  if (!newGroups.some(g => g.name === "Niconico")) {
+    pushG({ name: "Niconico", type: "select", proxies: stdChain(),
+      icon: "https://api.iconify.design/simple-icons/niconico.svg?color=%23fa9e00" });
   }
   // 3e) 组顺序：智能选择/最低延迟 在最前，地区组连排，入口组殿后
   const ordered = [];
   const take = n => { const i = newGroups.findIndex(g => g.name === n); if (i >= 0) return newGroups.splice(i, 1)[0]; return null; };
-  // Proxies 永远第一，随后智能选择/最低延迟
+  // Proxies 永远第一，随后智能选择/最低延迟；YouTube → TikTok → Niconico 固定顺序
   for (const n of ["Proxies", "智能选择", "最低延迟"]) { const g = take(n); if (g) ordered.push(g); }
-  { const g = take("TikTok"); if (g) ordered.push(g); }
+  for (const n of ["YouTube", "TikTok", "Niconico"]) { const g = take(n); if (g) ordered.push(g); }
   const regionAbbrs = regionWords.map(w => REGION_ABBR[w] && REGION_ABBR[w].abbr).filter(Boolean);
   const regionTop = [];
   for (const ab of regionAbbrs) { const g = take(ab); if (g) regionTop.push(g); }
@@ -713,6 +718,10 @@ function main(config) {
   injected.push("PROCESS-NAME,com.rezvorck.tiktokplugin,TikTok");
   injected.push("PROCESS-NAME,com.zhiliaoapp.musically,TikTok");
   injected.push("GEOSITE,tiktok,TikTok");
+  injected.push("GEOSITE,niconico,Niconico");
+  injected.push("DOMAIN-SUFFIX,nicovideo.jp,Niconico");
+  injected.push("DOMAIN-SUFFIX,nimg.jp,Niconico");
+  injected.push("DOMAIN-SUFFIX,dmc.nico,Niconico");
   injected.push("PROCESS-NAME,com.ss.android.ugc.trill,TikTok");
   // Telegram 官方 + 第三方（AyuGram/exteraGram/Turrit/Group）
   injected.push("PROCESS-NAME,org.telegram.messenger,Proxies");
