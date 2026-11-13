@@ -1,4 +1,4 @@
-# MIHOMO_OVERRIDE_JS
+# mihomo-overwrite-lab
 
 Mihomo（Clash.Meta）覆写脚本集合：一份 JavaScript 覆写，让任意订阅瞬间获得完整的分组、DNS、规则与图标体系。
 
