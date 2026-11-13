@@ -13,7 +13,7 @@ Mihomo（Clash.Meta）覆写脚本集合：一份 JavaScript 覆写，让任意�
 | 分支 | 定位 | 内容 |
 |---|---|---|
 | [`main`](https://github.com/MioHueCode/MIHOMO_OVERRIDE_JS/tree/main) | **通用覆写**（不绑定机场） | `Clash.mini.smart.js` / `Clash.mini.normal.js` |
-| [`个人关联覆写`](https://github.com/MioHueCode/MIHOMO_OVERRIDE_JS/tree/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99) | **个人定制**（Nowhere 机场等） | `nowhere_override.js` / `mihomo_*_tier.js` / `substore.js` / mini 前置中转版 |
+| [`个人关联覆写`](https://github.com/MioHueCode/MIHOMO_OVERRIDE_JS/tree/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99) | **个人定制** | [Nowhere Network](https://dashboard.nowhere.best/#/register?code=tZ5csUst) 机场专用 + [MilkCloud 奶云](https://www.naiyun.vip/i/J8Ulk0cL) 前置中转 |
 
 > 两分支脚本互不通用，按需取用即可。
 
@@ -39,7 +39,11 @@ Mihomo（Clash.Meta）覆写脚本集合：一份 JavaScript 覆写，让任意�
 
 ## 🔧 个人关联覆写分支
 
-### nowhere_override.js — Nowhere 机场 all-in-one（Smart 内核）
+### nowhere_override.js / substore.js — Nowhere Network 机场专用
+
+> 适配机场：**[Nowhere Network](https://dashboard.nowhere.best/#/register?code=tZ5csUst)**（注册邀请码 `tZ5csUst`）
+
+### nowhere_override.js — Nowhere all-in-one（Smart 内核）
 
 一个脚本搞定全部：**节点生成 → 分组重建 → DNS → 规则注入**，覆写到原订阅配置上使用。
 
@@ -65,11 +69,16 @@ Smart / Normal 双版本分级组覆写（地区 → 层级 → 家宽 → 倍�
 
 ### substore.js — Sub-Store 中转节点生成器
 
-Sub-Store Script Operator / Mihomo 覆写两用脚本：把订阅里的落地节点按入口机映射表批量生成 `落地 - 入口` 中转节点。**只管节点生成，DNS 与分组由覆写脚本负责。**
+**Nowhere Network 专用**的 Sub-Store Script Operator / Mihomo 覆写两用脚本：把订阅里的落地节点按入口机映射表批量生成 `落地 - 入口` 中转节点。**只管节点生成，DNS 与分组由覆写脚本负责。**
+
+### Clash.mini.*（前置中转版）— MilkCloud 奶云专用
+
+> 适配机场：**[MilkCloud 奶云](https://www.naiyun.vip/i/J8Ulk0cL)**（¥9.9/年）
+
+mini 系列的变体：在 mini 全功能基础上额外接入奶云前置中转节点生成逻辑，适合链式代理场景。
 
 ### Clash.mini.*（前置中转版）
 
-mini 系列的变体：在 mini 全功能基础上额外接入前置中转节点生成逻辑，适合链式代理场景。
 
 ---
 
