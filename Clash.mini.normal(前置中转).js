@@ -786,7 +786,7 @@ function buildConfig(config) {
     proxy.ports && void 0 === proxy["hop-interval"] && (proxy["hop-interval"] = 30)), 
     // TLS 1.3 强制：对所有 TLS 节点统一声明 tls13-ciphers，排除 TLS 1.2 旧套件，防止降级攻击与协议歧义。
     "vless" === proxy.type && (void 0 === proxy.tfo && (proxy.tfo = !1), void 0 === proxy["client-fingerprint"] && (proxy["client-fingerprint"] = "chrome")), 
-    "vless" !== proxy.type && "trojan" !== proxy.type && "shadowsocks" !== proxy.type || proxy.tls && !proxy.tls["tls13-ciphers"] && (proxy.tls["tls13-ciphers"] = "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256"), 
+    "vless" !== proxy.type && "trojan" !== proxy.type && "shadowsocks" !== proxy.type || "object" == typeof proxy.tls && null !== proxy.tls && !proxy.tls["tls13-ciphers"] && (proxy.tls["tls13-ciphers"] = "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256"), 
     cleanProxies.push(proxy), 
     // 机场专用前置中转节点（如 🇨🇳 南京移动）：
     // 保留在 proxies 列表（内核需要识别），但不加入 allProxyNames（不进普通节点组）。
