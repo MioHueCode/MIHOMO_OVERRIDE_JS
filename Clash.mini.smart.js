@@ -760,7 +760,7 @@ function buildConfig(config) {
     proxy.ports && void 0 === proxy["hop-interval"] && (proxy["hop-interval"] = 30)), 
     // TLS 1.3 强制：对所有 TLS 节点统一声明 tls13-ciphers，排除 TLS 1.2 旧套件，防止降级攻击与协议歧义。
     "vless" === proxy.type && (void 0 === proxy.tfo && (proxy.tfo = !1), void 0 === proxy["client-fingerprint"] && (proxy["client-fingerprint"] = "chrome")), 
-    "vless" !== proxy.type && "trojan" !== proxy.type && "shadowsocks" !== proxy.type || proxy.tls && !proxy.tls["tls13-ciphers"] && (proxy.tls["tls13-ciphers"] = "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256"), 
+    "vless" !== proxy.type && "trojan" !== proxy.type && "shadowsocks" !== proxy.type || "object" == typeof proxy.tls && null !== proxy.tls && !proxy.tls["tls13-ciphers"] && (proxy.tls["tls13-ciphers"] = "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256"), 
     cleanProxies.push(proxy), allProxyNames.push(proxyName), isHostname(proxy.server) && proxyHostnames.add(String(proxy.server).trim().toLowerCase()), 
     isHostname(proxy.servername) && proxyHostnames.add(String(proxy.servername).trim().toLowerCase()), 
     isResidentialProxyName(proxyName) && residentialProxyNames.push(proxyName), isDedicatedProxyName(proxyName) && dedicatedProxyNames.push(proxyName), 
