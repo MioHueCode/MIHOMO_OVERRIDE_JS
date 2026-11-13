@@ -372,13 +372,14 @@ function main(config) {
   }), visible.push("故障转移", "最低延迟");
   // 7G 家宽组：url-test(hidden)+select(visible)
   var HOME_REGION_ICON = {
-    "香港": "https://api.iconify.design/circle-flags:hk.svg",
-    "台湾": "https://api.iconify.design/circle-flags:tw.svg",
-    "日本": "https://api.iconify.design/circle-flags:jp.svg",
-    "韩国": "https://api.iconify.design/circle-flags:kr.svg",
-    "新加坡": "https://api.iconify.design/circle-flags:sg.svg",
-    "美国": "https://api.iconify.design/circle-flags:us.svg",
-    "欧洲": "https://api.iconify.design/circle-flags:eu.svg",
+    "香港": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Hong_Kong.png",
+    "台湾": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Taiwan.png",
+    "日本": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Japan.png",
+    "韩国": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Korea.png",
+    "新加坡": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Singapore.png",
+    "美国": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/United_States.png",
+    "欧洲": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/European_Union.png",
+    "欧盟": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/European_Union.png",
     "其它": "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/World_Map.png"
   };
   if (homeAllProxies.length) {
@@ -402,36 +403,36 @@ function main(config) {
     newGroups.push(Object.assign(anchor(!0), {
       name: "🏡全球家宽自动",
       proxies: homeAllProxies.slice(),
-      icon: "https://api.iconify.design/tabler:home-filled.svg"
+      icon: "https://raw.githubusercontent.com/Orz-3/mini/master/Color/Personal.png"
     })), newGroups.push({
       name: "🏡全球家宽",
       type: "select",
       proxies: [ "🏡全球家宽自动" ].concat(homeAllProxies.slice()),
       "empty-fallback": "REJECT",
-      icon: "https://api.iconify.design/tabler:home-filled.svg"
+      icon: "https://raw.githubusercontent.com/Orz-3/mini/master/Color/Personal.png"
     }), visible.push("🏡全球家宽");
   }
   // 7F 倍率组：url-test(hidden)+select(visible) 结构
     multHighProxies.length && (newGroups.push(Object.assign(anchor(!0), {
     name: "🐎高倍率自动",
     proxies: multHighProxies.slice(),
-    icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23ef4444"
+    icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Speedtest.png"
   })), newGroups.push({
     name: "🐎高倍率",
     type: "select",
     proxies: [ "🐎高倍率自动" ].concat(multHighProxies.slice()),
     "empty-fallback": "REJECT",
-    icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23ef4444"
+    icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Speedtest.png"
   }), visible.push("🐎高倍率")), multLowProxies.length && (newGroups.push(Object.assign(anchor(!0), {
     name: "🐢低倍率自动",
     proxies: multLowProxies.slice(),
-    icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b"
+    icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Speedtest.png"
   })), newGroups.push({
     name: "🐢低倍率",
     type: "select",
     proxies: [ "🐢低倍率自动" ].concat(multLowProxies.slice()),
     "empty-fallback": "REJECT",
-    icon: "https://api.iconify.design/tabler:gauge-filled.svg?color=%23f59e0b"
+    icon: "https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Speedtest.png"
   }), visible.push("🐢低倍率"));
   // 7H 四大运营商优化组：url-test(hidden)+select(visible) 结构
   // 运营商图标：/mini Color 集合（10086=移动, 10010=联通, 10000=电信）
