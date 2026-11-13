@@ -39,15 +39,21 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4
 ```
 
 ```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/substore.js
+```
+
+### 个人关联覆写分支 · 分级策略精简（适配任意机场，echs-top/proxy 改编）
+
+**智能版：**
+
+```
 https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_smart_tier.js
 ```
 
-```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_normal_tier.js
-```
+**标准版：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/substore.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_normal_tier.js
 ```
 
 ### 个人关联覆写分支 · MilkCloud 奶云前置中转
@@ -117,11 +123,27 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4
 
 > 直链：[raw](https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/nowhere_override.js)
 
-### mihomo_smart_tier.js / mihomo_normal_tier.js — 分级策略覆写
+### mihomo_smart_tier.js（智能版）/ mihomo_normal_tier.js（标准版）— 分级策略精简覆写
 
-Smart / Normal 双版本分级组覆写（地区 → 层级 → 家宽 → 倍率四级结构），节点全量写入 `proxies`，组用显式节点列表引用，家宽/倍率图标与 Clash.mini 系列同源对齐。
+基于 [echs-top/proxy](https://github.com/echs-top/proxy) 的思路精简改编：保留 **地区 → 层级 → 家宽 → 倍率** 四级分组结构与 DNS 三位一体联动，砍掉冗余规则，节点全量写入 `proxies`，组用显式节点列表引用，家宽/倍率图标与 Clash.mini 系列同源对齐。**适配任意机场，非机场专用。**
+
+**智能版（mihomo_smart_tier.js）**：Smart 内核 LightGBM 智能选路，懒人一键。
+
+**标准版（mihomo_normal_tier.js）**：url-test/fallback 传统组合，兼容任意内核。
 
 > ⚠️ **与 nowhere_override.js 互斥**：两者同时挂载会互相覆盖分组结构，二选一。
+
+**智能版 raw 直链（点击复制）：**
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_smart_tier.js
+```
+
+**标准版 raw 直链（点击复制）：**
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_normal_tier.js
+```
 
 ### substore.js — Sub-Store 中转节点生成器
 
