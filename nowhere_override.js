@@ -740,13 +740,18 @@ function main(config) {
   injected.push("GEOSITE,CN,DIRECT");
   injected.push("GEOIP,LAN,DIRECT,no-resolve");
   injected.push("GEOIP,PRIVATE,DIRECT,no-resolve");
-  // 插入到原 rules 末尾的 MATCH 之前
+  // 进程规则插到 rules 最前（最高优先级）：原订阅的域名规则会先于注入规则命中，
+  // 导致 PROCESS-NAME 永远轮不到（如原订阅 GEOSITE,youtube 抢走 Morphe 流量）
+  var procRules = injected.filter(function(r) { return r.indexOf("PROCESS-NAME,") === 0; });
+  var otherRules = injected.filter(function(r) { return r.indexOf("PROCESS-NAME,") !== 0; });
+  rules = procRules.concat(rules);
+  // 其余（域名/IP/规则集）插到原 rules 末尾的 MATCH 之前
   var matchIdx = -1;
   for (var ri = 0; ri < rules.length; ri++) {
     if (typeof rules[ri] === "string" && rules[ri].indexOf("MATCH") === 0) { matchIdx = ri; break; }
   }
-  if (matchIdx >= 0) rules.splice.apply(rules, [matchIdx, 0].concat(injected));
-  else rules = injected.concat(rules);
+  if (matchIdx >= 0) rules.splice.apply(rules, [matchIdx, 0].concat(otherRules));
+  else rules = otherRules.concat(rules);
   config.rules = rules;
 
   // 4) rule-providers（Telegram IP 段外部规则集）
