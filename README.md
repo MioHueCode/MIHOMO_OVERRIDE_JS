@@ -22,11 +22,15 @@ Mihomo（Clash.Meta）覆写脚本集合：一份 JavaScript 覆写，让任意�
 
 > 所有链接均为 `raw.githubusercontent.com` 纯文本直链。正确脚本第一行是 `/**`——看到 `<` 说明拿成了网页。
 
-### main 分支 · 通用覆写
+### main 分支 · Clash.mini 通用覆写
+
+**智能版（Smart 内核 LightGBM 选路）：**
 
 ```
 https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/main/Clash.mini.smart.js
 ```
+
+**标准版（url-test/fallback，任意内核兼容）：**
 
 ```
 https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/main/Clash.mini.normal.js
@@ -56,11 +60,15 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4
 https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_normal_tier.js
 ```
 
-### 个人关联覆写分支 · MilkCloud 奶云前置中转
+### 个人关联覆写分支 · MilkCloud 奶云前置中转（¥9.9/年）
+
+**智能版：**
 
 ```
 https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart(%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC).js
 ```
+
+**标准版：**
 
 ```
 https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal(%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC).js
@@ -68,9 +76,13 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4
 
 ### 个人关联覆写分支 · mini 通用版（与 main 同源）
 
+**智能版：**
+
 ```
 https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart.js
 ```
+
+**标准版：**
 
 ```
 https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal.js
@@ -153,7 +165,19 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4
 
 > 适配机场：**[MilkCloud 奶云](https://www.naiyun.vip/i/J8Ulk0cL)**（¥9.9/年）
 
-mini 系列的变体：在 mini 全功能基础上额外接入奶云前置中转节点生成逻辑，适合链式代理场景。
+mini 系列的变体：在 mini 全功能基础上额外接入奶云前置中转节点生成逻辑，适合链式代理场景。同样分双版本：
+
+**智能版（Clash.mini.smart 前置中转版）raw 直链（点击复制）：**
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart(%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC).js
+```
+
+**标准版（Clash.mini.normal 前置中转版）raw 直链（点击复制）：**
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal(%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC).js
+```
 
 ---
 
@@ -165,6 +189,15 @@ mini 系列的变体：在 mini 全功能基础上额外接入奶云前置中转
 2. **覆写** → 新建 JavaScript 覆写，粘贴目标脚本内容（或填 raw 直链）
 3. 在订阅的「覆写」里勾选该脚本，**只挂一个**（多脚本叠加会互相覆盖分组）
 4. 保存后**重启内核**生效
+
+### 推荐客户端
+
+- **[Bettbox](https://github.com/appshubcc/Bettbox)** — Android 端 Mihomo 客户端，界面清爽，对覆写脚本支持完善
+- **[Diodos-Android](https://github.com/Devi766/Diodos-Android)** — Android 端轻量客户端，内核切换灵活
+
+桌面端推荐 [Mihomo Party](https://github.com/mihomo-party-org/mihomo-party) 或 [Clash Verge Rev](https://github.com/clash-verge-rev/clash-verge-rev)。
+
+> ⚠️ **FlClash 用户**：扩展脚本粘贴的是 raw 链接打开后的**纯文本内容**，第一行必须是 `/**`。若误填 `github.com/blob/...` 网页地址会下载到 HTML，报 `unexpected token '<'`。
 
 <details>
 <summary><b>常见问题</b></summary>
@@ -181,6 +214,19 @@ mini 系列的变体：在 mini 全功能基础上额外接入奶云前置中转
 </details>
 
 ---
+
+## 📦 发行版（Releases）
+
+最新 **[v11.0.0 · 全脚本合集](https://github.com/MioHueCode/mihomo-overwrite-lab/releases/tag/v11.0.0)** 一次性打包全部 8 个脚本，按需下载：
+
+| 类别 | 文件 | 版本 |
+|---|---|---|
+| Clash.mini 通用 | `Clash.mini.smart.js` / `Clash.mini.normal.js` | 智能版 / 标准版 |
+| 分级策略精简（echs-top/proxy 改编） | `mihomo_smart_tier.js` / `mihomo_normal_tier.js` | 智能版 / 标准版 |
+| Nowhere Network 专用 | `nowhere_override.js` / `substore.js` | — |
+| MilkCloud 奶云前置中转 | `Clash.mini.smart_qianzhi.js` / `Clash.mini.normal_qianzhi.js` | 智能版 / 标准版 |
+
+> 前置中转版在 Release 附件中文件名用 `_qianzhi` 代替 `(前置中转)`（GitHub 附件名限制），内容一致。
 
 ## 🧾 脚本规范
 
