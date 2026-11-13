@@ -13,7 +13,7 @@ Mihomo（Clash.Meta）覆写脚本集合：一份 JavaScript 覆写，让任意�
 | 分支 | 定位 | 内容 |
 |---|---|---|
 | [`main`](https://github.com/MioHueCode/mihomo-overwrite-lab/tree/main) | **通用覆写**（不绑定机场） | `Clash.mini.smart.js` / `Clash.mini.normal.js` |
-| [`个人关联覆写`](https://github.com/MioHueCode/mihomo-overwrite-lab/tree/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99) | **个人定制** | [Nowhere Network](https://dashboard.nowhere.best/#/register?code=tZ5csUst) 机场专用 + [MilkCloud 奶云](https://www.naiyun.vip/i/J8Ulk0cL) 前置中转 |
+| [`个人关联覆写`](https://github.com/MioHueCode/mihomo-overwrite-lab/tree/个人关联覆写) | **个人定制** | [Nowhere Network](https://dashboard.nowhere.best/#/register?code=tZ5csUst) 机场专用 + [MilkCloud 奶云](https://www.naiyun.vip/i/J8Ulk0cL) 前置中转 |
 
 > 两分支脚本互不通用，按需取用即可。
 
@@ -39,11 +39,11 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/main/Clash.min
 ### 个人关联覆写分支 · Nowhere Network 专用
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/nowhere_override.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/nowhere_override.js
 ```
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/substore.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/substore.js
 ```
 
 ### 个人关联覆写分支 · 分级策略精简（适配任意机场，echs-top/proxy 改编）
@@ -51,13 +51,13 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4
 **智能版：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_smart_tier.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/mihomo_smart_tier.js
 ```
 
 **标准版：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_normal_tier.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/mihomo_normal_tier.js
 ```
 
 ### 个人关联覆写分支 · MilkCloud 奶云前置中转（¥9.9/年）
@@ -65,13 +65,13 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4
 **智能版：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/Clash.mini.smart%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
 ```
 
 **标准版：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/Clash.mini.normal%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
 ```
 
 ### 个人关联覆写分支 · mini 通用版（与 main 同源）
@@ -79,13 +79,13 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4
 **智能版：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/Clash.mini.smart.js
 ```
 
 **标准版：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/Clash.mini.normal.js
 ```
 
 > 💡 **FlClash 用户注意**：扩展脚本请粘贴 raw 链接打开后的纯文本内容，第一行必须是 `/**`。若填 GitHub 网页地址（github.com/blob/...）会下载到 HTML，报 `unexpected token '<'`。
@@ -133,7 +133,7 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4
 - **规则注入**：Telegram 官方 IP 段（RULE-SET + GEOIP 双保险）、GFW 外部规则集 → Final、国内直连、进程规则（YouTube / Morphe / Telegram / AyuGram / exteraGram / Turrit / TikTok / rezvorck plugin）
 - **DNS**：`default-nameserver` 纯 IP 自举、`proxy-server-nameserver` 通用公共 DoH 直连、私有域名严格走机场私有 DoH
 
-> 直链：[raw](https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/nowhere_override.js)
+> 直链：[raw](https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/个人关联覆写/nowhere_override.js)
 
 ### mihomo_smart_tier.js（智能版）/ mihomo_normal_tier.js（标准版）— 分级策略精简覆写
 
@@ -148,13 +148,13 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4
 **智能版 raw 直链（点击复制）：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_smart_tier.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/mihomo_smart_tier.js
 ```
 
 **标准版 raw 直链（点击复制）：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_normal_tier.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/mihomo_normal_tier.js
 ```
 
 ### substore.js — Sub-Store 中转节点生成器
@@ -170,13 +170,13 @@ mini 系列的变体：在 mini 全功能基础上额外接入奶云前置中转
 **智能版（Clash.mini.smart 前置中转版）raw 直链（点击复制）：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/Clash.mini.smart%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
 ```
 
 **标准版（Clash.mini.normal 前置中转版）raw 直链（点击复制）：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/个人关联覆写/Clash.mini.normal%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
 ```
 
 ---
