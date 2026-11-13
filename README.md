@@ -18,6 +18,62 @@ Mihomo（Clash.Meta）覆写脚本集合：一份 JavaScript 覆写，让任意�
 > 两分支脚本互不通用，按需取用即可。
 
 ---
+## 📋 Raw 直链速查（点击复制即用）
+
+> 所有链接均为 `raw.githubusercontent.com` 纯文本直链。正确脚本第一行是 `/**`——看到 `<` 说明拿成了网页。
+
+### main 分支 · 通用覆写
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/main/Clash.mini.smart.js
+```
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/main/Clash.mini.normal.js
+```
+
+### 个人关联覆写分支 · Nowhere Network 专用
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/nowhere_override.js
+```
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_smart_tier.js
+```
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/mihomo_normal_tier.js
+```
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/substore.js
+```
+
+### 个人关联覆写分支 · MilkCloud 奶云前置中转
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart(%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC).js
+```
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal(%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC).js
+```
+
+### 个人关联覆写分支 · mini 通用版（与 main 同源）
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart.js
+```
+
+```
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal.js
+```
+
+> 💡 **FlClash 用户注意**：扩展脚本请粘贴 raw 链接打开后的纯文本内容，第一行必须是 `/**`。若填 GitHub 网页地址（github.com/blob/...）会下载到 HTML，报 `unexpected token '<'`。
+> 💡 个人分支 raw 链接中的 `%E4%B8%AA...` 是中文分支名的 URL 编码，直接复制整行使用即可。
+
+---
 
 ## 🚀 main 分支：Clash.mini 系列
 
@@ -76,9 +132,6 @@ Smart / Normal 双版本分级组覆写（地区 → 层级 → 家宽 → 倍�
 > 适配机场：**[MilkCloud 奶云](https://www.naiyun.vip/i/J8Ulk0cL)**（¥9.9/年）
 
 mini 系列的变体：在 mini 全功能基础上额外接入奶云前置中转节点生成逻辑，适合链式代理场景。
-
-### Clash.mini.*（前置中转版）
-
 
 ---
 
