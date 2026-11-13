@@ -65,13 +65,13 @@ https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4
 **智能版：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart(%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC).js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
 ```
 
 **标准版：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal(%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC).js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
 ```
 
 ### 个人关联覆写分支 · mini 通用版（与 main 同源）
@@ -170,13 +170,13 @@ mini 系列的变体：在 mini 全功能基础上额外接入奶云前置中转
 **智能版（Clash.mini.smart 前置中转版）raw 直链（点击复制）：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart(%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC).js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.smart%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
 ```
 
 **标准版（Clash.mini.normal 前置中转版）raw 直链（点击复制）：**
 
 ```
-https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal(%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC).js
+https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/refs/heads/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/Clash.mini.normal%28%E5%89%8D%E7%BD%AE%E4%B8%AD%E8%BD%AC%29.js
 ```
 
 ---
