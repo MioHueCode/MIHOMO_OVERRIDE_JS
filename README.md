@@ -12,8 +12,8 @@ Mihomo（Clash.Meta）覆写脚本集合：一份 JavaScript 覆写，让任意�
 
 | 分支 | 定位 | 内容 |
 |---|---|---|
-| [`main`](https://github.com/MioHueCode/MIHOMO_OVERRIDE_JS/tree/main) | **通用覆写**（不绑定机场） | `Clash.mini.smart.js` / `Clash.mini.normal.js` |
-| [`个人关联覆写`](https://github.com/MioHueCode/MIHOMO_OVERRIDE_JS/tree/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99) | **个人定制** | [Nowhere Network](https://dashboard.nowhere.best/#/register?code=tZ5csUst) 机场专用 + [MilkCloud 奶云](https://www.naiyun.vip/i/J8Ulk0cL) 前置中转 |
+| [`main`](https://github.com/MioHueCode/mihomo-overwrite-lab/tree/main) | **通用覆写**（不绑定机场） | `Clash.mini.smart.js` / `Clash.mini.normal.js` |
+| [`个人关联覆写`](https://github.com/MioHueCode/mihomo-overwrite-lab/tree/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99) | **个人定制** | [Nowhere Network](https://dashboard.nowhere.best/#/register?code=tZ5csUst) 机场专用 + [MilkCloud 奶云](https://www.naiyun.vip/i/J8Ulk0cL) 前置中转 |
 
 > 两分支脚本互不通用，按需取用即可。
 
@@ -25,8 +25,8 @@ Mihomo（Clash.Meta）覆写脚本集合：一份 JavaScript 覆写，让任意�
 
 | 脚本 | 选路引擎 | 适合人群 | 直链 |
 |---|---|---|---|
-| **Clash.mini.smart.js** | LightGBM 智能选路（vernesong Smart 内核） | 少手动干预，"开了就用" | [raw](https://raw.githubusercontent.com/MioHueCode/MIHOMO_OVERRIDE_JS/main/Clash.mini.smart.js) |
-| **Clash.mini.normal.js** | url-test / fallback 传统组合 | 偏好手动切换节点 | [raw](https://raw.githubusercontent.com/MioHueCode/MIHOMO_OVERRIDE_JS/main/Clash.mini.normal.js) |
+| **Clash.mini.smart.js** | LightGBM 智能选路（vernesong Smart 内核） | 少手动干预，"开了就用" | [raw](https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/main/Clash.mini.smart.js) |
+| **Clash.mini.normal.js** | url-test / fallback 传统组合 | 偏好手动切换节点 | [raw](https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/main/Clash.mini.normal.js) |
 
 ### 核心能力
 
@@ -41,7 +41,7 @@ Mihomo（Clash.Meta）覆写脚本集合：一份 JavaScript 覆写，让任意�
 
 ### nowhere_override.js / substore.js — Nowhere Network 机场专用
 
-> 适配机场：**[Nowhere Network](https://dashboard.nowhere.best/#/register?code=tZ5csUst)**（注册邀请码 `tZ5csUst`）
+> 适配机场：**[Nowhere Network](https://dashboard.nowhere.best/#/register?code=tZ5csUst)**（¥18/年，注册邀请码 `tZ5csUst`）
 
 ### nowhere_override.js — Nowhere all-in-one（Smart 内核）
 
@@ -59,7 +59,7 @@ Mihomo（Clash.Meta）覆写脚本集合：一份 JavaScript 覆写，让任意�
 - **规则注入**：Telegram 官方 IP 段（RULE-SET + GEOIP 双保险）、GFW 外部规则集 → Final、国内直连、进程规则（YouTube / Morphe / Telegram / AyuGram / exteraGram / Turrit / TikTok / rezvorck plugin）
 - **DNS**：`default-nameserver` 纯 IP 自举、`proxy-server-nameserver` 通用公共 DoH 直连、私有域名严格走机场私有 DoH
 
-> 直链：[raw](https://raw.githubusercontent.com/MioHueCode/MIHOMO_OVERRIDE_JS/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/nowhere_override.js)
+> 直链：[raw](https://raw.githubusercontent.com/MioHueCode/mihomo-overwrite-lab/%E4%B8%AA%E4%BA%BA%E5%85%B3%E8%81%94%E8%A6%86%E5%86%99/nowhere_override.js)
 
 ### mihomo_smart_tier.js / mihomo_normal_tier.js — 分级策略覆写
 
